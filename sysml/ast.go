@@ -1,4 +1,4 @@
-package modeller
+package sysml
 
 // Package is the root of a parsed model: a named package containing member
 // definitions and usages.

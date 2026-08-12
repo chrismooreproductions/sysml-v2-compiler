@@ -1,4 +1,4 @@
-package modeller
+package sysml
 
 import (
 	"unicode/utf8"

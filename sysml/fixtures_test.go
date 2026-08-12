@@ -1,4 +1,4 @@
-package modeller_test
+package sysml_test
 
 // vehicleModel is the canonical fixture shared by the lexer and parser
 // tests. Its exact layout (spaces vs. the tab before the final `}`) is

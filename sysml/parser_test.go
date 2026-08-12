@@ -1,13 +1,13 @@
-package modeller_test
+package sysml_test
 
 import (
 	"testing"
 
-	"github.com/chrismooreproductions/sysml-modeller/modeller"
+	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
 
 func TestModelParse(t *testing.T) {
-	m := modeller.NewModel(vehicleModel)
+	m := sysml.NewModel(vehicleModel)
 
 	pkg, err := m.Parse()
 	if err != nil {
@@ -22,17 +22,17 @@ func TestModelParse(t *testing.T) {
 		t.Fatalf("got %d members, want 2", len(pkg.Members))
 	}
 
-	engine, ok := pkg.Members[0].(*modeller.PartDef)
+	engine, ok := pkg.Members[0].(*sysml.PartDef)
 	if !ok {
-		t.Fatalf("member 0 is %T, want *modeller.PartDef", pkg.Members[0])
+		t.Fatalf("member 0 is %T, want *sysml.PartDef", pkg.Members[0])
 	}
 	if engine.Name != "Engine" || len(engine.Members) != 0 {
 		t.Errorf("member 0 = %+v, want PartDef{Name: Engine, no members}", engine)
 	}
 
-	car, ok := pkg.Members[1].(*modeller.PartDef)
+	car, ok := pkg.Members[1].(*sysml.PartDef)
 	if !ok {
-		t.Fatalf("member 1 is %T, want *modeller.PartDef", pkg.Members[1])
+		t.Fatalf("member 1 is %T, want *sysml.PartDef", pkg.Members[1])
 	}
 	if car.Name != "Car" {
 		t.Errorf("member 1 name = %q, want %q", car.Name, "Car")
@@ -41,9 +41,9 @@ func TestModelParse(t *testing.T) {
 		t.Fatalf("Car has %d members, want 1", len(car.Members))
 	}
 
-	engineUsage, ok := car.Members[0].(*modeller.PartUsage)
+	engineUsage, ok := car.Members[0].(*sysml.PartUsage)
 	if !ok {
-		t.Fatalf("Car member 0 is %T, want *modeller.PartUsage", car.Members[0])
+		t.Fatalf("Car member 0 is %T, want *sysml.PartUsage", car.Members[0])
 	}
 	if engineUsage.Name != "engine" || engineUsage.Type != "Engine" {
 		t.Errorf("Car member 0 = %+v, want PartUsage{Name: engine, Type: Engine}", engineUsage)
@@ -63,7 +63,7 @@ func TestModelParseErrors(t *testing.T) {
 
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
-			m := modeller.NewModel(source)
+			m := sysml.NewModel(source)
 			if _, err := m.Parse(); err == nil {
 				t.Errorf("Parse(%q): expected error, got nil", source)
 			}

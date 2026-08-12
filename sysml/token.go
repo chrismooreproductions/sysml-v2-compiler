@@ -1,4 +1,4 @@
-package modeller
+package sysml
 
 type Kind int
 
