@@ -7,15 +7,7 @@ import (
 )
 
 func TestModelLex(t *testing.T) {
-	modelDescription := `package Vehicle {
-    part def Engine;
-
-    part def Car {
-        part engine : Engine;
-    }
-	}`
-
-	m := modeller.NewModel(modelDescription)
+	m := modeller.NewModel(vehicleModel)
 
 	tokens, err := m.Lex()
 	if err != nil {
@@ -29,7 +21,7 @@ func TestModelLex(t *testing.T) {
 	}
 
 	want := []expected{
-		{modeller.Package, "package", modeller.Pos{Offset: 0, Line: 1, Col: 1}}, {modeller.Space, " ", modeller.Pos{Offset: 7, Line: 1, Col: 8}}, {modeller.Identifier, "Vehicle", modeller.Pos{Offset: 8, Line: 1, Col: 9}}, {modeller.Space, " ", modeller.Pos{Offset: 15, Line: 1, Col: 16}}, {modeller.OpenBrace, "{", modeller.Pos{Offset: 16, Line: 1, Col: 17}},
+		{modeller.Pkg, "package", modeller.Pos{Offset: 0, Line: 1, Col: 1}}, {modeller.Space, " ", modeller.Pos{Offset: 7, Line: 1, Col: 8}}, {modeller.Identifier, "Vehicle", modeller.Pos{Offset: 8, Line: 1, Col: 9}}, {modeller.Space, " ", modeller.Pos{Offset: 15, Line: 1, Col: 16}}, {modeller.OpenBrace, "{", modeller.Pos{Offset: 16, Line: 1, Col: 17}},
 		{modeller.Space, "    ", modeller.Pos{Offset: 18, Line: 2, Col: 1}}, {modeller.Part, "part", modeller.Pos{Offset: 22, Line: 2, Col: 5}}, {modeller.Space, " ", modeller.Pos{Offset: 26, Line: 2, Col: 9}}, {modeller.Def, "def", modeller.Pos{Offset: 27, Line: 2, Col: 10}}, {modeller.Space, " ", modeller.Pos{Offset: 30, Line: 2, Col: 13}}, {modeller.Identifier, "Engine", modeller.Pos{Offset: 31, Line: 2, Col: 14}}, {modeller.Semicolon, ";", modeller.Pos{Offset: 37, Line: 2, Col: 20}},
 		{modeller.Space, "    ", modeller.Pos{Offset: 40, Line: 4, Col: 1}}, {modeller.Part, "part", modeller.Pos{Offset: 44, Line: 4, Col: 5}}, {modeller.Space, " ", modeller.Pos{Offset: 48, Line: 4, Col: 9}}, {modeller.Def, "def", modeller.Pos{Offset: 49, Line: 4, Col: 10}}, {modeller.Space, " ", modeller.Pos{Offset: 52, Line: 4, Col: 13}}, {modeller.Identifier, "Car", modeller.Pos{Offset: 53, Line: 4, Col: 14}}, {modeller.Space, " ", modeller.Pos{Offset: 56, Line: 4, Col: 17}}, {modeller.OpenBrace, "{", modeller.Pos{Offset: 57, Line: 4, Col: 18}},
 		{modeller.Space, "        ", modeller.Pos{Offset: 59, Line: 5, Col: 1}}, {modeller.Part, "part", modeller.Pos{Offset: 67, Line: 5, Col: 9}}, {modeller.Space, " ", modeller.Pos{Offset: 71, Line: 5, Col: 13}}, {modeller.Identifier, "engine", modeller.Pos{Offset: 72, Line: 5, Col: 14}}, {modeller.Space, " ", modeller.Pos{Offset: 78, Line: 5, Col: 20}}, {modeller.Colon, ":", modeller.Pos{Offset: 79, Line: 5, Col: 21}}, {modeller.Space, " ", modeller.Pos{Offset: 80, Line: 5, Col: 22}}, {modeller.Identifier, "Engine", modeller.Pos{Offset: 81, Line: 5, Col: 23}}, {modeller.Semicolon, ";", modeller.Pos{Offset: 87, Line: 5, Col: 29}},

@@ -3,7 +3,7 @@ package modeller
 type Kind int
 
 const (
-	Package Kind = iota
+	Pkg Kind = iota
 	Part
 	Def
 	Semicolon
@@ -14,8 +14,33 @@ const (
 	Identifier
 )
 
+func (k Kind) String() string {
+	switch k {
+	case Pkg:
+		return "'package'"
+	case Part:
+		return "'part'"
+	case Def:
+		return "'def'"
+	case Semicolon:
+		return "';'"
+	case OpenBrace:
+		return "'{'"
+	case CloseBrace:
+		return "'}'"
+	case Colon:
+		return "':'"
+	case Space:
+		return "space"
+	case Identifier:
+		return "identifier"
+	default:
+		return "unknown"
+	}
+}
+
 var kinds = map[string]Kind{
-	"package": Package,
+	"package": Pkg,
 	"part":    Part,
 	"def":     Def,
 	";":       Semicolon,
