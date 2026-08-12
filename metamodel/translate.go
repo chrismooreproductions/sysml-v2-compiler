@@ -8,20 +8,21 @@ import (
 
 // FromAST translates a parsed SysML AST into a flat metamodel instance.
 //
-// Type resolution is currently flat and unscoped: a PartUsage's type name
-// is looked up against every PartDef in the whole model regardless of
-// where it's declared, since the grammar has no qualified type references
-// or nested scoping rules to resolve against yet.
+// Translation is two phases. Declaration walks the AST building every
+// Element plus a lexically-scoped symbol table of their names, rejecting
+// two sibling elements that declare the same name in the same scope.
+// Resolution then walks the type references collected along the way,
+// resolving each against the scope it was declared in (so a PartUsage can
+// see names declared in its own container and any enclosing one, but not
+// unrelated sibling containers), and fails on anything left unresolved.
 func FromAST(pkg *sysml.Package) (*Model, error) {
-	t := &translator{
-		model:      &Model{Elements: map[ElementID]*Element{}},
-		defsByName: map[string]ElementID{},
-		usageTypes: map[ElementID]string{},
-	}
+	t := &translator{model: &Model{Elements: map[ElementID]*Element{}}}
 
-	t.model.Root = t.addElement(KindPackage, pkg.Name, "")
+	rootID := ElementID(pkg.Name)
+	t.model.Elements[rootID] = &Element{ID: rootID, Kind: KindPackage, Name: pkg.Name}
+	t.model.Root = rootID
 
-	if err := t.translateMembers(pkg.Members, t.model.Root); err != nil {
+	if err := t.declareMembers(pkg.Members, rootID, newScope(nil)); err != nil {
 		return nil, err
 	}
 
@@ -32,40 +33,56 @@ func FromAST(pkg *sysml.Package) (*Model, error) {
 	return t.model, nil
 }
 
-type translator struct {
-	model      *Model
-	defsByName map[string]ElementID
-	usageTypes map[ElementID]string // usage element ID -> unresolved type name
+// pendingType is a PartUsage's type reference, still unresolved: name must
+// be looked up in scope once every declaration has been seen.
+type pendingType struct {
+	usage ElementID
+	name  string
+	scope *scope
 }
 
-func (t *translator) addElement(kind Kind, name string, owner ElementID) ElementID {
-	id := ElementID(name)
-	if owner != "" {
-		id = owner + "::" + ElementID(name)
+type translator struct {
+	model   *Model
+	pending []pendingType
+}
+
+// declare creates a new Element under owner and adds it to sc under name.
+// ok is false, and no Element is created, if name is already declared in
+// sc.
+func (t *translator) declare(kind Kind, name string, owner ElementID, sc *scope) (id ElementID, ok bool) {
+	id = owner + "::" + ElementID(name)
+
+	if !sc.define(name, id) {
+		return "", false
 	}
 	t.model.Elements[id] = &Element{ID: id, Kind: kind, Name: name, Owner: owner}
-	return id
+	return id, true
 }
 
-func (t *translator) translateMembers(members []sysml.Member, owner ElementID) error {
+func (t *translator) declareMembers(members []sysml.Member, owner ElementID, sc *scope) error {
 	for _, member := range members {
-		if err := t.translateMember(member, owner); err != nil {
+		if err := t.declareMember(member, owner, sc); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (t *translator) translateMember(member sysml.Member, owner ElementID) error {
+func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *scope) error {
 	switch m := member.(type) {
 	case *sysml.PartDef:
-		id := t.addElement(KindPartDef, m.Name, owner)
-		t.defsByName[m.Name] = id
-		return t.translateMembers(m.Members, id)
+		id, ok := t.declare(KindPartDef, m.Name, owner, sc)
+		if !ok {
+			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
+		}
+		return t.declareMembers(m.Members, id, newScope(sc))
 
 	case *sysml.PartUsage:
-		id := t.addElement(KindPartUsage, m.Name, owner)
-		t.usageTypes[id] = m.Type
+		id, ok := t.declare(KindPartUsage, m.Name, owner, sc)
+		if !ok {
+			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
+		}
+		t.pending = append(t.pending, pendingType{usage: id, name: m.Type, scope: sc})
 		return nil
 
 	default:
@@ -74,12 +91,12 @@ func (t *translator) translateMember(member sysml.Member, owner ElementID) error
 }
 
 func (t *translator) resolveTypes() error {
-	for id, typeName := range t.usageTypes {
-		typeID, ok := t.defsByName[typeName]
+	for _, p := range t.pending {
+		typeID, ok := p.scope.resolve(p.name)
 		if !ok {
-			return fmt.Errorf("metamodel: %s: unresolved type %q", t.model.Elements[id].Name, typeName)
+			return fmt.Errorf("metamodel: %s: unresolved type %q", t.model.Elements[p.usage].Name, p.name)
 		}
-		t.model.Elements[id].Type = typeID
+		t.model.Elements[p.usage].Type = typeID
 	}
 	return nil
 }

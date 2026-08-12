@@ -88,3 +88,75 @@ func TestFromASTUnresolvedType(t *testing.T) {
 		t.Error("expected an error for an unresolved type, got nil")
 	}
 }
+
+func TestFromASTDuplicateDeclaration(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Engine;
+		part def Engine;
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(pkg); err == nil {
+		t.Error("expected an error for a duplicate declaration, got nil")
+	}
+}
+
+// TestFromASTScopingRestrictsVisibility is the case flat, unscoped
+// resolution would get wrong: Wheel is only declared inside Car, so a
+// usage in the unrelated sibling Bike must not be able to see it even
+// though both live in the same model.
+func TestFromASTScopingRestrictsVisibility(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Car {
+			part def Wheel;
+		}
+		part def Bike {
+			part wheel : Wheel;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(pkg); err == nil {
+		t.Error("expected an error resolving a type only visible in a sibling scope, got nil")
+	}
+}
+
+// TestFromASTShadowing checks that a name redeclared in a nested scope
+// doesn't collide with the outer declaration (that's legal shadowing, not
+// a duplicate declaration), and that a usage in the inner scope resolves
+// to the nearest declaration rather than the outer one.
+func TestFromASTShadowing(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Engine;
+		part def Car {
+			part def Engine;
+			part engine : Engine;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	usage, ok := model.Elements["Vehicle::Car::engine"]
+	if !ok {
+		t.Fatal("missing element Vehicle::Car::engine")
+	}
+	if usage.Type != "Vehicle::Car::Engine" {
+		t.Errorf("usage type = %q, want %q (the nearer, shadowing declaration)", usage.Type, "Vehicle::Car::Engine")
+	}
+}
