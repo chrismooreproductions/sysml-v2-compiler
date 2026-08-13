@@ -96,7 +96,12 @@ func (t *translator) resolveTypes() error {
 		if !ok {
 			return fmt.Errorf("metamodel: %s: unresolved type %q", t.model.Elements[p.usage].Name, p.name)
 		}
-		t.model.Elements[p.usage].Type = typeID
+		t.model.Relationships = append(t.model.Relationships, &Relationship{
+			ID:     p.usage + "::" + ElementID(TypedBy.String()),
+			Kind:   TypedBy,
+			Source: p.usage,
+			Target: typeID,
+		})
 	}
 	return nil
 }

@@ -36,7 +36,7 @@ func TestFromAST(t *testing.T) {
 		"Vehicle":              {ID: "Vehicle", Kind: metamodel.KindPackage, Name: "Vehicle"},
 		"Vehicle::Engine":      {ID: "Vehicle::Engine", Kind: metamodel.KindPartDef, Name: "Engine", Owner: "Vehicle"},
 		"Vehicle::Car":         {ID: "Vehicle::Car", Kind: metamodel.KindPartDef, Name: "Car", Owner: "Vehicle"},
-		"Vehicle::Car::engine": {ID: "Vehicle::Car::engine", Kind: metamodel.KindPartUsage, Name: "engine", Owner: "Vehicle::Car", Type: "Vehicle::Engine"},
+		"Vehicle::Car::engine": {ID: "Vehicle::Car::engine", Kind: metamodel.KindPartUsage, Name: "engine", Owner: "Vehicle::Car"},
 	}
 
 	if len(model.Elements) != len(want) {
@@ -53,6 +53,30 @@ func TestFromAST(t *testing.T) {
 			t.Errorf("element %q = %+v, want %+v", id, *got, wantElem)
 		}
 	}
+
+	wantRels := []metamodel.Relationship{
+		{ID: "Vehicle::Car::engine::typedBy", Kind: metamodel.TypedBy, Source: "Vehicle::Car::engine", Target: "Vehicle::Engine"},
+	}
+
+	if len(model.Relationships) != len(wantRels) {
+		t.Fatalf("got %d relationships, want %d", len(model.Relationships), len(wantRels))
+	}
+	for i, rel := range model.Relationships {
+		if *rel != wantRels[i] {
+			t.Errorf("relationship %d = %+v, want %+v", i, *rel, wantRels[i])
+		}
+	}
+}
+
+// typeOf finds the ElementID a usage is typed by, via the TypedBy
+// relationship model.FromAST produced for it.
+func typeOf(model *metamodel.Model, usage metamodel.ElementID) (metamodel.ElementID, bool) {
+	for _, rel := range model.RelationshipsFrom(usage) {
+		if rel.Kind == metamodel.TypedBy {
+			return rel.Target, true
+		}
+	}
+	return "", false
 }
 
 func TestFromASTEmptyPackage(t *testing.T) {
@@ -152,11 +176,11 @@ func TestFromASTShadowing(t *testing.T) {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
 
-	usage, ok := model.Elements["Vehicle::Car::engine"]
+	typeID, ok := typeOf(model, "Vehicle::Car::engine")
 	if !ok {
-		t.Fatal("missing element Vehicle::Car::engine")
+		t.Fatal("no TypedBy relationship found for Vehicle::Car::engine")
 	}
-	if usage.Type != "Vehicle::Car::Engine" {
-		t.Errorf("usage type = %q, want %q (the nearer, shadowing declaration)", usage.Type, "Vehicle::Car::Engine")
+	if typeID != "Vehicle::Car::Engine" {
+		t.Errorf("usage type = %q, want %q (the nearer, shadowing declaration)", typeID, "Vehicle::Car::Engine")
 	}
 }
