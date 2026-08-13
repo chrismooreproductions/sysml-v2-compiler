@@ -6,6 +6,8 @@
 // represented as first-class Relationships rather than bespoke fields.
 package metamodel
 
+import "strings"
+
 // ElementID uniquely identifies an Element within a Model. IDs are
 // currently derived from qualified names (e.g. "Vehicle::Car::engine"),
 // joining each Element's Name to its Owner's ID with "::".
@@ -87,6 +89,13 @@ type Model struct {
 	// bySourceLen) if Relationships has grown since it was last built.
 	bySource    map[ElementID][]*Relationship
 	bySourceLen int
+
+	// childrenByOwner indexes Elements by Owner and then Name, built
+	// lazily by Resolve/resolveQualified. Same caching approach as
+	// bySource: a derived cache, rebuilt if Elements has grown since it
+	// was last built.
+	childrenByOwner    map[ElementID]map[string]ElementID
+	childrenByOwnerLen int
 }
 
 // RelationshipsFrom returns the Relationships whose Source is id, in the
@@ -120,4 +129,75 @@ func (m *Model) QualifiedName(id ElementID) string {
 		return el.Name
 	}
 	return m.QualifiedName(el.Owner) + "::" + el.Name
+}
+
+// children indexes Elements by Owner and then Name, rebuilding the cache
+// if Elements has grown since it was last built.
+func (m *Model) children() map[ElementID]map[string]ElementID {
+	if m.childrenByOwnerLen != len(m.Elements) {
+		m.childrenByOwner = make(map[ElementID]map[string]ElementID, len(m.Elements))
+		for _, el := range m.Elements {
+			if el.Owner == "" {
+				continue
+			}
+			byName, ok := m.childrenByOwner[el.Owner]
+			if !ok {
+				byName = make(map[string]ElementID)
+				m.childrenByOwner[el.Owner] = byName
+			}
+			byName[el.Name] = el.ID
+		}
+		m.childrenByOwnerLen = len(m.Elements)
+	}
+	return m.childrenByOwner
+}
+
+// Resolve looks up name from the perspective of from, the ElementID of the
+// namespace (Package or PartDef) containing the reference.
+//
+// A "::"-qualified name (e.g. "Vehicle::Car::Wheel") is resolved as an
+// absolute path from Root, regardless of from. A bare name is instead
+// looked up against from's own direct children first, then each enclosing
+// owner's in turn — so a reference can see names declared in its own
+// namespace or any ancestor, but not an unrelated sibling's.
+func (m *Model) Resolve(from ElementID, name string) (ElementID, bool) {
+	if strings.Contains(name, "::") {
+		return m.resolveQualified(name)
+	}
+
+	children := m.children()
+	for current := from; current != ""; {
+		if id, ok := children[current][name]; ok {
+			return id, true
+		}
+		el, ok := m.Elements[current]
+		if !ok {
+			return "", false
+		}
+		current = el.Owner
+	}
+	return "", false
+}
+
+// resolveQualified resolves a "::"-joined absolute path (e.g.
+// "Vehicle::Car::Wheel") by matching its first segment against Root, then
+// walking down through each element's direct children to match the rest.
+func (m *Model) resolveQualified(path string) (ElementID, bool) {
+	segments := strings.Split(path, "::")
+
+	root, ok := m.Elements[m.Root]
+	if !ok || root.Name != segments[0] {
+		return "", false
+	}
+
+	children := m.children()
+	current := m.Root
+	for _, segment := range segments[1:] {
+		next, ok := children[current][segment]
+		if !ok {
+			return "", false
+		}
+		current = next
+	}
+	return current, true
 }

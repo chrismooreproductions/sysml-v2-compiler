@@ -1,45 +1,25 @@
 package metamodel
 
-// scope is a lexical scope used while translating an AST into a Model: it
-// maps names visible at some point in the source to the ElementIDs they
-// resolve to, chaining to an enclosing scope for names not declared
-// locally.
+// scope is a per-namespace guard against declaring the same name twice
+// within it, used only during declaration. It deliberately has no notion
+// of an enclosing/parent scope: looking up a name from the perspective of
+// some position in the model, against that position's ancestors, is
+// Model.Resolve's job, computed after the fact from the model's own Owner
+// links rather than from scopes captured while walking the AST.
 type scope struct {
-	parent  *scope
 	symbols map[string]ElementID
 }
 
-func newScope(parent *scope) *scope {
-	return &scope{parent: parent, symbols: make(map[string]ElementID)}
+func newScope() *scope {
+	return &scope{symbols: make(map[string]ElementID)}
 }
 
 // define declares name in this scope, pointing at id. It reports false
-// without changing anything if name is already declared in this exact
-// scope; shadowing a name from a parent scope is fine and always succeeds.
+// without changing anything if name is already declared in this scope.
 func (s *scope) define(name string, id ElementID) bool {
 	if _, exists := s.symbols[name]; exists {
 		return false
 	}
 	s.symbols[name] = id
 	return true
-}
-
-// resolve looks up name in this scope, then walks up through enclosing
-// scopes until it's found or the chain is exhausted.
-func (s *scope) resolve(name string) (ElementID, bool) {
-	if id, ok := s.symbols[name]; ok {
-		return id, true
-	}
-	if s.parent != nil {
-		return s.parent.resolve(name)
-	}
-	return "", false
-}
-
-// local looks up name in exactly this scope, without chaining to parents.
-// Used for absolute (qualified-name) resolution, which walks down a known
-// path segment by segment rather than searching outward from a reference.
-func (s *scope) local(name string) (ElementID, bool) {
-	id, ok := s.symbols[name]
-	return id, ok
 }

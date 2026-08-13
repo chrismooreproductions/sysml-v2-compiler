@@ -7,6 +7,57 @@ import (
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
 
+// TestModelResolve exercises Resolve directly (rather than only indirectly
+// through FromAST's own use of it for PartUsage typing), since it's public
+// API meant to be called post-translation by things other than the
+// translator itself.
+func TestModelResolve(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Engine;
+		part def Car {
+			part def Wheel;
+			part engine : Engine;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	tests := []struct {
+		desc string
+		from metamodel.ElementID
+		name string
+		want metamodel.ElementID
+	}{
+		{"finds a name declared locally", "Vehicle::Car", "Wheel", "Vehicle::Car::Wheel"},
+		{"finds a name declared in an ancestor", "Vehicle::Car", "Engine", "Vehicle::Engine"},
+		{"a qualified path works regardless of from", "Vehicle::Car", "Vehicle::Engine", "Vehicle::Engine"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got, ok := model.Resolve(tt.from, tt.name)
+			if !ok {
+				t.Fatalf("Resolve(%q, %q): not found", tt.from, tt.name)
+			}
+			if got != tt.want {
+				t.Errorf("Resolve(%q, %q) = %q, want %q", tt.from, tt.name, got, tt.want)
+			}
+		})
+	}
+
+	if _, ok := model.Resolve("Vehicle::Car", "NoSuchThing"); ok {
+		t.Error("Resolve found a name that doesn't exist, want not found")
+	}
+}
+
 // TestQualifiedName uses IDs that deliberately don't look like qualified
 // names, to prove QualifiedName is derived by walking Owner/Name rather
 // than just handed back the ID string — which happens to look identical

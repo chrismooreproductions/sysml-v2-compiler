@@ -2,7 +2,6 @@ package metamodel
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
@@ -10,29 +9,21 @@ import (
 // FromAST translates a parsed SysML AST into a flat metamodel instance.
 //
 // Translation is two phases. Declaration walks the AST building every
-// Element plus a lexically-scoped symbol table of their names, rejecting
-// two sibling elements that declare the same name in the same scope.
-// Resolution then walks the type references collected along the way. A
-// bare name (no "::") resolves against the scope it was declared in, so a
-// PartUsage can see names declared in its own container and any enclosing
-// one, but not unrelated sibling containers. A "::"-qualified name is
-// instead resolved as an absolute path from the model root, which can
-// reach into any container regardless of where the reference sits.
-// Anything left unresolved is an error.
+// Element, guarding each namespace (the Package, and each PartDef's body)
+// against declaring the same name twice within it. Resolution then walks
+// the type references collected along the way, resolving each via
+// Model.Resolve from the namespace it was declared in — so a PartUsage can
+// see names declared in its own namespace or any enclosing one (but not an
+// unrelated sibling's) for a bare name, or reach anywhere in the model via
+// a "::"-qualified absolute path. Anything left unresolved is an error.
 func FromAST(pkg *sysml.Package) (*Model, error) {
-	t := &translator{
-		model:           &Model{Elements: map[ElementID]*Element{}},
-		containerScopes: map[ElementID]*scope{},
-	}
+	t := &translator{model: &Model{Elements: map[ElementID]*Element{}}}
 
 	rootID := ElementID(pkg.Name)
 	t.model.Elements[rootID] = &Element{ID: rootID, Kind: KindPackage, Name: pkg.Name}
 	t.model.Root = rootID
 
-	rootScope := newScope(nil)
-	t.containerScopes[rootID] = rootScope
-
-	if err := t.declareMembers(pkg.Members, rootID, rootScope); err != nil {
+	if err := t.declareMembers(pkg.Members, rootID, newScope()); err != nil {
 		return nil, err
 	}
 
@@ -44,23 +35,17 @@ func FromAST(pkg *sysml.Package) (*Model, error) {
 }
 
 // pendingType is a PartUsage's type reference, still unresolved: name must
-// be looked up in scope once every declaration has been seen.
+// be resolved from owner (the namespace containing the usage) once every
+// declaration has been seen.
 type pendingType struct {
 	usage ElementID
 	name  string
-	scope *scope
+	owner ElementID
 }
 
 type translator struct {
 	model   *Model
 	pending []pendingType
-
-	// containerScopes maps each container Element's ID to the scope
-	// holding its direct children's names, keyed independently of the
-	// lexical scope chain so absolute (qualified-name) resolution can
-	// walk down from the root by name rather than search outward from a
-	// reference's own position.
-	containerScopes map[ElementID]*scope
 }
 
 // declare creates a new Element under owner and adds it to sc under name.
@@ -92,16 +77,14 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
-		inner := newScope(sc)
-		t.containerScopes[id] = inner
-		return t.declareMembers(m.Members, id, inner)
+		return t.declareMembers(m.Members, id, newScope())
 
 	case *sysml.PartUsage:
 		id, ok := t.declare(KindPartUsage, m.Name, owner, sc)
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
-		t.pending = append(t.pending, pendingType{usage: id, name: m.Type, scope: sc})
+		t.pending = append(t.pending, pendingType{usage: id, name: m.Type, owner: owner})
 		return nil
 
 	default:
@@ -111,7 +94,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 
 func (t *translator) resolveTypes() error {
 	for _, p := range t.pending {
-		typeID, ok := t.resolve(p.name, p.scope)
+		typeID, ok := t.model.Resolve(p.owner, p.name)
 		if !ok {
 			return fmt.Errorf("metamodel: %s: unresolved type %q", t.model.Elements[p.usage].Name, p.name)
 		}
@@ -123,42 +106,4 @@ func (t *translator) resolveTypes() error {
 		})
 	}
 	return nil
-}
-
-// resolve resolves name against sc: a "::"-qualified name is treated as an
-// absolute path from the model root, regardless of where the reference
-// sits; a bare name is looked up through sc's lexical scope chain.
-func (t *translator) resolve(name string, sc *scope) (ElementID, bool) {
-	if strings.Contains(name, "::") {
-		return t.resolveQualified(name)
-	}
-	return sc.resolve(name)
-}
-
-// resolveQualified resolves a "::"-joined absolute path (e.g.
-// "Vehicle::Car::Wheel") by matching its first segment against the model
-// root, then walking down through each container's own scope (not its
-// scope chain) to match the remaining segments.
-func (t *translator) resolveQualified(path string) (ElementID, bool) {
-	segments := strings.Split(path, "::")
-
-	root, ok := t.model.Elements[t.model.Root]
-	if !ok || root.Name != segments[0] {
-		return "", false
-	}
-
-	current := t.model.Root
-	for _, segment := range segments[1:] {
-		sc, ok := t.containerScopes[current]
-		if !ok {
-			return "", false
-		}
-		next, ok := sc.local(segment)
-		if !ok {
-			return "", false
-		}
-		current = next
-	}
-
-	return current, true
 }
