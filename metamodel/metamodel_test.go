@@ -7,6 +7,66 @@ import (
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
 
+// TestQualifiedName uses IDs that deliberately don't look like qualified
+// names, to prove QualifiedName is derived by walking Owner/Name rather
+// than just handed back the ID string — which happens to look identical
+// today, since FromAST currently derives IDs the same way it computes
+// qualified names.
+func TestQualifiedName(t *testing.T) {
+	model := &metamodel.Model{
+		Elements: map[metamodel.ElementID]*metamodel.Element{
+			"1": {ID: "1", Kind: metamodel.KindPackage, Name: "Vehicle"},
+			"2": {ID: "2", Kind: metamodel.KindPartDef, Name: "Car", Owner: "1"},
+			"3": {ID: "3", Kind: metamodel.KindPartUsage, Name: "engine", Owner: "2"},
+		},
+	}
+
+	want := map[metamodel.ElementID]string{
+		"1": "Vehicle",
+		"2": "Vehicle::Car",
+		"3": "Vehicle::Car::engine",
+	}
+
+	for id, wantName := range want {
+		if got := model.QualifiedName(id); got != wantName {
+			t.Errorf("QualifiedName(%q) = %q, want %q", id, got, wantName)
+		}
+	}
+
+	if got := model.QualifiedName("missing"); got != "" {
+		t.Errorf("QualifiedName(missing) = %q, want %q", got, "")
+	}
+}
+
+// TestQualifiedNameMatchesID pins down today's coincidence: FromAST
+// derives ElementIDs from qualified names, so for now the two agree for
+// every element. If ID generation ever changes (e.g. to opaque IDs that
+// survive renames), this test is the one that should start failing.
+func TestQualifiedNameMatchesID(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Engine;
+		part def Car {
+			part engine : Engine;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	for id := range model.Elements {
+		if got := model.QualifiedName(id); got != string(id) {
+			t.Errorf("QualifiedName(%q) = %q, want %q", id, got, string(id))
+		}
+	}
+}
+
 func TestFromAST(t *testing.T) {
 	source := `package Vehicle {
 		part def Engine;
@@ -150,6 +210,62 @@ func TestFromASTScopingRestrictsVisibility(t *testing.T) {
 
 	if _, err := metamodel.FromAST(pkg); err == nil {
 		t.Error("expected an error resolving a type only visible in a sibling scope, got nil")
+	}
+}
+
+// TestFromASTQualifiedTypeReachesSiblingScope is the same shape as
+// TestFromASTScopingRestrictsVisibility, except Bike spells the reference
+// out as a fully-qualified path. Bare-name resolution still couldn't see
+// into Car from Bike, but an absolute path bypasses scope entirely, so
+// this must succeed where the bare-name version correctly fails.
+func TestFromASTQualifiedTypeReachesSiblingScope(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Car {
+			part def Wheel;
+		}
+		part def Bike {
+			part wheel : Vehicle::Car::Wheel;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Vehicle::Bike::wheel")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Vehicle::Bike::wheel")
+	}
+	if typeID != "Vehicle::Car::Wheel" {
+		t.Errorf("usage type = %q, want %q", typeID, "Vehicle::Car::Wheel")
+	}
+}
+
+func TestFromASTUnresolvedQualifiedType(t *testing.T) {
+	cases := map[string]string{
+		"wrong root":      `package Vehicle { part engine : Nope::Engine; }`,
+		"missing segment": `package Vehicle { part def Car {} part engine : Vehicle::Car::Nope; }`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			m := sysml.NewModel(source)
+
+			pkg, err := m.Parse()
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+
+			if _, err := metamodel.FromAST(pkg); err == nil {
+				t.Error("expected an error for an unresolved qualified type, got nil")
+			}
+		})
 	}
 }
 

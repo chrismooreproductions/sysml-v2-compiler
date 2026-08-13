@@ -50,15 +50,46 @@ func TestModelParse(t *testing.T) {
 	}
 }
 
+func TestModelParseQualifiedType(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Car {
+			part def Wheel;
+		}
+		part def Bike {
+			part wheel : Vehicle::Car::Wheel;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	bike, ok := pkg.Members[1].(*sysml.PartDef)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.PartDef", pkg.Members[1])
+	}
+
+	wheelUsage, ok := bike.Members[0].(*sysml.PartUsage)
+	if !ok {
+		t.Fatalf("Bike member 0 is %T, want *sysml.PartUsage", bike.Members[0])
+	}
+	if wheelUsage.Type != "Vehicle::Car::Wheel" {
+		t.Errorf("wheel usage type = %q, want %q", wheelUsage.Type, "Vehicle::Car::Wheel")
+	}
+}
+
 func TestModelParseErrors(t *testing.T) {
 	cases := map[string]string{
-		"empty source":              "",
-		"missing package keyword":   "part def Engine;",
-		"unterminated package body": "package Vehicle {",
-		"missing package braces":    "package Vehicle",
-		"part usage missing colon":  "package Vehicle { part Engine; }",
-		"part usage missing type":   "package Vehicle { part engine : ; }",
-		"trailing garbage":          "package Vehicle { } part def Engine;",
+		"empty source":                     "",
+		"missing package keyword":          "part def Engine;",
+		"unterminated package body":        "package Vehicle {",
+		"missing package braces":           "package Vehicle",
+		"part usage missing colon":         "package Vehicle { part Engine; }",
+		"part usage missing type":          "package Vehicle { part engine : ; }",
+		"trailing garbage":                 "package Vehicle { } part def Engine;",
+		"qualified type missing segment":   "package Vehicle { part engine : Vehicle::; }",
+		"qualified type trailing path sep": "package Vehicle { part engine : Vehicle::Engine::; }",
 	}
 
 	for name, source := range cases {

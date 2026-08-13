@@ -103,3 +103,21 @@ func (m *Model) RelationshipsFrom(id ElementID) []*Relationship {
 	}
 	return m.bySource[id]
 }
+
+// QualifiedName returns id's dotted-path name (e.g. "Vehicle::Car::engine"),
+// computed by walking Owner links from id up to the root and joining each
+// Element's Name with "::". It deliberately recomputes this from the
+// current Owner chain rather than trusting id's own string shape: id is an
+// identity, QualifiedName is a position, and the two are only guaranteed
+// to look the same today because translate.go happens to derive IDs from
+// qualified names. Returns "" if id isn't in the model.
+func (m *Model) QualifiedName(id ElementID) string {
+	el, ok := m.Elements[id]
+	if !ok {
+		return ""
+	}
+	if el.Owner == "" {
+		return el.Name
+	}
+	return m.QualifiedName(el.Owner) + "::" + el.Name
+}

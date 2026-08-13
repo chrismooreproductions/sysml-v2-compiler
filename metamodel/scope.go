@@ -35,3 +35,11 @@ func (s *scope) resolve(name string) (ElementID, bool) {
 	}
 	return "", false
 }
+
+// local looks up name in exactly this scope, without chaining to parents.
+// Used for absolute (qualified-name) resolution, which walks down a known
+// path segment by segment rather than searching outward from a reference.
+func (s *scope) local(name string) (ElementID, bool) {
+	id, ok := s.symbols[name]
+	return id, ok
+}

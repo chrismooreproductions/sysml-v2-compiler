@@ -147,12 +147,37 @@ func (p *parser) parsePartUsage() (*PartUsage, error) {
 	if _, err := p.expect(Colon); err != nil {
 		return nil, err
 	}
-	typ, err := p.expect(Identifier)
+	typ, err := p.parseQualifiedName()
 	if err != nil {
 		return nil, err
 	}
 	if _, err := p.expect(Semicolon); err != nil {
 		return nil, err
 	}
-	return &PartUsage{Name: string(name.Value), Type: string(typ.Value)}, nil
+	return &PartUsage{Name: string(name.Value), Type: typ}, nil
+}
+
+// parseQualifiedName parses an identifier, optionally followed by more
+// '::'-separated identifiers (e.g. "Engine" or "Vehicle::Car::Wheel"),
+// returning it as a single "::"-joined string.
+func (p *parser) parseQualifiedName() (string, error) {
+	first, err := p.expect(Identifier)
+	if err != nil {
+		return "", err
+	}
+
+	name := string(first.Value)
+	for {
+		tok, ok := p.current()
+		if !ok || tok.Kind != PathSep {
+			return name, nil
+		}
+		p.pos++
+
+		next, err := p.expect(Identifier)
+		if err != nil {
+			return "", err
+		}
+		name += "::" + string(next.Value)
+	}
 }

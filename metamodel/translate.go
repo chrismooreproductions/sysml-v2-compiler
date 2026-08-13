@@ -2,6 +2,7 @@ package metamodel
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
@@ -11,18 +12,27 @@ import (
 // Translation is two phases. Declaration walks the AST building every
 // Element plus a lexically-scoped symbol table of their names, rejecting
 // two sibling elements that declare the same name in the same scope.
-// Resolution then walks the type references collected along the way,
-// resolving each against the scope it was declared in (so a PartUsage can
-// see names declared in its own container and any enclosing one, but not
-// unrelated sibling containers), and fails on anything left unresolved.
+// Resolution then walks the type references collected along the way. A
+// bare name (no "::") resolves against the scope it was declared in, so a
+// PartUsage can see names declared in its own container and any enclosing
+// one, but not unrelated sibling containers. A "::"-qualified name is
+// instead resolved as an absolute path from the model root, which can
+// reach into any container regardless of where the reference sits.
+// Anything left unresolved is an error.
 func FromAST(pkg *sysml.Package) (*Model, error) {
-	t := &translator{model: &Model{Elements: map[ElementID]*Element{}}}
+	t := &translator{
+		model:           &Model{Elements: map[ElementID]*Element{}},
+		containerScopes: map[ElementID]*scope{},
+	}
 
 	rootID := ElementID(pkg.Name)
 	t.model.Elements[rootID] = &Element{ID: rootID, Kind: KindPackage, Name: pkg.Name}
 	t.model.Root = rootID
 
-	if err := t.declareMembers(pkg.Members, rootID, newScope(nil)); err != nil {
+	rootScope := newScope(nil)
+	t.containerScopes[rootID] = rootScope
+
+	if err := t.declareMembers(pkg.Members, rootID, rootScope); err != nil {
 		return nil, err
 	}
 
@@ -44,6 +54,13 @@ type pendingType struct {
 type translator struct {
 	model   *Model
 	pending []pendingType
+
+	// containerScopes maps each container Element's ID to the scope
+	// holding its direct children's names, keyed independently of the
+	// lexical scope chain so absolute (qualified-name) resolution can
+	// walk down from the root by name rather than search outward from a
+	// reference's own position.
+	containerScopes map[ElementID]*scope
 }
 
 // declare creates a new Element under owner and adds it to sc under name.
@@ -75,7 +92,9 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
-		return t.declareMembers(m.Members, id, newScope(sc))
+		inner := newScope(sc)
+		t.containerScopes[id] = inner
+		return t.declareMembers(m.Members, id, inner)
 
 	case *sysml.PartUsage:
 		id, ok := t.declare(KindPartUsage, m.Name, owner, sc)
@@ -92,7 +111,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 
 func (t *translator) resolveTypes() error {
 	for _, p := range t.pending {
-		typeID, ok := p.scope.resolve(p.name)
+		typeID, ok := t.resolve(p.name, p.scope)
 		if !ok {
 			return fmt.Errorf("metamodel: %s: unresolved type %q", t.model.Elements[p.usage].Name, p.name)
 		}
@@ -104,4 +123,42 @@ func (t *translator) resolveTypes() error {
 		})
 	}
 	return nil
+}
+
+// resolve resolves name against sc: a "::"-qualified name is treated as an
+// absolute path from the model root, regardless of where the reference
+// sits; a bare name is looked up through sc's lexical scope chain.
+func (t *translator) resolve(name string, sc *scope) (ElementID, bool) {
+	if strings.Contains(name, "::") {
+		return t.resolveQualified(name)
+	}
+	return sc.resolve(name)
+}
+
+// resolveQualified resolves a "::"-joined absolute path (e.g.
+// "Vehicle::Car::Wheel") by matching its first segment against the model
+// root, then walking down through each container's own scope (not its
+// scope chain) to match the remaining segments.
+func (t *translator) resolveQualified(path string) (ElementID, bool) {
+	segments := strings.Split(path, "::")
+
+	root, ok := t.model.Elements[t.model.Root]
+	if !ok || root.Name != segments[0] {
+		return "", false
+	}
+
+	current := t.model.Root
+	for _, segment := range segments[1:] {
+		sc, ok := t.containerScopes[current]
+		if !ok {
+			return "", false
+		}
+		next, ok := sc.local(segment)
+		if !ok {
+			return "", false
+		}
+		current = next
+	}
+
+	return current, true
 }

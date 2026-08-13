@@ -96,6 +96,12 @@ func (l *lexer) next() (Token, bool) {
 
 		case isPunct(r):
 			l.advance()
+			if r == ':' {
+				if next, size := l.current(); size > 0 && next == ':' {
+					l.advance()
+					return word([]rune{':', ':'}, start), true
+				}
+			}
 			return word([]rune{r}, start), true
 
 		default:

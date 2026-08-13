@@ -80,3 +80,37 @@ func TestLexerUnicode(t *testing.T) {
 		t.Errorf("final offset = %d, want %d (len(source) in bytes)", offset, len(source))
 	}
 }
+
+// TestLexerPathSep checks "::" lexes as one PathSep token rather than two
+// separate Colon tokens, while a lone ":" (including one merely adjacent
+// to whitespace rather than another ":") still lexes as Colon.
+func TestLexerPathSep(t *testing.T) {
+	m := sysml.NewModel(`Vehicle::Car : x`)
+
+	tokens, err := m.Lex()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var kinds []sysml.Kind
+	var values []string
+	for _, tok := range tokens {
+		kinds = append(kinds, tok.Kind)
+		values = append(values, string(tok.Value))
+	}
+
+	wantKinds := []sysml.Kind{
+		sysml.Identifier, sysml.PathSep, sysml.Identifier, sysml.Space,
+		sysml.Colon, sysml.Space, sysml.Identifier,
+	}
+	wantValues := []string{"Vehicle", "::", "Car", " ", ":", " ", "x"}
+
+	if len(tokens) != len(wantKinds) {
+		t.Fatalf("got %d tokens (%v), want %d (%v)", len(tokens), values, len(wantKinds), wantValues)
+	}
+	for i := range tokens {
+		if kinds[i] != wantKinds[i] || values[i] != wantValues[i] {
+			t.Errorf("token %d: got {%v %q}, want {%v %q}", i, kinds[i], values[i], wantKinds[i], wantValues[i])
+		}
+	}
+}
