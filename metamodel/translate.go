@@ -28,8 +28,10 @@ func FromAST(pkg *sysml.Package) (*Model, error) {
 // type references collected along the way, resolving each via
 // Model.Resolve from the namespace it was declared in — so a PartUsage can
 // see names declared in its own namespace or any enclosing one (but not an
-// unrelated sibling's) for a bare name, or reach anywhere in the model (or
-// an imported one) via a "::"-qualified absolute path. Anything left
+// unrelated sibling's) for a bare name. A "::"-qualified name resolves the
+// same way for its first segment (see resolveQualifiedFrom), reaching a
+// sibling's nested namespace without the full path from Root, before
+// falling back to an absolute path from Root or an import. Anything left
 // unresolved is an error.
 func FromASTWithImports(pkg *sysml.Package, imports map[string]*Model) (*Model, error) {
 	t := &translator{

@@ -343,6 +343,44 @@ func TestFromASTQualifiedTypeReachesSiblingScope(t *testing.T) {
 	}
 }
 
+// TestFromASTRelativeQualifiedTypeReachesSiblingScope is the case
+// resolveQualifiedFrom exists for: Cabin references "Powertrain::Engine",
+// not the full "Vehicle::Powertrain::Engine" path from Root. A bare name
+// still couldn't see into Powertrain from Cabin (they're siblings), and the
+// old absolute-only qualified resolution couldn't either, since the path's
+// first segment ("Powertrain") doesn't match Root's own name ("Vehicle").
+// This only resolves because resolveQualifiedFrom checks from's own scope
+// chain -- here, Cabin's owner Vehicle's children -- before falling back to
+// an absolute path.
+func TestFromASTRelativeQualifiedTypeReachesSiblingScope(t *testing.T) {
+	m := sysml.NewModel(`package Vehicle {
+		part def Powertrain {
+			part def Engine;
+		}
+		part def Cabin {
+			part engine : Powertrain::Engine;
+		}
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Vehicle::Cabin::engine")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Vehicle::Cabin::engine")
+	}
+	if typeID != "Vehicle::Powertrain::Engine" {
+		t.Errorf("usage type = %q, want %q", typeID, "Vehicle::Powertrain::Engine")
+	}
+}
+
 func TestFromASTUnresolvedQualifiedType(t *testing.T) {
 	cases := map[string]string{
 		"wrong root":      `package Vehicle { part engine : Nope::Engine; }`,

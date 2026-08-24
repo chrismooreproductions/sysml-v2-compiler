@@ -167,14 +167,20 @@ func (m *Model) children() map[ElementID]map[string]ElementID {
 // Resolve looks up name from the perspective of from, the ElementID of the
 // namespace (Package or PartDef) containing the reference.
 //
-// A "::"-qualified name (e.g. "Vehicle::Car::Wheel") is resolved as an
-// absolute path from Root, regardless of from. A bare name is instead
-// looked up against from's own direct children first, then each enclosing
-// owner's in turn — so a reference can see names declared in its own
-// namespace or any ancestor, but not an unrelated sibling's.
+// A bare name is looked up against from's own direct children first, then
+// each enclosing owner's in turn — so a reference can see names declared in
+// its own namespace or any ancestor, but not an unrelated sibling's. A
+// "::"-qualified name (e.g. "Powertrain::Engine") resolves the same way for
+// its first segment -- from's own children, then each ancestor's, and each
+// ancestor's own name too -- before descending through the rest of the
+// path; only if that fails does it fall back to an absolute path from Root
+// or an import (see resolveQualified). This is what lets a reference reach
+// a sibling's nested namespace (e.g. "Powertrain::Engine" from within a
+// PartDef declared alongside Powertrain, not inside it) without needing the
+// full path from Root.
 func (m *Model) Resolve(from ElementID, name string) (ElementID, bool) {
 	if strings.Contains(name, "::") {
-		return m.resolveQualified(name)
+		return m.resolveQualifiedFrom(from, name)
 	}
 
 	children := m.children()
@@ -191,13 +197,63 @@ func (m *Model) Resolve(from ElementID, name string) (ElementID, bool) {
 	return "", false
 }
 
+// resolveQualifiedFrom resolves a "::"-joined path's first segment the same
+// way Resolve resolves a bare name -- checking from's own children, then
+// each enclosing owner's, and (unlike a bare name) each owner's own name as
+// well, since a qualified path's first segment can name an enclosing scope
+// itself (e.g. "Vehicle::Car::Wheel" written inside Vehicle::Bike needs to
+// find Vehicle, not just a child called Vehicle). Once the first segment
+// resolves, the rest of the path descends through direct children exactly
+// as resolveQualified's absolute walk does. Falls back to resolveQualified
+// (absolute from Root, or an import) if nothing in from's own scope chain
+// matches -- a relative resolution only ever widens what's reachable, it
+// never shadows the absolute/import fallback.
+func (m *Model) resolveQualifiedFrom(from ElementID, path string) (ElementID, bool) {
+	segments := strings.Split(path, "::")
+	first := segments[0]
+
+	children := m.children()
+	for current := from; ; {
+		if el, ok := m.Elements[current]; ok && el.Name == first {
+			return m.descend(current, segments[1:])
+		}
+		if id, ok := children[current][first]; ok {
+			return m.descend(id, segments[1:])
+		}
+		el, ok := m.Elements[current]
+		if !ok || el.Owner == "" {
+			break
+		}
+		current = el.Owner
+	}
+
+	return m.resolveQualified(path)
+}
+
+// descend walks down from start through a chain of direct-child names,
+// e.g. descend(carID, []string{"Wheel"}) to reach Car's Wheel.
+func (m *Model) descend(start ElementID, segments []string) (ElementID, bool) {
+	children := m.children()
+	current := start
+	for _, segment := range segments {
+		next, ok := children[current][segment]
+		if !ok {
+			return "", false
+		}
+		current = next
+	}
+	return current, true
+}
+
 // resolveQualified resolves a "::"-joined absolute path (e.g.
 // "Vehicle::Car::Wheel") by matching its first segment against Root, then
 // walking down through each element's direct children to match the rest.
 // If the first segment instead names an imported Model, resolution
 // delegates to that Model's own resolveQualified for the full path -- an
 // import only ever widens what a qualified path can reach, so this always
-// tries the local Root first.
+// tries the local Root first. Used both as resolveQualifiedFrom's fallback
+// and directly by an import's own resolution (which has no local "from"
+// scope to be relative to).
 func (m *Model) resolveQualified(path string) (ElementID, bool) {
 	segments := strings.Split(path, "::")
 
