@@ -6,6 +6,7 @@ const (
 	Pkg Kind = iota
 	Part
 	Def
+	ImportKw
 	Semicolon
 	OpenBrace
 	CloseBrace
@@ -23,6 +24,8 @@ func (k Kind) String() string {
 		return "'part'"
 	case Def:
 		return "'def'"
+	case ImportKw:
+		return "'import'"
 	case Semicolon:
 		return "';'"
 	case OpenBrace:
@@ -46,6 +49,7 @@ var kinds = map[string]Kind{
 	"package": Pkg,
 	"part":    Part,
 	"def":     Def,
+	"import":  ImportKw,
 	";":       Semicolon,
 	"{":       OpenBrace,
 	"}":       CloseBrace,

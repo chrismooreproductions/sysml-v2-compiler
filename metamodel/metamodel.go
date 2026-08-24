@@ -83,6 +83,18 @@ type Model struct {
 	Elements      map[ElementID]*Element
 	Relationships []*Relationship
 
+	// Imports holds other Models this one can reach by qualified name,
+	// keyed by their Root Element's Name (e.g. "Vehicle"). It's populated
+	// by FromASTWithImports from an `import Vehicle;` member and consulted
+	// only by resolveQualified -- a bare (unqualified) reference still only
+	// sees its own model, matching this package's minimal import form (see
+	// sysml.Import's doc comment). Elements/Relationships that live in an
+	// imported Model stay addressed by their own Model's Elements map, not
+	// copied into this one -- a Relationship.Target can point into an
+	// import, so resolving an ID to an *Element in general means checking
+	// the right Model, not just this one.
+	Imports map[string]*Model
+
 	// bySource indexes Relationships by Source, built lazily by
 	// RelationshipsFrom. It's a cache derived from Relationships, not a
 	// second source of truth, so it's left unexported and rebuilt (via
@@ -182,11 +194,18 @@ func (m *Model) Resolve(from ElementID, name string) (ElementID, bool) {
 // resolveQualified resolves a "::"-joined absolute path (e.g.
 // "Vehicle::Car::Wheel") by matching its first segment against Root, then
 // walking down through each element's direct children to match the rest.
+// If the first segment instead names an imported Model, resolution
+// delegates to that Model's own resolveQualified for the full path -- an
+// import only ever widens what a qualified path can reach, so this always
+// tries the local Root first.
 func (m *Model) resolveQualified(path string) (ElementID, bool) {
 	segments := strings.Split(path, "::")
 
 	root, ok := m.Elements[m.Root]
 	if !ok || root.Name != segments[0] {
+		if imported, ok := m.Imports[segments[0]]; ok {
+			return imported.resolveQualified(path)
+		}
 		return "", false
 	}
 

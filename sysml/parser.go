@@ -90,11 +90,24 @@ func (p *parser) parseMembers() ([]Member, error) {
 }
 
 func (p *parser) parseMember() (Member, error) {
+	tok, ok := p.current()
+	if !ok {
+		return nil, fmt.Errorf("unexpected end of input, want %s or %s", Pkg, Part)
+	}
+
+	if tok.Kind == Pkg {
+		return p.parsePackage()
+	}
+
+	if tok.Kind == ImportKw {
+		return p.parseImport()
+	}
+
 	if _, err := p.expect(Part); err != nil {
 		return nil, err
 	}
 
-	tok, ok := p.current()
+	tok, ok = p.current()
 	if !ok {
 		return nil, fmt.Errorf("unexpected end of input after %s", Part)
 	}
@@ -137,6 +150,23 @@ func (p *parser) parsePartDef() (*PartDef, error) {
 	default:
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s or %s", tok.Pos.Line, describeToken(tok), Semicolon, OpenBrace)
 	}
+}
+
+func (p *parser) parseImport() (*Import, error) {
+	if _, err := p.expect(ImportKw); err != nil {
+		return nil, err
+	}
+
+	path, err := p.parseQualifiedName()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+
+	return &Import{Path: path}, nil
 }
 
 func (p *parser) parsePartUsage() (*PartUsage, error) {

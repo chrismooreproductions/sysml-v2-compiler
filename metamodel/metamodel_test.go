@@ -179,6 +179,51 @@ func TestFromAST(t *testing.T) {
 	}
 }
 
+// TestFromASTNestedPackage checks that a package nested inside another
+// package (rather than only inside a PartDef) is declared as its own
+// namespace, containment-linked to its enclosing package via Owner just
+// like any other member.
+func TestFromASTNestedPackage(t *testing.T) {
+	source := `package Car {
+		package Engine {
+			part def Cylinder;
+		}
+	}`
+
+	m := sysml.NewModel(source)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	want := map[metamodel.ElementID]metamodel.Element{
+		"Car":                   {ID: "Car", Kind: metamodel.KindPackage, Name: "Car"},
+		"Car::Engine":           {ID: "Car::Engine", Kind: metamodel.KindPackage, Name: "Engine", Owner: "Car"},
+		"Car::Engine::Cylinder": {ID: "Car::Engine::Cylinder", Kind: metamodel.KindPartDef, Name: "Cylinder", Owner: "Car::Engine"},
+	}
+
+	if len(model.Elements) != len(want) {
+		t.Fatalf("got %d elements, want %d", len(model.Elements), len(want))
+	}
+
+	for id, wantElem := range want {
+		got, ok := model.Elements[id]
+		if !ok {
+			t.Errorf("missing element %q", id)
+			continue
+		}
+		if *got != wantElem {
+			t.Errorf("element %q = %+v, want %+v", id, *got, wantElem)
+		}
+	}
+}
+
 // typeOf finds the ElementID a usage is typed by, via the TypedBy
 // relationship model.FromAST produced for it.
 func typeOf(model *metamodel.Model, usage metamodel.ElementID) (metamodel.ElementID, bool) {
@@ -317,6 +362,105 @@ func TestFromASTUnresolvedQualifiedType(t *testing.T) {
 				t.Error("expected an error for an unresolved qualified type, got nil")
 			}
 		})
+	}
+}
+
+// vehicleModel compiles the standalone Vehicle package used by the import
+// tests below as the thing being imported.
+func vehicleModel(t *testing.T) *metamodel.Model {
+	t.Helper()
+
+	m := sysml.NewModel(`package Vehicle {
+		part def Engine;
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+	return model
+}
+
+// TestFromASTWithImports_ResolvesQualifiedTypeAcrossModels is the actual
+// cross-model case: Car references Vehicle::Engine, a type declared in a
+// wholly separate, already-translated Model, not anywhere in Car's own AST.
+func TestFromASTWithImports_ResolvesQualifiedTypeAcrossModels(t *testing.T) {
+	vehicle := vehicleModel(t)
+
+	m := sysml.NewModel(`package Car {
+		import Vehicle;
+		part def Chassis {
+			part engine : Vehicle::Engine;
+		}
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{"Vehicle": vehicle})
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Car::Chassis::engine")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Car::Chassis::engine")
+	}
+	if typeID != "Vehicle::Engine" {
+		t.Errorf("usage type = %q, want %q", typeID, "Vehicle::Engine")
+	}
+
+	// The imported Element itself lives in vehicle's own Elements map, not
+	// copied into model's -- resolving the ID further means knowing to look
+	// there.
+	if _, ok := model.Elements[typeID]; ok {
+		t.Error("imported element should not be copied into the importing model's Elements")
+	}
+	if _, ok := vehicle.Elements[typeID]; !ok {
+		t.Error("imported element should still be found in the imported model's own Elements")
+	}
+}
+
+// TestFromASTWithImports_MissingImportIsAnError checks that referencing an
+// import the caller never supplied a Model for fails translation, the same
+// way an unresolved type does -- it's a translation-time error, not a
+// resolution-time "not found" the caller has to check for separately.
+func TestFromASTWithImports_MissingImportIsAnError(t *testing.T) {
+	m := sysml.NewModel(`package Car {
+		import Vehicle;
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromASTWithImports(pkg, nil); err == nil {
+		t.Error("expected an error for an import with no supplied Model, got nil")
+	}
+}
+
+// TestFromASTWithImports_UnimportedQualifiedTypeStillFails checks that a
+// qualified reference to another package doesn't silently succeed just
+// because some import happens to be in scope -- only the imports actually
+// declared are consulted.
+func TestFromASTWithImports_UnimportedQualifiedTypeStillFails(t *testing.T) {
+	vehicle := vehicleModel(t)
+
+	m := sysml.NewModel(`package Car {
+		part engine : Vehicle::Engine;
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	// Vehicle is compiled and available, but never imported by Car.
+	if _, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{"Vehicle": vehicle}); err == nil {
+		t.Error("expected an error resolving a type from a package that was never imported, got nil")
 	}
 }
 

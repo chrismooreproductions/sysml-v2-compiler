@@ -79,6 +79,51 @@ func TestModelParseQualifiedType(t *testing.T) {
 	}
 }
 
+func TestModelParseImport(t *testing.T) {
+	m := sysml.NewModel(`package Car {
+		import Vehicle;
+		part def Chassis;
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(pkg.Members) != 2 {
+		t.Fatalf("got %d members, want 2", len(pkg.Members))
+	}
+
+	imp, ok := pkg.Members[0].(*sysml.Import)
+	if !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Import", pkg.Members[0])
+	}
+	if imp.Path != "Vehicle" {
+		t.Errorf("import path = %q, want %q", imp.Path, "Vehicle")
+	}
+
+	if _, ok := pkg.Members[1].(*sysml.PartDef); !ok {
+		t.Fatalf("member 1 is %T, want *sysml.PartDef", pkg.Members[1])
+	}
+}
+
+func TestModelParseImportQualifiedPath(t *testing.T) {
+	m := sysml.NewModel(`package Car { import Vehicle::Electrical; }`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	imp, ok := pkg.Members[0].(*sysml.Import)
+	if !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Import", pkg.Members[0])
+	}
+	if imp.Path != "Vehicle::Electrical" {
+		t.Errorf("import path = %q, want %q", imp.Path, "Vehicle::Electrical")
+	}
+}
+
 func TestModelParseErrors(t *testing.T) {
 	cases := map[string]string{
 		"empty source":                     "",
@@ -90,6 +135,8 @@ func TestModelParseErrors(t *testing.T) {
 		"trailing garbage":                 "package Vehicle { } part def Engine;",
 		"qualified type missing segment":   "package Vehicle { part engine : Vehicle::; }",
 		"qualified type trailing path sep": "package Vehicle { part engine : Vehicle::Engine::; }",
+		"import missing path":              "package Vehicle { import; }",
+		"import missing semicolon":         "package Vehicle { import Engine }",
 	}
 
 	for name, source := range cases {
