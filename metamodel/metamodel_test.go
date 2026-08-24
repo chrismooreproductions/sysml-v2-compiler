@@ -179,6 +179,60 @@ func TestFromAST(t *testing.T) {
 	}
 }
 
+// TestFromASTMultiplicity checks that a PartUsage's bracketed multiplicity
+// (e.g. "[*]") carries over onto its Element, and that a usage with no
+// bracket at all still ends up with a nil Multiplicity.
+func TestFromASTMultiplicity(t *testing.T) {
+	source := `package Battlefield {
+		part def Combatant;
+
+		part solo : Combatant;
+		part friendlyCombatants : Combatant[*];
+		part enemyCombatants : Combatant[1..*];
+		part squad : Combatant[5];
+	}`
+
+	m := sysml.NewModel(source)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	tests := []struct {
+		id   metamodel.ElementID
+		want *metamodel.Multiplicity
+	}{
+		{"Battlefield::solo", nil},
+		{"Battlefield::friendlyCombatants", &metamodel.Multiplicity{Lower: 0, Upper: metamodel.Unbounded}},
+		{"Battlefield::enemyCombatants", &metamodel.Multiplicity{Lower: 1, Upper: metamodel.Unbounded}},
+		{"Battlefield::squad", &metamodel.Multiplicity{Lower: 5, Upper: 5}},
+	}
+
+	for _, tt := range tests {
+		el, ok := model.Elements[tt.id]
+		if !ok {
+			t.Fatalf("missing element %q", tt.id)
+		}
+
+		if tt.want == nil {
+			if el.Multiplicity != nil {
+				t.Errorf("%s: Multiplicity = %+v, want nil", tt.id, el.Multiplicity)
+			}
+			continue
+		}
+
+		if el.Multiplicity == nil || *el.Multiplicity != *tt.want {
+			t.Errorf("%s: Multiplicity = %+v, want %+v", tt.id, el.Multiplicity, tt.want)
+		}
+	}
+}
+
 // TestFromASTNestedPackage checks that a package nested inside another
 // package (rather than only inside a PartDef) is declared as its own
 // namespace, containment-linked to its enclosing package via Owner just
@@ -499,6 +553,98 @@ func TestFromASTWithImports_UnimportedQualifiedTypeStillFails(t *testing.T) {
 	// Vehicle is compiled and available, but never imported by Car.
 	if _, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{"Vehicle": vehicle}); err == nil {
 		t.Error("expected an error resolving a type from a package that was never imported, got nil")
+	}
+}
+
+// environmentModel and combatantsModel compile the two standalone packages
+// TestFromASTWithImports_Battlefield imports, mirroring vehicleModel above.
+func environmentModel(t *testing.T) *metamodel.Model {
+	t.Helper()
+
+	m := sysml.NewModel(`package Environment {
+		part def Terrain;
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+	return model
+}
+
+func combatantsModel(t *testing.T) *metamodel.Model {
+	t.Helper()
+
+	m := sysml.NewModel(`package Combatants {
+		part def Combatant;
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+	return model
+}
+
+// TestFromASTWithImports_Battlefield combines two features at once: a
+// model importing from two separate packages at once (not just one), and a
+// multiplicity ([*]) on a usage whose type itself comes from an import --
+// checking that Multiplicity propagates onto the Element the same way
+// regardless of whether its TypedBy relationship resolves locally or
+// through an import.
+func TestFromASTWithImports_Battlefield(t *testing.T) {
+	environment := environmentModel(t)
+	combatants := combatantsModel(t)
+
+	m := sysml.NewModel(`package Battlefield {
+		import Environment;
+		import Combatants;
+
+		part terrain : Environment::Terrain;
+		part squad : Combatants::Combatant[*];
+	}`)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{
+		"Environment": environment,
+		"Combatants":  combatants,
+	})
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	terrainType, ok := typeOf(model, "Battlefield::terrain")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Battlefield::terrain")
+	}
+	if terrainType != "Environment::Terrain" {
+		t.Errorf("terrain usage type = %q, want %q", terrainType, "Environment::Terrain")
+	}
+
+	squadType, ok := typeOf(model, "Battlefield::squad")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Battlefield::squad")
+	}
+	if squadType != "Combatants::Combatant" {
+		t.Errorf("squad usage type = %q, want %q", squadType, "Combatants::Combatant")
+	}
+
+	squad, ok := model.Elements["Battlefield::squad"]
+	if !ok {
+		t.Fatal("missing element Battlefield::squad")
+	}
+	want := &metamodel.Multiplicity{Lower: 0, Upper: metamodel.Unbounded}
+	if squad.Multiplicity == nil || *squad.Multiplicity != *want {
+		t.Errorf("squad Multiplicity = %+v, want %+v", squad.Multiplicity, want)
 	}
 }
 

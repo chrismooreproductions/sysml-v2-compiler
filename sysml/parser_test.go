@@ -79,6 +79,46 @@ func TestModelParseQualifiedType(t *testing.T) {
 	}
 }
 
+func TestModelParseMultiplicity(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   *sysml.Multiplicity
+	}{
+		"unbounded star":     {`part combatants : Combatant[*];`, &sysml.Multiplicity{Lower: 0, Upper: sysml.Unbounded}},
+		"exact count":        {`part combatants : Combatant[3];`, &sysml.Multiplicity{Lower: 3, Upper: 3}},
+		"bounded range":      {`part combatants : Combatant[0..5];`, &sysml.Multiplicity{Lower: 0, Upper: 5}},
+		"lower to unbounded": {`part combatants : Combatant[1..*];`, &sysml.Multiplicity{Lower: 1, Upper: sysml.Unbounded}},
+		"no multiplicity":    {`part combatants : Combatant;`, nil},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			m := sysml.NewModel(`package Vehicle { ` + tt.source + ` }`)
+
+			pkg, err := m.Parse()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			usage, ok := pkg.Members[0].(*sysml.PartUsage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.PartUsage", pkg.Members[0])
+			}
+
+			if tt.want == nil {
+				if usage.Multiplicity != nil {
+					t.Errorf("Multiplicity = %+v, want nil", usage.Multiplicity)
+				}
+				return
+			}
+
+			if usage.Multiplicity == nil || *usage.Multiplicity != *tt.want {
+				t.Errorf("Multiplicity = %+v, want %+v", usage.Multiplicity, tt.want)
+			}
+		})
+	}
+}
+
 func TestModelParseImport(t *testing.T) {
 	m := sysml.NewModel(`package Car {
 		import Vehicle;
@@ -137,6 +177,10 @@ func TestModelParseErrors(t *testing.T) {
 		"qualified type trailing path sep": "package Vehicle { part engine : Vehicle::Engine::; }",
 		"import missing path":              "package Vehicle { import; }",
 		"import missing semicolon":         "package Vehicle { import Engine }",
+		"multiplicity missing bound":       "package Vehicle { part combatants : Combatant[]; }",
+		"multiplicity missing close":       "package Vehicle { part combatants : Combatant[*; }",
+		"multiplicity non-numeric bound":   "package Vehicle { part combatants : Combatant[abc]; }",
+		"multiplicity negative bound":      "package Vehicle { part combatants : Combatant[-1]; }",
 	}
 
 	for name, source := range cases {

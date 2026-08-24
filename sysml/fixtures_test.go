@@ -11,3 +11,32 @@ const vehicleModel = `package Vehicle {
         part engine : Engine;
     }
 	}`
+
+// environmentModel and combatantsModel are standalone packages, each
+// imported by battlefieldModel below rather than nested inside it -- see
+// the metamodel package's own TestFromASTWithImports_Battlefield for the
+// cross-model resolution this setup is meant to exercise.
+const environmentModel = `package Environment {
+    part def Geology;
+    part def Terrain;
+    part def Climate;
+
+    part geology : Geology;
+    part terrain : Terrain;
+    part climate : Climate;
+}`
+
+const combatantsModel = `package Combatants {
+    part def Combatant;
+
+    part friendlyCombatants : Combatant[*];
+    part enemyCombatants : Combatant[*];
+}`
+
+const battlefieldModel = `package Battlefield {
+    import Environment;
+    import Combatants;
+
+    part terrain : Environment::Terrain;
+    part squad : Combatants::Combatant[*];
+}`

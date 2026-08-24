@@ -115,6 +115,14 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
+		if m.Multiplicity != nil {
+			// sysml.Unbounded and metamodel.Unbounded are both -1 by
+			// convention, so the bounds carry over unchanged.
+			t.model.Elements[id].Multiplicity = &Multiplicity{
+				Lower: m.Multiplicity.Lower,
+				Upper: m.Multiplicity.Upper,
+			}
+		}
 		t.pending = append(t.pending, pendingType{usage: id, name: m.Type, owner: owner})
 		return nil
 

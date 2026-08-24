@@ -61,12 +61,16 @@ func isSpace(r rune) bool {
 
 func isPunct(r rune) bool {
 	switch r {
-	case ';', '{', '}', ':':
+	case ';', '{', '}', ':', '[', ']', '*', '.':
 		return true
 	default:
 		return false
 	}
 }
+
+// doubled is the set of punctuation runes that pair with themselves to form
+// a two-character token ("::" and "..") rather than standing alone.
+var doubled = map[rune]bool{':': true, '.': true}
 
 func isIdentRune(r rune) bool {
 	return r != newline && !isSpace(r) && !isPunct(r)
@@ -96,10 +100,10 @@ func (l *lexer) next() (Token, bool) {
 
 		case isPunct(r):
 			l.advance()
-			if r == ':' {
-				if next, size := l.current(); size > 0 && next == ':' {
+			if doubled[r] {
+				if next, size := l.current(); size > 0 && next == r {
 					l.advance()
-					return word([]rune{':', ':'}, start), true
+					return word([]rune{r, r}, start), true
 				}
 			}
 			return word([]rune{r}, start), true

@@ -47,6 +47,22 @@ type Element struct {
 	// Relationship: it's the one edge nearly everything else (scoping,
 	// traversal, eventual serialization) needs cheaply and constantly.
 	Owner ElementID
+
+	// Multiplicity bounds how many instances a KindPartUsage represents,
+	// e.g. the [*] in `part friendlyCombatants : Combatant[*];`. Nil means
+	// exactly one, SysML's implicit default; always nil for kinds other
+	// than KindPartUsage.
+	Multiplicity *Multiplicity
+}
+
+// Unbounded marks a Multiplicity's Upper bound as unlimited, e.g. the "*"
+// in "[*]" or "[1..*]".
+const Unbounded = -1
+
+// Multiplicity bounds how many instances a PartUsage Element represents.
+type Multiplicity struct {
+	Lower int
+	Upper int
 }
 
 // RelationshipKind distinguishes the different ways two Elements can

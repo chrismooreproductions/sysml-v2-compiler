@@ -1,6 +1,9 @@
 package sysml
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 type parser struct {
 	tokens []Token
@@ -92,7 +95,7 @@ func (p *parser) parseMembers() ([]Member, error) {
 func (p *parser) parseMember() (Member, error) {
 	tok, ok := p.current()
 	if !ok {
-		return nil, fmt.Errorf("unexpected end of input, want %s or %s", Pkg, Part)
+		return nil, fmt.Errorf("unexpected end of input, want %s, %s, or %s", Pkg, ImportKw, Part)
 	}
 
 	if tok.Kind == Pkg {
@@ -181,10 +184,79 @@ func (p *parser) parsePartUsage() (*PartUsage, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var mult *Multiplicity
+	if tok, ok := p.current(); ok && tok.Kind == OpenBracket {
+		mult, err = p.parseMultiplicity()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if _, err := p.expect(Semicolon); err != nil {
 		return nil, err
 	}
-	return &PartUsage{Name: string(name.Value), Type: typ}, nil
+	return &PartUsage{Name: string(name.Value), Type: typ, Multiplicity: mult}, nil
+}
+
+// parseMultiplicity parses a bracketed multiplicity clause following a part
+// usage's type: "[*]" (0..Unbounded), "[3]" (Lower == Upper == 3), or a
+// "lower..upper" range where either side may itself be "*".
+func (p *parser) parseMultiplicity() (*Multiplicity, error) {
+	if _, err := p.expect(OpenBracket); err != nil {
+		return nil, err
+	}
+
+	if tok, ok := p.current(); ok && tok.Kind == Star {
+		p.pos++
+		if _, err := p.expect(CloseBracket); err != nil {
+			return nil, err
+		}
+		return &Multiplicity{Lower: 0, Upper: Unbounded}, nil
+	}
+
+	lower, err := p.parseBound()
+	if err != nil {
+		return nil, err
+	}
+
+	upper := lower
+	if tok, ok := p.current(); ok && tok.Kind == DotDot {
+		p.pos++
+		if upper, err = p.parseBound(); err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := p.expect(CloseBracket); err != nil {
+		return nil, err
+	}
+	return &Multiplicity{Lower: lower, Upper: upper}, nil
+}
+
+// parseBound parses one side of a multiplicity range: either "*"
+// (Unbounded) or a non-negative integer literal.
+func (p *parser) parseBound() (int, error) {
+	tok, ok := p.current()
+	if !ok {
+		return 0, fmt.Errorf("unexpected end of input in multiplicity, want a bound or %s", Star)
+	}
+
+	if tok.Kind == Star {
+		p.pos++
+		return Unbounded, nil
+	}
+
+	if tok.Kind != Identifier {
+		return 0, fmt.Errorf("line %d: unexpected %s, want a multiplicity bound", tok.Pos.Line, describeToken(tok))
+	}
+
+	n, err := strconv.Atoi(string(tok.Value))
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("line %d: invalid multiplicity bound %q", tok.Pos.Line, string(tok.Value))
+	}
+	p.pos++
+	return n, nil
 }
 
 // parseQualifiedName parses an identifier, optionally followed by more

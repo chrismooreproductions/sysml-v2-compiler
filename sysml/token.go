@@ -12,6 +12,10 @@ const (
 	CloseBrace
 	Colon
 	PathSep
+	OpenBracket
+	CloseBracket
+	Star
+	DotDot
 	Space
 	Identifier
 )
@@ -36,6 +40,14 @@ func (k Kind) String() string {
 		return "':'"
 	case PathSep:
 		return "'::'"
+	case OpenBracket:
+		return "'['"
+	case CloseBracket:
+		return "']'"
+	case Star:
+		return "'*'"
+	case DotDot:
+		return "'..'"
 	case Space:
 		return "space"
 	case Identifier:
@@ -55,6 +67,10 @@ var kinds = map[string]Kind{
 	"}":       CloseBrace,
 	":":       Colon,
 	"::":      PathSep,
+	"[":       OpenBracket,
+	"]":       CloseBracket,
+	"*":       Star,
+	"..":      DotDot,
 }
 
 type Pos struct {
