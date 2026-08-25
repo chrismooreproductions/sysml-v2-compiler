@@ -679,3 +679,136 @@ func TestFromASTShadowing(t *testing.T) {
 		t.Errorf("usage type = %q, want %q (the nearer, shadowing declaration)", typeID, "Vehicle::Car::Engine")
 	}
 }
+
+// TestFromASTVehicleMultiPackage is a larger, realistic integration case
+// beyond the smaller targeted tests above: four sibling subsystem packages
+// (Powertrain, Chassis, Cabin, Electrical), each with their own part defs,
+// and a Car -- itself a sibling of all four, not nested inside any of them
+// -- composed entirely out of relative qualified references into each one
+// (e.g. "Powertrain::Engine"). Every one of those only resolves because of
+// resolveQualifiedFrom's ancestor-scope walk: the old absolute-only
+// resolver would have rejected all of them, since none of their first
+// segments match Vehicle (Root)'s own name. Also exercises multiplicity
+// ([4], [*]) alongside cross-package resolution in the same model.
+func TestFromASTVehicleMultiPackage(t *testing.T) {
+	source := `package Vehicle {
+		package Powertrain {
+			part def Cylinder;
+			part def Engine {
+				part cylinders : Cylinder[4];
+			}
+			part def Transmission;
+			part def Battery;
+
+			part engine : Engine;
+			part transmission : Transmission;
+			part battery : Battery;
+		}
+
+		package Chassis {
+			part def Wheel;
+			part def Suspension;
+			part def Brake;
+
+			part frontLeftWheel : Wheel;
+			part frontRightWheel : Wheel;
+			part rearLeftWheel : Wheel;
+			part rearRightWheel : Wheel;
+			part suspension : Suspension[4];
+			part brakes : Brake[4];
+		}
+
+		package Cabin {
+			part def Seat;
+			part def Dashboard;
+			part def InfotainmentSystem;
+
+			part driverSeat : Seat;
+			part passengerSeats : Seat[4];
+			part dashboard : Dashboard;
+			part infotainment : InfotainmentSystem;
+		}
+
+		package Electrical {
+			part def Wire;
+			part def Sensor;
+			part def ControlUnit;
+
+			part sensors : Sensor[*];
+			part ecu : ControlUnit;
+		}
+
+		part def Car {
+			part engine : Powertrain::Engine;
+			part transmission : Powertrain::Transmission;
+			part battery : Powertrain::Battery;
+
+			part frontLeftWheel : Chassis::Wheel;
+			part frontRightWheel : Chassis::Wheel;
+			part rearLeftWheel : Chassis::Wheel;
+			part rearRightWheel : Chassis::Wheel;
+
+			part driverSeat : Cabin::Seat;
+			part passengerSeats : Cabin::Seat[4];
+			part dashboard : Cabin::Dashboard;
+
+			part ecu : Electrical::ControlUnit;
+			part sensors : Electrical::Sensor[*];
+		}
+
+		part myCar : Car;
+	}`
+
+	m := sysml.NewModel(source)
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(pkg)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	if len(model.Elements) != 48 {
+		t.Errorf("got %d elements, want 48", len(model.Elements))
+	}
+	if len(model.Relationships) != 29 {
+		t.Errorf("got %d relationships, want 29", len(model.Relationships))
+	}
+
+	wantTypes := map[metamodel.ElementID]metamodel.ElementID{
+		"Vehicle::Powertrain::Engine::cylinders": "Vehicle::Powertrain::Cylinder",
+		"Vehicle::Car::engine":                   "Vehicle::Powertrain::Engine",
+		"Vehicle::Car::frontLeftWheel":            "Vehicle::Chassis::Wheel",
+		"Vehicle::Car::driverSeat":                "Vehicle::Cabin::Seat",
+		"Vehicle::Car::ecu":                       "Vehicle::Electrical::ControlUnit",
+		"Vehicle::Car::sensors":                   "Vehicle::Electrical::Sensor",
+		"Vehicle::myCar":                          "Vehicle::Car",
+	}
+	for usage, want := range wantTypes {
+		got, ok := typeOf(model, usage)
+		if !ok {
+			t.Errorf("no TypedBy relationship found for %s", usage)
+			continue
+		}
+		if got != want {
+			t.Errorf("%s typed by %q, want %q", usage, got, want)
+		}
+	}
+
+	wantMultiplicity := map[metamodel.ElementID]metamodel.Multiplicity{
+		"Vehicle::Powertrain::Engine::cylinders": {Lower: 4, Upper: 4},
+		"Vehicle::Electrical::sensors":            {Lower: 0, Upper: metamodel.Unbounded},
+	}
+	for id, want := range wantMultiplicity {
+		el, ok := model.Elements[id]
+		if !ok {
+			t.Errorf("missing element %s", id)
+			continue
+		}
+		if el.Multiplicity == nil || *el.Multiplicity != want {
+			t.Errorf("%s Multiplicity = %+v, want %+v", id, el.Multiplicity, want)
+		}
+	}
+}
