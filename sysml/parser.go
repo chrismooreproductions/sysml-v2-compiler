@@ -10,12 +10,12 @@ type parser struct {
 	pos    int
 }
 
-// newParser drops whitespace tokens up front: the parser only cares about
-// structure, never layout.
+// newParser drops whitespace and comment tokens up front: the parser only
+// cares about structure, never layout or documentation.
 func newParser(tokens []Token) *parser {
 	filtered := make([]Token, 0, len(tokens))
 	for _, tok := range tokens {
-		if tok.Kind != Space {
+		if tok.Kind != Space && tok.Kind != Comment {
 			filtered = append(filtered, tok)
 		}
 	}

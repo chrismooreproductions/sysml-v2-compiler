@@ -81,6 +81,124 @@ func TestLexerUnicode(t *testing.T) {
 	}
 }
 
+// TestLexerLineComment checks a "//" comment scans as one Comment token
+// running to (but not including) the newline, and that the newline still
+// advances Line/Col for whatever follows -- matching how a bare newline is
+// otherwise invisible to the token stream.
+func TestLexerLineComment(t *testing.T) {
+	m := sysml.NewModel("part // a comment\nx")
+
+	tokens, err := m.Lex()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []struct {
+		kind  sysml.Kind
+		value string
+	}{
+		{sysml.Part, "part"},
+		{sysml.Space, " "},
+		{sysml.Comment, "// a comment"},
+		{sysml.Identifier, "x"},
+	}
+
+	if len(tokens) != len(want) {
+		t.Fatalf("got %d tokens, want %d", len(tokens), len(want))
+	}
+	for i, tok := range tokens {
+		if tok.Kind != want[i].kind || string(tok.Value) != want[i].value {
+			t.Errorf("token %d: got {%v %q}, want {%v %q}", i, tok.Kind, string(tok.Value), want[i].kind, want[i].value)
+		}
+	}
+
+	x := tokens[3]
+	if x.Pos != (sysml.Pos{Offset: 18, Line: 2, Col: 1}) {
+		t.Errorf("x pos = %+v, want {Offset:18 Line:2 Col:1}", x.Pos)
+	}
+}
+
+// TestLexerBlockComment checks a "/* ... */" comment scans as one Comment
+// token, including one that spans multiple lines -- where, unlike every
+// other token, Line/Col bookkeeping has to be tracked by hand inside the
+// scan rather than left to the next() loop's own newline case.
+func TestLexerBlockComment(t *testing.T) {
+	cases := map[string]struct {
+		source      string
+		wantComment string
+		wantAfter   sysml.Pos
+	}{
+		"single line": {
+			source:      "part /* a */ x",
+			wantComment: "/* a */",
+			wantAfter:   sysml.Pos{Offset: 13, Line: 1, Col: 14},
+		},
+		"multi line": {
+			source:      "part /* a\nb */ x",
+			wantComment: "/* a\nb */",
+			wantAfter:   sysml.Pos{Offset: 15, Line: 2, Col: 6},
+		},
+		"unterminated runs to EOF": {
+			source:      "part /* a",
+			wantComment: "/* a",
+			wantAfter:   sysml.Pos{}, // no token follows
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			m := sysml.NewModel(tt.source)
+
+			tokens, err := m.Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var comment *sysml.Token
+			for i := range tokens {
+				if tokens[i].Kind == sysml.Comment {
+					comment = &tokens[i]
+					break
+				}
+			}
+			if comment == nil {
+				t.Fatalf("no Comment token in %v", tokens)
+			}
+			if string(comment.Value) != tt.wantComment {
+				t.Errorf("comment = %q, want %q", string(comment.Value), tt.wantComment)
+			}
+
+			if name == "unterminated runs to EOF" {
+				if len(tokens) != 3 {
+					t.Fatalf("got %d tokens, want 3 (Part, Space, Comment)", len(tokens))
+				}
+				return
+			}
+
+			last := tokens[len(tokens)-1]
+			if last.Pos != tt.wantAfter {
+				t.Errorf("token after comment: pos = %+v, want %+v", last.Pos, tt.wantAfter)
+			}
+		})
+	}
+}
+
+// TestLexerBareSlash checks a "/" not followed by another "/" or "*" still
+// lexes as an ordinary identifier rune rather than being swallowed as a
+// (malformed) comment opener.
+func TestLexerBareSlash(t *testing.T) {
+	m := sysml.NewModel("a/b")
+
+	tokens, err := m.Lex()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(tokens) != 1 || tokens[0].Kind != sysml.Identifier || string(tokens[0].Value) != "a/b" {
+		t.Fatalf("got %v, want one Identifier token %q", tokens, "a/b")
+	}
+}
+
 // TestLexerPathSep checks "::" lexes as one PathSep token rather than two
 // separate Colon tokens, while a lone ":" (including one merely adjacent
 // to whitespace rather than another ":") still lexes as Colon.

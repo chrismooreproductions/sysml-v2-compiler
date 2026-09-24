@@ -17,6 +17,7 @@ const (
 	Star
 	DotDot
 	Space
+	Comment
 	Identifier
 )
 
@@ -50,6 +51,8 @@ func (k Kind) String() string {
 		return "'..'"
 	case Space:
 		return "space"
+	case Comment:
+		return "comment"
 	case Identifier:
 		return "identifier"
 	default:

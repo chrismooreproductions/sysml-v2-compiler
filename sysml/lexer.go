@@ -33,6 +33,18 @@ func (l *lexer) advance() (rune, int) {
 	return r, size
 }
 
+// peek returns the rune immediately after the current one, without
+// consuming either. size is 0 if there is no such rune (current is the
+// last rune in the source, or the source is exhausted).
+func (l *lexer) peek() (rune, int) {
+	_, size := l.current()
+	if size == 0 || l.pos.Offset+size >= len(l.source) {
+		return 0, 0
+	}
+	r, sz := utf8.DecodeRuneInString(l.source[l.pos.Offset+size:])
+	return r, sz
+}
+
 // scanWhile consumes and returns runes from the current position for as
 // long as pred holds, stopping at EOF without consuming past it.
 func (l *lexer) scanWhile(pred func(rune) bool) []rune {
@@ -76,6 +88,63 @@ func isIdentRune(r rune) bool {
 	return r != newline && !isSpace(r) && !isPunct(r)
 }
 
+// scanIdentifier scans an identifier (or keyword/punctuation resolved
+// through word) starting at the current position.
+func (l *lexer) scanIdentifier(start Pos) Token {
+	return word(l.scanWhile(isIdentRune), start)
+}
+
+// scanLineComment scans a "//"-style comment through end of line, leaving
+// the newline itself unconsumed (matching how a Space token never crosses
+// one either).
+func (l *lexer) scanLineComment(start Pos) Token {
+	value := []rune{'/', '/'}
+	l.advance()
+	l.advance()
+	value = append(value, l.scanWhile(func(r rune) bool { return r != newline })...)
+	return Token{Kind: Comment, Value: value, Pos: start}
+}
+
+// scanBlockComment scans a "/* ... */"-style comment, which (unlike every
+// other token) can itself span multiple lines -- so, unlike scanWhile, it
+// tracks Line/Col by hand as it crosses each newline. An unterminated
+// comment runs to EOF rather than erroring: the lexer has no error path
+// today (see Model.Lex), so this stays consistent with how it treats every
+// other malformed input.
+func (l *lexer) scanBlockComment(start Pos) Token {
+	value := []rune{'/', '*'}
+	l.advance()
+	l.advance()
+
+	for {
+		r, size := l.current()
+		if size == 0 {
+			break
+		}
+
+		if r == newline {
+			l.advance()
+			l.pos.Line++
+			l.pos.Col = 1
+			value = append(value, r)
+			continue
+		}
+
+		l.advance()
+		value = append(value, r)
+
+		if r == '*' {
+			if next, size := l.current(); size > 0 && next == '/' {
+				l.advance()
+				value = append(value, next)
+				break
+			}
+		}
+	}
+
+	return Token{Kind: Comment, Value: value, Pos: start}
+}
+
 // next scans and returns the next token from the source, skipping newlines
 // (which only affect line/col bookkeeping). ok is false once the source is
 // exhausted.
@@ -87,6 +156,7 @@ func (l *lexer) next() (Token, bool) {
 
 		start := l.pos
 		r, _ := l.current()
+		next, nextSize := l.peek()
 
 		switch {
 		case r == newline:
@@ -97,6 +167,12 @@ func (l *lexer) next() (Token, bool) {
 		case isSpace(r):
 			value := l.scanWhile(isSpace)
 			return Token{Kind: Space, Value: value, Pos: start}, true
+
+		case r == '/' && nextSize > 0 && next == '/':
+			return l.scanLineComment(start), true
+
+		case r == '/' && nextSize > 0 && next == '*':
+			return l.scanBlockComment(start), true
 
 		case isPunct(r):
 			l.advance()
@@ -109,8 +185,7 @@ func (l *lexer) next() (Token, bool) {
 			return word([]rune{r}, start), true
 
 		default:
-			value := l.scanWhile(isIdentRune)
-			return word(value, start), true
+			return l.scanIdentifier(start), true
 		}
 	}
 }

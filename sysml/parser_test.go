@@ -164,6 +164,44 @@ func TestModelParseImportQualifiedPath(t *testing.T) {
 	}
 }
 
+// TestModelParseIgnoresComments checks that line and block comments can
+// appear anywhere insignificant whitespace can -- between members, inside a
+// member's body, even splitting a declaration across lines -- without
+// affecting the parsed result.
+func TestModelParseIgnoresComments(t *testing.T) {
+	m := sysml.NewModel(`// leading comment
+	package Vehicle { // trailing comment
+		/* a block
+		   comment */
+		part def Engine; // another one
+		part engine /* inline */ : Engine;
+	}`)
+
+	pkg, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if pkg.Name != "Vehicle" {
+		t.Errorf("package name = %q, want %q", pkg.Name, "Vehicle")
+	}
+	if len(pkg.Members) != 2 {
+		t.Fatalf("got %d members, want 2", len(pkg.Members))
+	}
+
+	if _, ok := pkg.Members[0].(*sysml.PartDef); !ok {
+		t.Fatalf("member 0 is %T, want *sysml.PartDef", pkg.Members[0])
+	}
+
+	usage, ok := pkg.Members[1].(*sysml.PartUsage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.PartUsage", pkg.Members[1])
+	}
+	if usage.Name != "engine" || usage.Type != "Engine" {
+		t.Errorf("member 1 = %+v, want PartUsage{Name: engine, Type: Engine}", usage)
+	}
+}
+
 func TestModelParseErrors(t *testing.T) {
 	cases := map[string]string{
 		"empty source":                     "",
