@@ -780,11 +780,11 @@ func TestFromASTVehicleMultiPackage(t *testing.T) {
 	wantTypes := map[metamodel.ElementID]metamodel.ElementID{
 		"Vehicle::Powertrain::Engine::cylinders": "Vehicle::Powertrain::Cylinder",
 		"Vehicle::Car::engine":                   "Vehicle::Powertrain::Engine",
-		"Vehicle::Car::frontLeftWheel":            "Vehicle::Chassis::Wheel",
-		"Vehicle::Car::driverSeat":                "Vehicle::Cabin::Seat",
-		"Vehicle::Car::ecu":                       "Vehicle::Electrical::ControlUnit",
-		"Vehicle::Car::sensors":                   "Vehicle::Electrical::Sensor",
-		"Vehicle::myCar":                          "Vehicle::Car",
+		"Vehicle::Car::frontLeftWheel":           "Vehicle::Chassis::Wheel",
+		"Vehicle::Car::driverSeat":               "Vehicle::Cabin::Seat",
+		"Vehicle::Car::ecu":                      "Vehicle::Electrical::ControlUnit",
+		"Vehicle::Car::sensors":                  "Vehicle::Electrical::Sensor",
+		"Vehicle::myCar":                         "Vehicle::Car",
 	}
 	for usage, want := range wantTypes {
 		got, ok := typeOf(model, usage)
@@ -799,7 +799,7 @@ func TestFromASTVehicleMultiPackage(t *testing.T) {
 
 	wantMultiplicity := map[metamodel.ElementID]metamodel.Multiplicity{
 		"Vehicle::Powertrain::Engine::cylinders": {Lower: 4, Upper: 4},
-		"Vehicle::Electrical::sensors":            {Lower: 0, Upper: metamodel.Unbounded},
+		"Vehicle::Electrical::sensors":           {Lower: 0, Upper: metamodel.Unbounded},
 	}
 	for id, want := range wantMultiplicity {
 		el, ok := model.Elements[id]
