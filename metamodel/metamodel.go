@@ -19,6 +19,10 @@ const (
 	KindPackage Kind = iota
 	KindDefinition
 	KindUsage
+	// KindNamespace marks Model.Root itself: the anonymous root every
+	// top-level member is declared under (see rootID), mirroring
+	// sysml.Namespace. Never appears anywhere else in a Model.
+	KindNamespace
 )
 
 func (k Kind) String() string {
@@ -29,10 +33,19 @@ func (k Kind) String() string {
 		return "definition"
 	case KindUsage:
 		return "usage"
+	case KindNamespace:
+		return "namespace"
 	default:
 		return "unknown"
 	}
 }
+
+// rootID is the ElementID FromAST/FromASTWithImports assigns to the
+// anonymous root namespace (Model.Root), which every top-level member is
+// declared under. "::" can never collide with a user-written identifier --
+// the lexer tokenizes it as PathSep, never as part of one -- so it's safe
+// as a reserved sentinel distinct from any real name.
+const rootID ElementID = "::"
 
 // DefKind mirrors sysml.DefKind: the keyword family (e.g. "part") a
 // KindDefinition or KindUsage Element was declared with. The two packages
@@ -172,13 +185,16 @@ func (m *Model) RelationshipsFrom(id ElementID) []*Relationship {
 // current Owner chain rather than trusting id's own string shape: id is an
 // identity, QualifiedName is a position, and the two are only guaranteed
 // to look the same today because translate.go happens to derive IDs from
-// qualified names. Returns "" if id isn't in the model.
+// qualified names. The anonymous root itself (Owner == "") and its direct
+// children (Owner == m.Root) both bottom out at their own bare Name, so a
+// top-level element's qualified name has no leading "::" for the unnamed
+// root. Returns "" if id isn't in the model.
 func (m *Model) QualifiedName(id ElementID) string {
 	el, ok := m.Elements[id]
 	if !ok {
 		return ""
 	}
-	if el.Owner == "" {
+	if el.Owner == "" || el.Owner == m.Root {
 		return el.Name
 	}
 	return m.QualifiedName(el.Owner) + "::" + el.Name
@@ -287,33 +303,26 @@ func (m *Model) descend(start ElementID, segments []string) (ElementID, bool) {
 }
 
 // resolveQualified resolves a "::"-joined absolute path (e.g.
-// "Vehicle::Car::Wheel") by matching its first segment against Root, then
-// walking down through each element's direct children to match the rest.
-// If the first segment instead names an imported Model, resolution
-// delegates to that Model's own resolveQualified for the full path -- an
-// import only ever widens what a qualified path can reach, so this always
-// tries the local Root first. Used both as resolveQualifiedFrom's fallback
-// and directly by an import's own resolution (which has no local "from"
-// scope to be relative to).
+// "Vehicle::Car::Wheel") by matching its first segment against a direct
+// child of the anonymous root -- the root itself has no name to match
+// against, so any of Root's top-level packages/definitions can start an
+// absolute path -- then walking down through each element's direct children
+// to match the rest. If the first segment instead names an imported Model,
+// resolution delegates to that Model's own resolveQualified for the full
+// path -- an import only ever widens what a qualified path can reach, so
+// this always tries the local Root first. Used both as
+// resolveQualifiedFrom's fallback and directly by an import's own
+// resolution (which has no local "from" scope to be relative to).
 func (m *Model) resolveQualified(path string) (ElementID, bool) {
 	segments := strings.Split(path, "::")
 
-	root, ok := m.Elements[m.Root]
-	if !ok || root.Name != segments[0] {
+	first, ok := m.children()[m.Root][segments[0]]
+	if !ok {
 		if imported, ok := m.Imports[segments[0]]; ok {
 			return imported.resolveQualified(path)
 		}
 		return "", false
 	}
 
-	children := m.children()
-	current := m.Root
-	for _, segment := range segments[1:] {
-		next, ok := children[current][segment]
-		if !ok {
-			return "", false
-		}
-		current = next
-	}
-	return current, true
+	return m.descend(first, segments[1:])
 }

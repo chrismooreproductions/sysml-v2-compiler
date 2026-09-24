@@ -1,8 +1,17 @@
 package sysml
 
-// Package is the root of a parsed model: a named package containing member
-// definitions and usages. It's also itself a Member, so packages can
-// nest inside one another.
+// Namespace is the root of a parsed model: an unnamed collection of
+// top-level members (packages, definitions, usages, imports), mirroring the
+// grammar's RootNamespace. Unlike Package, it has no Name and is never
+// itself a Member -- there's no such thing as nesting one root inside
+// another.
+type Namespace struct {
+	Members []Member
+}
+
+// Package is a named container of members, e.g. `package Vehicle { ... }`.
+// It's also itself a Member, so packages can nest inside one another (or
+// appear directly in the root Namespace).
 type Package struct {
 	Name    string
 	Members []Member

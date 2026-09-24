@@ -20,12 +20,12 @@ func TestModelResolve(t *testing.T) {
 		}
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -91,8 +91,10 @@ func TestQualifiedName(t *testing.T) {
 
 // TestQualifiedNameMatchesID pins down today's coincidence: FromAST
 // derives ElementIDs from qualified names, so for now the two agree for
-// every element. If ID generation ever changes (e.g. to opaque IDs that
-// survive renames), this test is the one that should start failing.
+// every element except the synthetic root itself (which has no name of its
+// own to derive an ID from -- see rootID's doc comment). If ID generation
+// ever changes for the rest (e.g. to opaque IDs that survive renames), this
+// test is the one that should start failing.
 func TestQualifiedNameMatchesID(t *testing.T) {
 	m := sysml.NewModel(`package Vehicle {
 		part def Engine;
@@ -101,17 +103,20 @@ func TestQualifiedNameMatchesID(t *testing.T) {
 		}
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
 
 	for id := range model.Elements {
+		if id == model.Root {
+			continue
+		}
 		if got := model.QualifiedName(id); got != string(id) {
 			t.Errorf("QualifiedName(%q) = %q, want %q", id, got, string(id))
 		}
@@ -129,22 +134,19 @@ func TestFromAST(t *testing.T) {
 
 	m := sysml.NewModel(source)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
 
-	if model.Root != "Vehicle" {
-		t.Errorf("root = %q, want %q", model.Root, "Vehicle")
-	}
-
 	want := map[metamodel.ElementID]metamodel.Element{
-		"Vehicle":              {ID: "Vehicle", Kind: metamodel.KindPackage, Name: "Vehicle"},
+		model.Root:             {ID: model.Root, Kind: metamodel.KindNamespace},
+		"Vehicle":              {ID: "Vehicle", Kind: metamodel.KindPackage, Name: "Vehicle", Owner: model.Root},
 		"Vehicle::Engine":      {ID: "Vehicle::Engine", Kind: metamodel.KindDefinition, Name: "Engine", Owner: "Vehicle"},
 		"Vehicle::Car":         {ID: "Vehicle::Car", Kind: metamodel.KindDefinition, Name: "Car", Owner: "Vehicle"},
 		"Vehicle::Car::engine": {ID: "Vehicle::Car::engine", Kind: metamodel.KindUsage, Name: "engine", Owner: "Vehicle::Car"},
@@ -194,12 +196,12 @@ func TestFromASTMultiplicity(t *testing.T) {
 
 	m := sysml.NewModel(source)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -246,18 +248,19 @@ func TestFromASTNestedPackage(t *testing.T) {
 
 	m := sysml.NewModel(source)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
 
 	want := map[metamodel.ElementID]metamodel.Element{
-		"Car":                   {ID: "Car", Kind: metamodel.KindPackage, Name: "Car"},
+		model.Root:              {ID: model.Root, Kind: metamodel.KindNamespace},
+		"Car":                   {ID: "Car", Kind: metamodel.KindPackage, Name: "Car", Owner: model.Root},
 		"Car::Engine":           {ID: "Car::Engine", Kind: metamodel.KindPackage, Name: "Engine", Owner: "Car"},
 		"Car::Engine::Cylinder": {ID: "Car::Engine::Cylinder", Kind: metamodel.KindDefinition, Name: "Cylinder", Owner: "Car::Engine"},
 	}
@@ -292,33 +295,34 @@ func typeOf(model *metamodel.Model, usage metamodel.ElementID) (metamodel.Elemen
 func TestFromASTEmptyPackage(t *testing.T) {
 	m := sysml.NewModel(`package Empty { }`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
 
-	if model.Root != "Empty" {
-		t.Errorf("root = %q, want %q", model.Root, "Empty")
+	empty, ok := model.Elements["Empty"]
+	if !ok || empty.Owner != model.Root {
+		t.Errorf("Empty = %+v, want a top-level element (Owner == model.Root)", empty)
 	}
-	if len(model.Elements) != 1 {
-		t.Errorf("got %d elements, want 1", len(model.Elements))
+	if len(model.Elements) != 2 {
+		t.Errorf("got %d elements, want 2 (the anonymous root and Empty)", len(model.Elements))
 	}
 }
 
 func TestFromASTUnresolvedType(t *testing.T) {
 	m := sysml.NewModel(`package Vehicle { part engine : Engine; }`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	if _, err := metamodel.FromAST(pkg); err == nil {
+	if _, err := metamodel.FromAST(ns); err == nil {
 		t.Error("expected an error for an unresolved type, got nil")
 	}
 }
@@ -329,13 +333,67 @@ func TestFromASTDuplicateDeclaration(t *testing.T) {
 		part def Engine;
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	if _, err := metamodel.FromAST(pkg); err == nil {
+	if _, err := metamodel.FromAST(ns); err == nil {
 		t.Error("expected an error for a duplicate declaration, got nil")
+	}
+}
+
+// TestFromASTDuplicateTopLevelDeclaration is TestFromASTDuplicateDeclaration's
+// counterpart one level up: the anonymous root is itself a namespace guarded
+// against redeclaration, exactly like a Package or Definition body, so two
+// top-level packages with the same name must collide too.
+func TestFromASTDuplicateTopLevelDeclaration(t *testing.T) {
+	m := sysml.NewModel(`
+		package Vehicle { }
+		package Vehicle { }
+	`)
+
+	ns, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for a duplicate top-level declaration, got nil")
+	}
+}
+
+// TestFromASTMultipleTopLevelPackages checks the new capability the
+// anonymous root namespace unlocks: two sibling top-level packages, neither
+// nested in the other, where one resolves an absolute qualified reference
+// into the other via resolveQualified's root-children lookup rather than a
+// single named Root.
+func TestFromASTMultipleTopLevelPackages(t *testing.T) {
+	m := sysml.NewModel(`
+		package P1 {
+			part def A;
+		}
+		package P2 {
+			part a : P1::A;
+		}
+	`)
+
+	ns, err := m.Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "P2::a")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for P2::a")
+	}
+	if typeID != "P1::A" {
+		t.Errorf("usage type = %q, want %q", typeID, "P1::A")
 	}
 }
 
@@ -353,12 +411,12 @@ func TestFromASTScopingRestrictsVisibility(t *testing.T) {
 		}
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	if _, err := metamodel.FromAST(pkg); err == nil {
+	if _, err := metamodel.FromAST(ns); err == nil {
 		t.Error("expected an error resolving a type only visible in a sibling scope, got nil")
 	}
 }
@@ -378,12 +436,12 @@ func TestFromASTQualifiedTypeReachesSiblingScope(t *testing.T) {
 		}
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -416,12 +474,12 @@ func TestFromASTRelativeQualifiedTypeReachesSiblingScope(t *testing.T) {
 		}
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -437,20 +495,20 @@ func TestFromASTRelativeQualifiedTypeReachesSiblingScope(t *testing.T) {
 
 func TestFromASTUnresolvedQualifiedType(t *testing.T) {
 	cases := map[string]string{
-		"wrong root":      `package Vehicle { part engine : Nope::Engine; }`,
-		"missing segment": `package Vehicle { part def Car {} part engine : Vehicle::Car::Nope; }`,
+		"unknown top-level package": `package Vehicle { part engine : Nope::Engine; }`,
+		"missing segment":           `package Vehicle { part def Car {} part engine : Vehicle::Car::Nope; }`,
 	}
 
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
 			m := sysml.NewModel(source)
 
-			pkg, err := m.Parse()
+			ns, err := m.Parse()
 			if err != nil {
 				t.Fatalf("unexpected parse error: %v", err)
 			}
 
-			if _, err := metamodel.FromAST(pkg); err == nil {
+			if _, err := metamodel.FromAST(ns); err == nil {
 				t.Error("expected an error for an unresolved qualified type, got nil")
 			}
 		})
@@ -465,11 +523,11 @@ func vehicleModel(t *testing.T) *metamodel.Model {
 	m := sysml.NewModel(`package Vehicle {
 		part def Engine;
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -488,12 +546,12 @@ func TestFromASTWithImports_ResolvesQualifiedTypeAcrossModels(t *testing.T) {
 			part engine : Vehicle::Engine;
 		}
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{"Vehicle": vehicle})
+	model, err := metamodel.FromASTWithImports(ns, map[string]*metamodel.Model{"Vehicle": vehicle})
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -525,12 +583,12 @@ func TestFromASTWithImports_MissingImportIsAnError(t *testing.T) {
 	m := sysml.NewModel(`package Car {
 		import Vehicle;
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	if _, err := metamodel.FromASTWithImports(pkg, nil); err == nil {
+	if _, err := metamodel.FromASTWithImports(ns, nil); err == nil {
 		t.Error("expected an error for an import with no supplied Model, got nil")
 	}
 }
@@ -545,13 +603,13 @@ func TestFromASTWithImports_UnimportedQualifiedTypeStillFails(t *testing.T) {
 	m := sysml.NewModel(`package Car {
 		part engine : Vehicle::Engine;
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
 	// Vehicle is compiled and available, but never imported by Car.
-	if _, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{"Vehicle": vehicle}); err == nil {
+	if _, err := metamodel.FromASTWithImports(ns, map[string]*metamodel.Model{"Vehicle": vehicle}); err == nil {
 		t.Error("expected an error resolving a type from a package that was never imported, got nil")
 	}
 }
@@ -564,11 +622,11 @@ func environmentModel(t *testing.T) *metamodel.Model {
 	m := sysml.NewModel(`package Environment {
 		part def Terrain;
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -581,11 +639,11 @@ func combatantsModel(t *testing.T) *metamodel.Model {
 	m := sysml.NewModel(`package Combatants {
 		part def Combatant;
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -609,12 +667,12 @@ func TestFromASTWithImports_Battlefield(t *testing.T) {
 		part terrain : Environment::Terrain;
 		part squad : Combatants::Combatant[*];
 	}`)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromASTWithImports(pkg, map[string]*metamodel.Model{
+	model, err := metamodel.FromASTWithImports(ns, map[string]*metamodel.Model{
 		"Environment": environment,
 		"Combatants":  combatants,
 	})
@@ -661,12 +719,12 @@ func TestFromASTShadowing(t *testing.T) {
 		}
 	}`)
 
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
@@ -760,18 +818,18 @@ func TestFromASTVehicleMultiPackage(t *testing.T) {
 	}`
 
 	m := sysml.NewModel(source)
-	pkg, err := m.Parse()
+	ns, err := m.Parse()
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 
-	model, err := metamodel.FromAST(pkg)
+	model, err := metamodel.FromAST(ns)
 	if err != nil {
 		t.Fatalf("unexpected translate error: %v", err)
 	}
 
-	if len(model.Elements) != 48 {
-		t.Errorf("got %d elements, want 48", len(model.Elements))
+	if len(model.Elements) != 49 {
+		t.Errorf("got %d elements, want 49 (48 declared, plus the anonymous root)", len(model.Elements))
 	}
 	if len(model.Relationships) != 29 {
 		t.Errorf("got %d relationships, want 29", len(model.Relationships))

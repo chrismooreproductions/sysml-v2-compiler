@@ -6,13 +6,30 @@ import (
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
 
-func TestModelParse(t *testing.T) {
-	m := sysml.NewModel(vehicleModel)
+// parseTopLevelPackage parses source, expecting it to produce a root
+// Namespace containing exactly one member, a *sysml.Package -- the common
+// shape most of this file's fixtures use. Fails the test otherwise.
+func parseTopLevelPackage(t *testing.T, source string) *sysml.Package {
+	t.Helper()
 
-	pkg, err := m.Parse()
+	ns, err := sysml.NewModel(source).Parse()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
+	if len(ns.Members) != 1 {
+		t.Fatalf("got %d top-level members, want 1", len(ns.Members))
+	}
+
+	pkg, ok := ns.Members[0].(*sysml.Package)
+	if !ok {
+		t.Fatalf("top-level member is %T, want *sysml.Package", ns.Members[0])
+	}
+	return pkg
+}
+
+func TestModelParse(t *testing.T) {
+	pkg := parseTopLevelPackage(t, vehicleModel)
 
 	if pkg.Name != "Vehicle" {
 		t.Errorf("package name = %q, want %q", pkg.Name, "Vehicle")
@@ -51,7 +68,7 @@ func TestModelParse(t *testing.T) {
 }
 
 func TestModelParseQualifiedType(t *testing.T) {
-	m := sysml.NewModel(`package Vehicle {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
 		part def Car {
 			part def Wheel;
 		}
@@ -59,11 +76,6 @@ func TestModelParseQualifiedType(t *testing.T) {
 			part wheel : Vehicle::Car::Wheel;
 		}
 	}`)
-
-	pkg, err := m.Parse()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
 	bike, ok := pkg.Members[1].(*sysml.Definition)
 	if !ok {
@@ -93,12 +105,7 @@ func TestModelParseMultiplicity(t *testing.T) {
 
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
-			m := sysml.NewModel(`package Vehicle { ` + tt.source + ` }`)
-
-			pkg, err := m.Parse()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.source+` }`)
 
 			usage, ok := pkg.Members[0].(*sysml.Usage)
 			if !ok {
@@ -120,15 +127,10 @@ func TestModelParseMultiplicity(t *testing.T) {
 }
 
 func TestModelParseImport(t *testing.T) {
-	m := sysml.NewModel(`package Car {
+	pkg := parseTopLevelPackage(t, `package Car {
 		import Vehicle;
 		part def Chassis;
 	}`)
-
-	pkg, err := m.Parse()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
 	if len(pkg.Members) != 2 {
 		t.Fatalf("got %d members, want 2", len(pkg.Members))
@@ -148,12 +150,7 @@ func TestModelParseImport(t *testing.T) {
 }
 
 func TestModelParseImportQualifiedPath(t *testing.T) {
-	m := sysml.NewModel(`package Car { import Vehicle::Electrical; }`)
-
-	pkg, err := m.Parse()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	pkg := parseTopLevelPackage(t, `package Car { import Vehicle::Electrical; }`)
 
 	imp, ok := pkg.Members[0].(*sysml.Import)
 	if !ok {
@@ -169,18 +166,13 @@ func TestModelParseImportQualifiedPath(t *testing.T) {
 // member's body, even splitting a declaration across lines -- without
 // affecting the parsed result.
 func TestModelParseIgnoresComments(t *testing.T) {
-	m := sysml.NewModel(`// leading comment
+	pkg := parseTopLevelPackage(t, `// leading comment
 	package Vehicle { // trailing comment
 		/* a block
 		   comment */
 		part def Engine; // another one
 		part engine /* inline */ : Engine;
 	}`)
-
-	pkg, err := m.Parse()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
 	if pkg.Name != "Vehicle" {
 		t.Errorf("package name = %q, want %q", pkg.Name, "Vehicle")
@@ -202,15 +194,69 @@ func TestModelParseIgnoresComments(t *testing.T) {
 	}
 }
 
+// TestModelParseRootNamespace checks that a model's root can directly
+// contain multiple top-level members -- packages and a bare definition --
+// rather than requiring exactly one wrapping package. The grammar's root is
+// RootNamespace (PackageBodyElement*), not a single Package.
+func TestModelParseRootNamespace(t *testing.T) {
+	ns, err := sysml.NewModel(`
+		package P1 {
+			part def A;
+		}
+		package P2 {
+			part a : P1::A;
+		}
+		part def TopLevel;
+	`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(ns.Members) != 3 {
+		t.Fatalf("got %d top-level members, want 3", len(ns.Members))
+	}
+
+	p1, ok := ns.Members[0].(*sysml.Package)
+	if !ok || p1.Name != "P1" {
+		t.Fatalf("member 0 = %+v, want Package{Name: P1}", ns.Members[0])
+	}
+
+	p2, ok := ns.Members[1].(*sysml.Package)
+	if !ok || p2.Name != "P2" {
+		t.Fatalf("member 1 = %+v, want Package{Name: P2}", ns.Members[1])
+	}
+
+	topLevel, ok := ns.Members[2].(*sysml.Definition)
+	if !ok || topLevel.Name != "TopLevel" {
+		t.Fatalf("member 2 = %+v, want Definition{Name: TopLevel}", ns.Members[2])
+	}
+}
+
+// TestModelParseEmptySource checks that an empty (or all-whitespace) source
+// parses successfully to a Namespace with no members, rather than erroring
+// -- the grammar's RootNamespace is PackageBodyElement*, zero repetitions
+// included, so there's nothing to require here.
+func TestModelParseEmptySource(t *testing.T) {
+	for name, source := range map[string]string{"empty": "", "whitespace only": "  \n\t "} {
+		t.Run(name, func(t *testing.T) {
+			ns, err := sysml.NewModel(source).Parse()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(ns.Members) != 0 {
+				t.Errorf("got %d members, want 0", len(ns.Members))
+			}
+		})
+	}
+}
+
 func TestModelParseErrors(t *testing.T) {
 	cases := map[string]string{
-		"empty source":                     "",
-		"missing package keyword":          "part def Engine;",
 		"unterminated package body":        "package Vehicle {",
 		"missing package braces":           "package Vehicle",
 		"part usage missing colon":         "package Vehicle { part Engine; }",
 		"part usage missing type":          "package Vehicle { part engine : ; }",
-		"trailing garbage":                 "package Vehicle { } part def Engine;",
+		"unmatched closing brace":          "package Vehicle { } }",
 		"qualified type missing segment":   "package Vehicle { part engine : Vehicle::; }",
 		"qualified type trailing path sep": "package Vehicle { part engine : Vehicle::Engine::; }",
 		"import missing path":              "package Vehicle { import; }",

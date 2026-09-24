@@ -28,9 +28,8 @@ func TestModelParseSpecExamples(t *testing.T) {
 		{"MultiplicityTest.sysml", `line 4: unexpected identifier "attribute", want 'package', 'import', or 'part'`},
 		// visibility on imports (and so "public import") isn't supported.
 		{"QualifiedNameImportTest.sysml", `line 7: unexpected identifier "public", want 'package', 'import', or 'part'`},
-		// the root of a model is parsed as a single package, not the
-		// spec's RootNamespace (multiple top-level packages/imports).
-		{"RootPackageTest.sysml", `line 5: unexpected 'package' after package`},
+		// visibility on imports (and so "private import") isn't supported.
+		{"RootPackageTest.sysml", `line 6: unexpected identifier "private", want 'package', 'import', or 'part'`},
 	}
 
 	for _, tt := range cases {

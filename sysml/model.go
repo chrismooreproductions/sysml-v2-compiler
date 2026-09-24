@@ -25,7 +25,10 @@ func (m Model) Lex() ([]Token, error) {
 	return tokens, nil
 }
 
-func (m Model) Parse() (*Package, error) {
+// Parse parses the model's source as a root Namespace: zero or more
+// top-level members (packages, definitions, usages, imports), matching the
+// grammar's RootNamespace rather than requiring a single wrapping package.
+func (m Model) Parse() (*Namespace, error) {
 	tokens, err := m.Lex()
 	if err != nil {
 		return nil, err
@@ -33,14 +36,14 @@ func (m Model) Parse() (*Package, error) {
 
 	p := newParser(tokens)
 
-	pkg, err := p.parsePackage()
+	members, err := p.parseMembers()
 	if err != nil {
 		return nil, err
 	}
 
 	if tok, ok := p.current(); ok {
-		return nil, fmt.Errorf("line %d: unexpected %s after package", tok.Pos.Line, describeToken(tok))
+		return nil, fmt.Errorf("line %d: unexpected %s", tok.Pos.Line, describeToken(tok))
 	}
 
-	return pkg, nil
+	return &Namespace{Members: members}, nil
 }
