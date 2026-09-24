@@ -8,7 +8,7 @@ import (
 )
 
 // TestModelResolve exercises Resolve directly (rather than only indirectly
-// through FromAST's own use of it for PartUsage typing), since it's public
+// through FromAST's own use of it for Usage typing), since it's public
 // API meant to be called post-translation by things other than the
 // translator itself.
 func TestModelResolve(t *testing.T) {
@@ -67,8 +67,8 @@ func TestQualifiedName(t *testing.T) {
 	model := &metamodel.Model{
 		Elements: map[metamodel.ElementID]*metamodel.Element{
 			"1": {ID: "1", Kind: metamodel.KindPackage, Name: "Vehicle"},
-			"2": {ID: "2", Kind: metamodel.KindPartDef, Name: "Car", Owner: "1"},
-			"3": {ID: "3", Kind: metamodel.KindPartUsage, Name: "engine", Owner: "2"},
+			"2": {ID: "2", Kind: metamodel.KindDefinition, Name: "Car", Owner: "1"},
+			"3": {ID: "3", Kind: metamodel.KindUsage, Name: "engine", Owner: "2"},
 		},
 	}
 
@@ -145,9 +145,9 @@ func TestFromAST(t *testing.T) {
 
 	want := map[metamodel.ElementID]metamodel.Element{
 		"Vehicle":              {ID: "Vehicle", Kind: metamodel.KindPackage, Name: "Vehicle"},
-		"Vehicle::Engine":      {ID: "Vehicle::Engine", Kind: metamodel.KindPartDef, Name: "Engine", Owner: "Vehicle"},
-		"Vehicle::Car":         {ID: "Vehicle::Car", Kind: metamodel.KindPartDef, Name: "Car", Owner: "Vehicle"},
-		"Vehicle::Car::engine": {ID: "Vehicle::Car::engine", Kind: metamodel.KindPartUsage, Name: "engine", Owner: "Vehicle::Car"},
+		"Vehicle::Engine":      {ID: "Vehicle::Engine", Kind: metamodel.KindDefinition, Name: "Engine", Owner: "Vehicle"},
+		"Vehicle::Car":         {ID: "Vehicle::Car", Kind: metamodel.KindDefinition, Name: "Car", Owner: "Vehicle"},
+		"Vehicle::Car::engine": {ID: "Vehicle::Car::engine", Kind: metamodel.KindUsage, Name: "engine", Owner: "Vehicle::Car"},
 	}
 
 	if len(model.Elements) != len(want) {
@@ -179,7 +179,7 @@ func TestFromAST(t *testing.T) {
 	}
 }
 
-// TestFromASTMultiplicity checks that a PartUsage's bracketed multiplicity
+// TestFromASTMultiplicity checks that a Usage's bracketed multiplicity
 // (e.g. "[*]") carries over onto its Element, and that a usage with no
 // bracket at all still ends up with a nil Multiplicity.
 func TestFromASTMultiplicity(t *testing.T) {
@@ -234,7 +234,7 @@ func TestFromASTMultiplicity(t *testing.T) {
 }
 
 // TestFromASTNestedPackage checks that a package nested inside another
-// package (rather than only inside a PartDef) is declared as its own
+// package (rather than only inside a Definition) is declared as its own
 // namespace, containment-linked to its enclosing package via Owner just
 // like any other member.
 func TestFromASTNestedPackage(t *testing.T) {
@@ -259,7 +259,7 @@ func TestFromASTNestedPackage(t *testing.T) {
 	want := map[metamodel.ElementID]metamodel.Element{
 		"Car":                   {ID: "Car", Kind: metamodel.KindPackage, Name: "Car"},
 		"Car::Engine":           {ID: "Car::Engine", Kind: metamodel.KindPackage, Name: "Engine", Owner: "Car"},
-		"Car::Engine::Cylinder": {ID: "Car::Engine::Cylinder", Kind: metamodel.KindPartDef, Name: "Cylinder", Owner: "Car::Engine"},
+		"Car::Engine::Cylinder": {ID: "Car::Engine::Cylinder", Kind: metamodel.KindDefinition, Name: "Cylinder", Owner: "Car::Engine"},
 	}
 
 	if len(model.Elements) != len(want) {

@@ -10,37 +10,58 @@ type Package struct {
 
 func (*Package) memberNode() {}
 
-// Member is anything that can appear inside a Package or a PartDef's body.
+// Member is anything that can appear inside a Package or a Definition's
+// body.
 type Member interface {
 	memberNode()
 }
 
-// PartDef declares a part definition, e.g. `part def Engine;` or
+// DefKind distinguishes the keyword family a Definition or Usage was
+// declared with (e.g. "part" vs "item"), independent of the def-vs-usage
+// structural distinction those two types already carry.
+type DefKind int
+
+const (
+	DefPart DefKind = iota
+)
+
+func (k DefKind) String() string {
+	switch k {
+	case DefPart:
+		return "part"
+	default:
+		return "unknown"
+	}
+}
+
+// Definition declares a definition, e.g. `part def Engine;` or
 // `part def Car { ... }`. Members is nil for the semicolon form.
-type PartDef struct {
+type Definition struct {
+	Kind    DefKind
 	Name    string
 	Members []Member
 }
 
-func (*PartDef) memberNode() {}
+func (*Definition) memberNode() {}
 
-// PartUsage declares a typed part usage, e.g. `part engine : Engine;`, or
+// Usage declares a typed usage, e.g. `part engine : Engine;`, or
 // `part friendlyCombatants : Combatant[*];` for one bounded by a
 // Multiplicity. Multiplicity is nil for the plain (unbounded-in-the-other-
 // sense -- exactly one) form.
-type PartUsage struct {
+type Usage struct {
+	Kind         DefKind
 	Name         string
 	Type         string
 	Multiplicity *Multiplicity
 }
 
-func (*PartUsage) memberNode() {}
+func (*Usage) memberNode() {}
 
 // Unbounded marks a Multiplicity's Upper bound as unlimited, e.g. the "*"
 // in "[*]" or "[1..*]".
 const Unbounded = -1
 
-// Multiplicity bounds how many instances a PartUsage represents, spelled
+// Multiplicity bounds how many instances a Usage represents, spelled
 // as a bracketed suffix on its type: "[*]" (0..Unbounded), "[3]" (an exact
 // count, Lower == Upper), "[1..*]", or "[0..5]".
 type Multiplicity struct {

@@ -92,6 +92,13 @@ func (p *parser) parseMembers() ([]Member, error) {
 	}
 }
 
+// defKeywords maps each definition/usage keyword token to the DefKind it
+// introduces -- the dispatch table parseMember consults after ruling out
+// package and import members.
+var defKeywords = map[Kind]DefKind{
+	Part: DefPart,
+}
+
 func (p *parser) parseMember() (Member, error) {
 	tok, ok := p.current()
 	if !ok {
@@ -106,24 +113,27 @@ func (p *parser) parseMember() (Member, error) {
 		return p.parseImport()
 	}
 
-	if _, err := p.expect(Part); err != nil {
-		return nil, err
+	defKind, ok := defKeywords[tok.Kind]
+	if !ok {
+		return nil, fmt.Errorf("line %d: unexpected %s, want %s, %s, or %s", tok.Pos.Line, describeToken(tok), Pkg, ImportKw, Part)
 	}
+	keyword := tok.Kind
+	p.pos++
 
 	tok, ok = p.current()
 	if !ok {
-		return nil, fmt.Errorf("unexpected end of input after %s", Part)
+		return nil, fmt.Errorf("unexpected end of input after %s", keyword)
 	}
 
 	if tok.Kind == Def {
 		p.pos++
-		return p.parsePartDef()
+		return p.parseDefinition(defKind)
 	}
 
-	return p.parsePartUsage()
+	return p.parseUsage(defKind)
 }
 
-func (p *parser) parsePartDef() (*PartDef, error) {
+func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 	name, err := p.expect(Identifier)
 	if err != nil {
 		return nil, err
@@ -131,13 +141,13 @@ func (p *parser) parsePartDef() (*PartDef, error) {
 
 	tok, ok := p.current()
 	if !ok {
-		return nil, fmt.Errorf("unexpected end of input after part def %q, want %s or %s", string(name.Value), Semicolon, OpenBrace)
+		return nil, fmt.Errorf("unexpected end of input after %s def %q, want %s or %s", kind, string(name.Value), Semicolon, OpenBrace)
 	}
 
 	switch tok.Kind {
 	case Semicolon:
 		p.pos++
-		return &PartDef{Name: string(name.Value)}, nil
+		return &Definition{Kind: kind, Name: string(name.Value)}, nil
 
 	case OpenBrace:
 		p.pos++
@@ -148,7 +158,7 @@ func (p *parser) parsePartDef() (*PartDef, error) {
 		if _, err := p.expect(CloseBrace); err != nil {
 			return nil, err
 		}
-		return &PartDef{Name: string(name.Value), Members: members}, nil
+		return &Definition{Kind: kind, Name: string(name.Value), Members: members}, nil
 
 	default:
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s or %s", tok.Pos.Line, describeToken(tok), Semicolon, OpenBrace)
@@ -172,7 +182,7 @@ func (p *parser) parseImport() (*Import, error) {
 	return &Import{Path: path}, nil
 }
 
-func (p *parser) parsePartUsage() (*PartUsage, error) {
+func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
 	name, err := p.expect(Identifier)
 	if err != nil {
 		return nil, err
@@ -196,7 +206,7 @@ func (p *parser) parsePartUsage() (*PartUsage, error) {
 	if _, err := p.expect(Semicolon); err != nil {
 		return nil, err
 	}
-	return &PartUsage{Name: string(name.Value), Type: typ, Multiplicity: mult}, nil
+	return &Usage{Kind: kind, Name: string(name.Value), Type: typ, Multiplicity: mult}, nil
 }
 
 // parseMultiplicity parses a bracketed multiplicity clause following a part

@@ -17,18 +17,38 @@ type Kind int
 
 const (
 	KindPackage Kind = iota
-	KindPartDef
-	KindPartUsage
+	KindDefinition
+	KindUsage
 )
 
 func (k Kind) String() string {
 	switch k {
 	case KindPackage:
 		return "package"
-	case KindPartDef:
-		return "part def"
-	case KindPartUsage:
-		return "part usage"
+	case KindDefinition:
+		return "definition"
+	case KindUsage:
+		return "usage"
+	default:
+		return "unknown"
+	}
+}
+
+// DefKind mirrors sysml.DefKind: the keyword family (e.g. "part") a
+// KindDefinition or KindUsage Element was declared with. The two packages
+// keep separate types the same way Unbounded does (see the sysml.Unbounded
+// doc comment in translate.go's Usage case), so DefPart is guaranteed to be
+// 0 in both only by convention, not by a shared definition.
+type DefKind int
+
+const (
+	DefPart DefKind = iota
+)
+
+func (k DefKind) String() string {
+	switch k {
+	case DefPart:
+		return "part"
 	default:
 		return "unknown"
 	}
@@ -42,16 +62,21 @@ type Element struct {
 	Kind Kind
 	Name string
 
+	// DefKind is the keyword family (e.g. "part") this Definition or Usage
+	// was declared with. Meaningful only when Kind is KindDefinition or
+	// KindUsage; always DefPart's zero value otherwise.
+	DefKind DefKind
+
 	// Owner is the ID of the Element that directly contains this one, or
 	// "" for the root. Containment is kept as a plain field rather than a
 	// Relationship: it's the one edge nearly everything else (scoping,
 	// traversal, eventual serialization) needs cheaply and constantly.
 	Owner ElementID
 
-	// Multiplicity bounds how many instances a KindPartUsage represents,
+	// Multiplicity bounds how many instances a KindUsage represents,
 	// e.g. the [*] in `part friendlyCombatants : Combatant[*];`. Nil means
 	// exactly one, SysML's implicit default; always nil for kinds other
-	// than KindPartUsage.
+	// than KindUsage.
 	Multiplicity *Multiplicity
 }
 
@@ -59,7 +84,7 @@ type Element struct {
 // in "[*]" or "[1..*]".
 const Unbounded = -1
 
-// Multiplicity bounds how many instances a PartUsage Element represents.
+// Multiplicity bounds how many instances a Usage Element represents.
 type Multiplicity struct {
 	Lower int
 	Upper int
@@ -181,7 +206,7 @@ func (m *Model) children() map[ElementID]map[string]ElementID {
 }
 
 // Resolve looks up name from the perspective of from, the ElementID of the
-// namespace (Package or PartDef) containing the reference.
+// namespace (Package or Definition) containing the reference.
 //
 // A bare name is looked up against from's own direct children first, then
 // each enclosing owner's in turn — so a reference can see names declared in
@@ -192,7 +217,7 @@ func (m *Model) children() map[ElementID]map[string]ElementID {
 // path; only if that fails does it fall back to an absolute path from Root
 // or an import (see resolveQualified). This is what lets a reference reach
 // a sibling's nested namespace (e.g. "Powertrain::Engine" from within a
-// PartDef declared alongside Powertrain, not inside it) without needing the
+// Definition declared alongside Powertrain, not inside it) without needing the
 // full path from Root.
 func (m *Model) Resolve(from ElementID, name string) (ElementID, bool) {
 	if strings.Contains(name, "::") {

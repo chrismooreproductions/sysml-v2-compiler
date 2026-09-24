@@ -22,11 +22,11 @@ func FromAST(pkg *sysml.Package) (*Model, error) {
 // loaded from wherever previously-compiled models are kept).
 //
 // Translation is two phases. Declaration walks the AST building every
-// Element, guarding each namespace (the Package, and each PartDef's body)
+// Element, guarding each namespace (the Package, and each Definition's body)
 // against declaring the same name twice within it, and records each
 // `import` member against its supplied Model. Resolution then walks the
 // type references collected along the way, resolving each via
-// Model.Resolve from the namespace it was declared in — so a PartUsage can
+// Model.Resolve from the namespace it was declared in — so a Usage can
 // see names declared in its own namespace or any enclosing one (but not an
 // unrelated sibling's) for a bare name. A "::"-qualified name resolves the
 // same way for its first segment (see resolveQualifiedFrom), reaching a
@@ -54,7 +54,7 @@ func FromASTWithImports(pkg *sysml.Package, imports map[string]*Model) (*Model, 
 	return t.model, nil
 }
 
-// pendingType is a PartUsage's type reference, still unresolved: name must
+// pendingType is a Usage's type reference, still unresolved: name must
 // be resolved from owner (the namespace containing the usage) once every
 // declaration has been seen.
 type pendingType struct {
@@ -103,18 +103,23 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		return t.declareMembers(m.Members, id, newScope())
 
-	case *sysml.PartDef:
-		id, ok := t.declare(KindPartDef, m.Name, owner, sc)
+	case *sysml.Definition:
+		id, ok := t.declare(KindDefinition, m.Name, owner, sc)
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
+		// sysml.DefKind and metamodel.DefKind are both 0 for "part" by
+		// convention (see DefKind's doc comment), so this conversion is
+		// safe without a lookup table.
+		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		return t.declareMembers(m.Members, id, newScope())
 
-	case *sysml.PartUsage:
-		id, ok := t.declare(KindPartUsage, m.Name, owner, sc)
+	case *sysml.Usage:
+		id, ok := t.declare(KindUsage, m.Name, owner, sc)
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
+		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		if m.Multiplicity != nil {
 			// sysml.Unbounded and metamodel.Unbounded are both -1 by
 			// convention, so the bounds carry over unchanged.
@@ -131,7 +136,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		// scoped to the namespace they're written in yet, just to the whole
 		// model, unlike every other declaration here. Fine for the common
 		// case (imports declared at the top level), wrong for the general
-		// one (an import nested inside a PartDef shouldn't leak model-wide);
+		// one (an import nested inside a Definition shouldn't leak model-wide);
 		// revisit if/when that distinction actually matters.
 		imported, ok := t.imports[m.Path]
 		if !ok {

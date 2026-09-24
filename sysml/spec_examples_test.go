@@ -23,11 +23,11 @@ func TestModelParseSpecExamples(t *testing.T) {
 		wantErr string
 	}{
 		// public/private/protected visibility modifiers aren't supported.
-		{"PartTest.sysml", `line 5: unexpected identifier "public", want 'part'`},
+		{"PartTest.sysml", `line 5: unexpected identifier "public", want 'package', 'import', or 'part'`},
 		// "attribute" as a member kind isn't supported.
-		{"MultiplicityTest.sysml", `line 4: unexpected identifier "attribute", want 'part'`},
+		{"MultiplicityTest.sysml", `line 4: unexpected identifier "attribute", want 'package', 'import', or 'part'`},
 		// visibility on imports (and so "public import") isn't supported.
-		{"QualifiedNameImportTest.sysml", `line 7: unexpected identifier "public", want 'part'`},
+		{"QualifiedNameImportTest.sysml", `line 7: unexpected identifier "public", want 'package', 'import', or 'part'`},
 		// the root of a model is parsed as a single package, not the
 		// spec's RootNamespace (multiple top-level packages/imports).
 		{"RootPackageTest.sysml", `line 5: unexpected 'package' after package`},

@@ -22,17 +22,17 @@ func TestModelParse(t *testing.T) {
 		t.Fatalf("got %d members, want 2", len(pkg.Members))
 	}
 
-	engine, ok := pkg.Members[0].(*sysml.PartDef)
+	engine, ok := pkg.Members[0].(*sysml.Definition)
 	if !ok {
-		t.Fatalf("member 0 is %T, want *sysml.PartDef", pkg.Members[0])
+		t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
 	}
 	if engine.Name != "Engine" || len(engine.Members) != 0 {
-		t.Errorf("member 0 = %+v, want PartDef{Name: Engine, no members}", engine)
+		t.Errorf("member 0 = %+v, want Definition{Name: Engine, no members}", engine)
 	}
 
-	car, ok := pkg.Members[1].(*sysml.PartDef)
+	car, ok := pkg.Members[1].(*sysml.Definition)
 	if !ok {
-		t.Fatalf("member 1 is %T, want *sysml.PartDef", pkg.Members[1])
+		t.Fatalf("member 1 is %T, want *sysml.Definition", pkg.Members[1])
 	}
 	if car.Name != "Car" {
 		t.Errorf("member 1 name = %q, want %q", car.Name, "Car")
@@ -41,12 +41,12 @@ func TestModelParse(t *testing.T) {
 		t.Fatalf("Car has %d members, want 1", len(car.Members))
 	}
 
-	engineUsage, ok := car.Members[0].(*sysml.PartUsage)
+	engineUsage, ok := car.Members[0].(*sysml.Usage)
 	if !ok {
-		t.Fatalf("Car member 0 is %T, want *sysml.PartUsage", car.Members[0])
+		t.Fatalf("Car member 0 is %T, want *sysml.Usage", car.Members[0])
 	}
 	if engineUsage.Name != "engine" || engineUsage.Type != "Engine" {
-		t.Errorf("Car member 0 = %+v, want PartUsage{Name: engine, Type: Engine}", engineUsage)
+		t.Errorf("Car member 0 = %+v, want Usage{Name: engine, Type: Engine}", engineUsage)
 	}
 }
 
@@ -65,14 +65,14 @@ func TestModelParseQualifiedType(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	bike, ok := pkg.Members[1].(*sysml.PartDef)
+	bike, ok := pkg.Members[1].(*sysml.Definition)
 	if !ok {
-		t.Fatalf("member 1 is %T, want *sysml.PartDef", pkg.Members[1])
+		t.Fatalf("member 1 is %T, want *sysml.Definition", pkg.Members[1])
 	}
 
-	wheelUsage, ok := bike.Members[0].(*sysml.PartUsage)
+	wheelUsage, ok := bike.Members[0].(*sysml.Usage)
 	if !ok {
-		t.Fatalf("Bike member 0 is %T, want *sysml.PartUsage", bike.Members[0])
+		t.Fatalf("Bike member 0 is %T, want *sysml.Usage", bike.Members[0])
 	}
 	if wheelUsage.Type != "Vehicle::Car::Wheel" {
 		t.Errorf("wheel usage type = %q, want %q", wheelUsage.Type, "Vehicle::Car::Wheel")
@@ -100,9 +100,9 @@ func TestModelParseMultiplicity(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			usage, ok := pkg.Members[0].(*sysml.PartUsage)
+			usage, ok := pkg.Members[0].(*sysml.Usage)
 			if !ok {
-				t.Fatalf("member 0 is %T, want *sysml.PartUsage", pkg.Members[0])
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
 			}
 
 			if tt.want == nil {
@@ -142,8 +142,8 @@ func TestModelParseImport(t *testing.T) {
 		t.Errorf("import path = %q, want %q", imp.Path, "Vehicle")
 	}
 
-	if _, ok := pkg.Members[1].(*sysml.PartDef); !ok {
-		t.Fatalf("member 1 is %T, want *sysml.PartDef", pkg.Members[1])
+	if _, ok := pkg.Members[1].(*sysml.Definition); !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Definition", pkg.Members[1])
 	}
 }
 
@@ -189,16 +189,16 @@ func TestModelParseIgnoresComments(t *testing.T) {
 		t.Fatalf("got %d members, want 2", len(pkg.Members))
 	}
 
-	if _, ok := pkg.Members[0].(*sysml.PartDef); !ok {
-		t.Fatalf("member 0 is %T, want *sysml.PartDef", pkg.Members[0])
+	if _, ok := pkg.Members[0].(*sysml.Definition); !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
 	}
 
-	usage, ok := pkg.Members[1].(*sysml.PartUsage)
+	usage, ok := pkg.Members[1].(*sysml.Usage)
 	if !ok {
-		t.Fatalf("member 1 is %T, want *sysml.PartUsage", pkg.Members[1])
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
 	}
 	if usage.Name != "engine" || usage.Type != "Engine" {
-		t.Errorf("member 1 = %+v, want PartUsage{Name: engine, Type: Engine}", usage)
+		t.Errorf("member 1 = %+v, want Usage{Name: engine, Type: Engine}", usage)
 	}
 }
 
