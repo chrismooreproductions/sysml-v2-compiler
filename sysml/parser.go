@@ -219,7 +219,7 @@ func (p *parser) parseImport() (*Import, error) {
 		return nil, err
 	}
 
-	path, err := p.parseQualifiedName()
+	path, wildcard, err := p.parseImportTarget()
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,40 @@ func (p *parser) parseImport() (*Import, error) {
 		return nil, err
 	}
 
-	return &Import{Path: path}, nil
+	return &Import{Path: path, Wildcard: wildcard}, nil
+}
+
+// parseImportTarget parses an import's target: a qualified name (e.g.
+// "Vehicle::Electrical"), optionally followed by "::*" naming every member
+// of that namespace rather than the namespace itself, e.g. "P1::*" (a
+// NamespaceImport). Shaped like parseQualifiedName's loop, but checks for a
+// trailing "::*" at each "::" rather than always requiring another
+// identifier.
+func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
+	first, err := p.expect(Identifier)
+	if err != nil {
+		return "", false, err
+	}
+
+	name := string(first.Value)
+	for {
+		tok, ok := p.current()
+		if !ok || tok.Kind != PathSep {
+			return name, false, nil
+		}
+		p.pos++
+
+		if tok, ok := p.current(); ok && tok.Kind == Star {
+			p.pos++
+			return name, true, nil
+		}
+
+		next, err := p.expect(Identifier)
+		if err != nil {
+			return "", false, err
+		}
+		name += "::" + string(next.Value)
+	}
 }
 
 func (p *parser) parseUsage(kind DefKind) (*Usage, error) {

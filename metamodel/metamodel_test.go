@@ -765,6 +765,188 @@ func TestFromASTWithImports_UnimportedQualifiedTypeStillFails(t *testing.T) {
 	}
 }
 
+// TestFromASTWildcardImport checks the basic case: "import P1::*;" inside a
+// sibling of P1 makes P1's members resolvable unqualified, from directly
+// inside the importing namespace -- as if they'd been declared there.
+func TestFromASTWildcardImport(t *testing.T) {
+	source := `package Root {
+		package P1 {
+			part def A;
+		}
+		package P2 {
+			import P1::*;
+			part a : A;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Root::P2::a")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Root::P2::a")
+	}
+	if typeID != "Root::P1::A" {
+		t.Errorf("usage type = %q, want %q", typeID, "Root::P1::A")
+	}
+}
+
+// TestFromASTWildcardImportAtRoot is the same shape as
+// TestFromASTWildcardImport, but with the import written at the anonymous
+// root namespace itself -- the RootPackageTest.sysml pattern -- checking
+// that a namespace of KindNamespace works as an importing scope exactly
+// like a Package does.
+func TestFromASTWildcardImportAtRoot(t *testing.T) {
+	source := `
+		package P1 {
+			part def A;
+		}
+		import P1::*;
+		package P2 {
+			part a : A;
+		}
+	`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "P2::a")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for P2::a")
+	}
+	if typeID != "P1::A" {
+		t.Errorf("usage type = %q, want %q", typeID, "P1::A")
+	}
+}
+
+// TestFromASTWildcardImportReachesFromOutside checks the
+// QualifiedNameImportTest.sysml scenario: P2a wildcard-imports P1, and code
+// outside P2a (in its parent P2) reaches P1::A through P2a's own name --
+// "P2a::A" -- because the import makes A resolve as if it were declared
+// directly inside P2a, not just visible from within it.
+func TestFromASTWildcardImportReachesFromOutside(t *testing.T) {
+	source := `package Root {
+		package P1 {
+			part def A;
+		}
+		package P2 {
+			package P2a {
+				public import P1::*;
+			}
+			part x : P2a::A;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Root::P2::x")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Root::P2::x")
+	}
+	if typeID != "Root::P1::A" {
+		t.Errorf("usage type = %q, want %q", typeID, "Root::P1::A")
+	}
+}
+
+// TestFromASTPrivateWildcardImportNotReexported checks the negative case of
+// TestFromASTWildcardImportReachesFromOutside: with "private" instead of
+// "public", P1's members stay visible from inside P2a itself, but aren't
+// re-exported to an external qualifier like "P2a::A" -- private means not
+// re-exported to importers of this namespace, per SysML.
+func TestFromASTPrivateWildcardImportNotReexported(t *testing.T) {
+	source := `package Root {
+		package P1 {
+			part def A;
+		}
+		package P2 {
+			package P2a {
+				private import P1::*;
+			}
+			part x : P2a::A;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error resolving through a private wildcard import from outside, got nil")
+	}
+}
+
+// TestFromASTPrivateWildcardImportVisibleInside is the other half of
+// TestFromASTPrivateWildcardImportNotReexported: a private import's target
+// is still fully visible to code inside the importing namespace itself --
+// privacy only restricts access from outside it.
+func TestFromASTPrivateWildcardImportVisibleInside(t *testing.T) {
+	source := `package Root {
+		package P1 {
+			part def A;
+		}
+		package P2a {
+			private import P1::*;
+			part x : A;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Root::P2a::x")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Root::P2a::x")
+	}
+	if typeID != "Root::P1::A" {
+		t.Errorf("usage type = %q, want %q", typeID, "Root::P1::A")
+	}
+}
+
+// TestFromASTWildcardImportUnresolvedTarget checks that "import Nope::*;",
+// naming a namespace that doesn't exist anywhere reachable from where the
+// import was written, fails translation -- the same as an unresolved type
+// reference does -- rather than silently importing nothing.
+func TestFromASTWildcardImportUnresolvedTarget(t *testing.T) {
+	ns, err := sysml.NewModel(`package Root { import Nope::*; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for a wildcard import of an unresolved namespace, got nil")
+	}
+}
+
 // environmentModel and combatantsModel compile the two standalone packages
 // TestFromASTWithImports_Battlefield imports, mirroring vehicleModel above.
 func environmentModel(t *testing.T) *metamodel.Model {

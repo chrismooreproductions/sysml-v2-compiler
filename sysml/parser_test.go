@@ -301,6 +301,35 @@ func TestModelParseImportQualifiedPath(t *testing.T) {
 	}
 }
 
+// TestModelParseImportWildcard checks that "import P1::*;" parses as a
+// wildcard import of P1 (Wildcard set, Path holding just "P1" -- not
+// "P1::*"), and that a plain "import P1;" leaves Wildcard false.
+func TestModelParseImportWildcard(t *testing.T) {
+	cases := map[string]struct {
+		source       string
+		wantPath     string
+		wantWildcard bool
+	}{
+		"plain":              {`import P1;`, "P1", false},
+		"wildcard":           {`import P1::*;`, "P1", true},
+		"qualified wildcard": {`import Vehicle::Electrical::*;`, "Vehicle::Electrical", true},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Car { `+tt.source+` }`)
+
+			imp, ok := pkg.Members[0].(*sysml.Import)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Import", pkg.Members[0])
+			}
+			if imp.Path != tt.wantPath || imp.Wildcard != tt.wantWildcard {
+				t.Errorf("import = %+v, want Path: %q, Wildcard: %v", imp, tt.wantPath, tt.wantWildcard)
+			}
+		})
+	}
+}
+
 // TestModelParseVisibility checks that an optional leading
 // public/private/protected keyword is parsed and attached to whichever kind
 // of member follows it -- a package, a definition, a usage, or an import --
@@ -469,6 +498,7 @@ func TestModelParseErrors(t *testing.T) {
 		"qualified type trailing path sep":  "package Vehicle { part engine : Vehicle::Engine::; }",
 		"import missing path":               "package Vehicle { import; }",
 		"import missing semicolon":          "package Vehicle { import Engine }",
+		"import recursive not supported":    "package Vehicle { import P1::**; }",
 		"multiplicity missing bound":        "package Vehicle { part combatants : Combatant[]; }",
 		"multiplicity missing close":        "package Vehicle { part combatants : Combatant[*; }",
 		"multiplicity punctuation bound":    "package Vehicle { part combatants : Combatant[;]; }",

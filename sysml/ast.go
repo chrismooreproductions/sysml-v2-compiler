@@ -142,14 +142,17 @@ type Multiplicity struct {
 	Upper Bound
 }
 
-// Import declares that another package's members should be resolvable by
-// qualified name from this package, e.g. `import Vehicle;`. Path is the
-// imported package's ("::"-qualified) name, not yet a member reference or
-// wildcard form -- those are wider SysML v2 import forms this doesn't cover
-// yet.
+// Import declares that another namespace's members should be resolvable
+// from this one, e.g. `import Vehicle;` (a MembershipImport, importing
+// Vehicle itself by name) or `import Vehicle::*;` (a NamespaceImport,
+// Wildcard set, importing every one of Vehicle's members as if declared
+// directly in the importing namespace). Path is the imported namespace's
+// ("::"-qualified) name. Recursive imports ("::**") aren't supported, and
+// neither is the FilterPackage form of NamespaceImport.
 type Import struct {
 	Visibility Visibility
 	Path       string
+	Wildcard   bool
 }
 
 func (*Import) memberNode() {}

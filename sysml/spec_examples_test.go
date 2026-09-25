@@ -26,10 +26,8 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// "<'1'>" gets swallowed as one identifier by the current lexer,
 		// so parseUsage's expected name/colon shape trips up on "b" next.
 		{"PartTest.sysml", `line 6: unexpected identifier "b", want ';'`},
-		// wildcard imports ("P1::*") aren't supported.
-		{"QualifiedNameImportTest.sysml", `line 7: unexpected '*', want identifier`},
-		// wildcard imports ("P2::*") aren't supported.
-		{"RootPackageTest.sysml", `line 6: unexpected '*', want identifier`},
+		// "subsets" isn't a recognized keyword yet.
+		{"RootPackageTest.sysml", `line 13: unexpected identifier "subsets", want ';'`},
 	}
 
 	for _, tt := range cases {
@@ -56,10 +54,14 @@ func TestModelParseSpecExamples(t *testing.T) {
 // out of TestModelParseSpecExamples once their last blocker was resolved,
 // per that test's own doc comment.
 func TestModelParseSpecExamplesSuccess(t *testing.T) {
-	// MultiplicityTest.sysml exercises every increment-6 addition at once:
-	// untyped usages, multiplicity before or after a type, name-valued
-	// bounds ("[n]"), and an assigned integer value ("= 5").
-	files := []string{"MultiplicityTest.sysml"}
+	files := []string{
+		// Exercises every increment-6 addition at once: untyped usages,
+		// multiplicity before or after a type, name-valued bounds ("[n]"),
+		// and an assigned integer value ("= 5").
+		"MultiplicityTest.sysml",
+		// Exercises increment-7's wildcard import syntax ("P1::*").
+		"QualifiedNameImportTest.sysml",
+	}
 
 	for _, file := range files {
 		t.Run(file, func(t *testing.T) {

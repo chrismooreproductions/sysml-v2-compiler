@@ -6,12 +6,17 @@ metamodel (`metamodel`). Currently covers a root namespace of top-level
 packages/definitions/usages/imports (not just one wrapping package),
 `part`/`attribute`/`item`/`port` definitions and usages (typed or untyped,
 in either order relative to a multiplicity), qualified (`::`) references,
-`public`/`private`/`protected` visibility prefixes (parsed, not yet
-enforced), `//` and `/* */` comments, multiplicity (`[*]`, `[3]`,
-`[0..5]`, or a name-valued bound like `[n]`, left unresolved), assigned
-integer values (`= 5`), and a minimal `import` statement for cross-package
-type resolution — a deliberate subset of the full language, grown
-incrementally rather than implemented against the spec wholesale.
+`public`/`private`/`protected` visibility prefixes (parsed; enforced only
+for wildcard-import re-export, see below), `//` and `/* */` comments,
+multiplicity (`[*]`, `[3]`, `[0..5]`, or a name-valued bound like `[n]`,
+left unresolved), assigned integer values (`= 5`), and `import` statements
+against both an externally supplied `Model` (`import Vehicle;`) and a
+sibling namespace within the same model (`import P1::*;`, making every
+member of `P1` resolvable as if declared in the importing namespace) —
+where a `private import` isn't re-exported to whoever, in turn,
+wildcard-imports the importing namespace. A deliberate subset of the full
+language, grown incrementally rather than implemented against the spec
+wholesale.
 
 ## References
 

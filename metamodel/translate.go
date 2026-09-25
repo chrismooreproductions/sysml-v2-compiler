@@ -36,13 +36,24 @@ func FromAST(ns *sysml.Namespace) (*Model, error) {
 // unresolved is an error.
 func FromASTWithImports(ns *sysml.Namespace, imports map[string]*Model) (*Model, error) {
 	t := &translator{
-		model:   &Model{Root: rootID, Elements: map[ElementID]*Element{}, Imports: map[string]*Model{}},
+		model: &Model{
+			Root:            rootID,
+			Elements:        map[ElementID]*Element{},
+			Imports:         map[string]*Model{},
+			WildcardImports: map[ElementID][]WildcardImport{},
+		},
 		imports: imports,
 	}
 
 	t.model.Elements[rootID] = &Element{ID: rootID, Kind: KindNamespace}
 
 	if err := t.declareMembers(ns.Members, rootID, newScope()); err != nil {
+		return nil, err
+	}
+
+	// Wildcard imports resolve before types: a usage's type may only be
+	// reachable through one (see resolveWildcardImports).
+	if err := t.resolveWildcardImports(); err != nil {
 		return nil, err
 	}
 
@@ -62,9 +73,24 @@ type pendingType struct {
 	owner ElementID
 }
 
+// pendingWildcardImport is an `import Foo::*;` member, still unresolved:
+// name (the "Foo") must be resolved from namespace (where the import
+// statement itself was written) the same deferred way a pendingType is, so
+// an import doesn't have to textually precede whatever it targets.
+type pendingWildcardImport struct {
+	namespace  ElementID
+	name       string
+	visibility Visibility
+}
+
 type translator struct {
 	model   *Model
 	pending []pendingType
+
+	// pendingWildcardImports queues each `import Foo::*;` member for
+	// resolveWildcardImports, the same way pending queues type references
+	// for resolveTypes.
+	pendingWildcardImports []pendingWildcardImport
 
 	// imports is the caller-supplied lookup an `import` member resolves
 	// against, keyed the same way as Model.Imports. Left nil by FromAST.
@@ -143,12 +169,27 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		return nil
 
 	case *sysml.Import:
+		if m.Wildcard {
+			// Deferred to resolveWildcardImports, the same two-phase way a
+			// Usage's type reference is -- m.Path names a sibling elsewhere
+			// in this same model (see WildcardImports), correctly scoped to
+			// owner, not the whole model.
+			t.pendingWildcardImports = append(t.pendingWildcardImports, pendingWildcardImport{
+				namespace:  owner,
+				name:       m.Path,
+				visibility: Visibility(m.Visibility),
+			})
+			return nil
+		}
+
 		// Recorded on t.model.Imports regardless of owner -- imports aren't
 		// scoped to the namespace they're written in yet, just to the whole
-		// model, unlike every other declaration here. Fine for the common
-		// case (imports declared at the top level), wrong for the general
-		// one (an import nested inside a Definition shouldn't leak model-wide);
-		// revisit if/when that distinction actually matters.
+		// model, unlike every other declaration here (including, now,
+		// wildcard imports just above). Fine for the common case (imports
+		// declared at the top level), wrong for the general one (an import
+		// nested inside a Definition shouldn't leak model-wide); revisit
+		// if/when that distinction actually matters for this, the
+		// externally-supplied-Model case.
 		imported, ok := t.imports[m.Path]
 		if !ok {
 			return fmt.Errorf("metamodel: import %q: not supplied", m.Path)
@@ -159,6 +200,27 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 	default:
 		return fmt.Errorf("metamodel: unhandled member type %T", member)
 	}
+}
+
+// resolveWildcardImports resolves each queued `import Foo::*;` member's
+// target namespace, via Model.Resolve from the namespace the import was
+// written in -- so "import P1::*;" written inside a sibling of P1 finds it
+// the same way any other reference to a sibling scope would. Only a single
+// hop of transitivity is handled: resolving one import doesn't yet see
+// through another (an import naming something only reachable via a further
+// wildcard import elsewhere isn't resolved here).
+func (t *translator) resolveWildcardImports() error {
+	for _, p := range t.pendingWildcardImports {
+		targetID, ok := t.model.Resolve(p.namespace, p.name)
+		if !ok {
+			return fmt.Errorf("metamodel: import %q: unresolved", p.name)
+		}
+		t.model.WildcardImports[p.namespace] = append(t.model.WildcardImports[p.namespace], WildcardImport{
+			Target:     targetID,
+			Visibility: p.visibility,
+		})
+	}
+	return nil
 }
 
 func (t *translator) resolveTypes() error {

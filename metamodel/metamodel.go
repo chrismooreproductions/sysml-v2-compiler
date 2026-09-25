@@ -188,6 +188,18 @@ type Relationship struct {
 	Target ElementID
 }
 
+// WildcardImport is one `import Foo::*;` written inside some namespace,
+// recorded against that namespace's ElementID in Model.WildcardImports.
+// Target's members become resolvable from inside the importing namespace
+// as if declared there directly; Visibility is the import statement's own
+// (not Target's), governing whether Target's members are, in turn,
+// re-exported to anyone who wildcard-imports the importing namespace --
+// see lookupChild and lookupChildExternal.
+type WildcardImport struct {
+	Target     ElementID
+	Visibility Visibility
+}
+
 // Model is a flat, ID-addressed collection of Elements and the
 // Relationships between them, plus the ID of the root element.
 type Model struct {
@@ -206,6 +218,15 @@ type Model struct {
 	// import, so resolving an ID to an *Element in general means checking
 	// the right Model, not just this one.
 	Imports map[string]*Model
+
+	// WildcardImports maps a namespace's ElementID to the wildcard imports
+	// (`import Foo::*;`) declared directly inside it, each targeting a
+	// sibling elsewhere in this same Model -- not a separately compiled
+	// one; see Imports for that case. Populated by FromASTWithImports from
+	// an `import Foo::*;` member with Wildcard set, resolved the same
+	// deferred, two-phase way a Usage's type reference is (see
+	// resolveWildcardImports).
+	WildcardImports map[ElementID][]WildcardImport
 
 	// bySource indexes Relationships by Source, built lazily by
 	// RelationshipsFrom. It's a cache derived from Relationships, not a
@@ -279,6 +300,52 @@ func (m *Model) children() map[ElementID]map[string]ElementID {
 	return m.childrenByOwner
 }
 
+// lookupChild returns the ElementID of ns's child named name, as seen by a
+// request originating from inside ns's own subtree: ns's direct children
+// first, then -- regardless of their own Visibility, since privacy only
+// ever restricts access from outside a namespace, never from within it --
+// each namespace ns wildcard-imports. Used by Resolve's bare-name climb and
+// resolveQualifiedFrom's climb, where every ns checked is, by construction,
+// an ancestor of the original request.
+func (m *Model) lookupChild(ns ElementID, name string) (ElementID, bool) {
+	if id, ok := m.children()[ns][name]; ok {
+		return id, true
+	}
+	for _, imp := range m.WildcardImports[ns] {
+		if id, ok := m.children()[imp.Target][name]; ok {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// lookupChildExternal returns the ElementID of ns's child named name, as
+// seen by a request qualifying into ns from outside it (e.g. resolving
+// "ns::name"): ns's direct children, then only its public (or
+// unspecified -- SysML's default) wildcard imports. A private wildcard
+// import's targets stay visible only to requests already inside ns (via
+// lookupChild), never re-exported to an external qualifier -- this is the
+// one piece of visibility enforcement this project has today; the general
+// case (any private/protected member, not just an import) is future work.
+// protected is treated the same as private here for lack of a
+// specialization/subclassing concept to give it its own, narrower meaning.
+// Used by descend, the only place a qualified path steps into a namespace
+// it didn't climb up to.
+func (m *Model) lookupChildExternal(ns ElementID, name string) (ElementID, bool) {
+	if id, ok := m.children()[ns][name]; ok {
+		return id, true
+	}
+	for _, imp := range m.WildcardImports[ns] {
+		if imp.Visibility == VisibilityPrivate || imp.Visibility == VisibilityProtected {
+			continue
+		}
+		if id, ok := m.children()[imp.Target][name]; ok {
+			return id, true
+		}
+	}
+	return "", false
+}
+
 // Resolve looks up name from the perspective of from, the ElementID of the
 // namespace (Package or Definition) containing the reference.
 //
@@ -298,9 +365,8 @@ func (m *Model) Resolve(from ElementID, name string) (ElementID, bool) {
 		return m.resolveQualifiedFrom(from, name)
 	}
 
-	children := m.children()
 	for current := from; current != ""; {
-		if id, ok := children[current][name]; ok {
+		if id, ok := m.lookupChild(current, name); ok {
 			return id, true
 		}
 		el, ok := m.Elements[current]
@@ -327,12 +393,11 @@ func (m *Model) resolveQualifiedFrom(from ElementID, path string) (ElementID, bo
 	segments := strings.Split(path, "::")
 	first := segments[0]
 
-	children := m.children()
 	for current := from; ; {
 		if el, ok := m.Elements[current]; ok && el.Name == first {
 			return m.descend(current, segments[1:])
 		}
-		if id, ok := children[current][first]; ok {
+		if id, ok := m.lookupChild(current, first); ok {
 			return m.descend(id, segments[1:])
 		}
 		el, ok := m.Elements[current]
@@ -345,13 +410,14 @@ func (m *Model) resolveQualifiedFrom(from ElementID, path string) (ElementID, bo
 	return m.resolveQualified(path)
 }
 
-// descend walks down from start through a chain of direct-child names,
-// e.g. descend(carID, []string{"Wheel"}) to reach Car's Wheel.
+// descend walks down from start through a chain of names, each step
+// qualifying into the next namespace from outside it (see
+// lookupChildExternal) -- e.g. descend(carID, []string{"Wheel"}) to reach
+// Car's Wheel.
 func (m *Model) descend(start ElementID, segments []string) (ElementID, bool) {
-	children := m.children()
 	current := start
 	for _, segment := range segments {
-		next, ok := children[current][segment]
+		next, ok := m.lookupChildExternal(current, segment)
 		if !ok {
 			return "", false
 		}
@@ -374,7 +440,7 @@ func (m *Model) descend(start ElementID, segments []string) (ElementID, bool) {
 func (m *Model) resolveQualified(path string) (ElementID, bool) {
 	segments := strings.Split(path, "::")
 
-	first, ok := m.children()[m.Root][segments[0]]
+	first, ok := m.lookupChild(m.Root, segments[0])
 	if !ok {
 		if imported, ok := m.Imports[segments[0]]; ok {
 			return imported.resolveQualified(path)
