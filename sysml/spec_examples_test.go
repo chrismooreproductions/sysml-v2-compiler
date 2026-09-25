@@ -26,8 +26,9 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// "<'1'>" gets swallowed as one identifier by the current lexer,
 		// so parseUsage's expected name/colon shape trips up on "b" next.
 		{"PartTest.sysml", `line 6: unexpected identifier "b", want ':'`},
-		// "attribute" as a member kind isn't supported.
-		{"MultiplicityTest.sysml", `line 4: unexpected identifier "attribute", want 'package', 'import', or 'part'`},
+		// assigned values ("= 5") on a usage aren't supported. "=" isn't
+		// punctuation yet, so it lexes as an identifier token.
+		{"MultiplicityTest.sysml", `line 4: unexpected identifier "=", want ';'`},
 		// wildcard imports ("P1::*") aren't supported.
 		{"QualifiedNameImportTest.sysml", `line 7: unexpected '*', want identifier`},
 		// wildcard imports ("P2::*") aren't supported.

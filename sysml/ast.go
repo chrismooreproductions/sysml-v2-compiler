@@ -62,12 +62,21 @@ type DefKind int
 
 const (
 	DefPart DefKind = iota
+	DefAttribute
+	DefItem
+	DefPort
 )
 
 func (k DefKind) String() string {
 	switch k {
 	case DefPart:
 		return "part"
+	case DefAttribute:
+		return "attribute"
+	case DefItem:
+		return "item"
+	case DefPort:
+		return "port"
 	default:
 		return "unknown"
 	}

@@ -50,18 +50,28 @@ const rootID ElementID = "::"
 // DefKind mirrors sysml.DefKind: the keyword family (e.g. "part") a
 // KindDefinition or KindUsage Element was declared with. The two packages
 // keep separate types the same way Unbounded does (see the sysml.Unbounded
-// doc comment in translate.go's Usage case), so DefPart is guaranteed to be
-// 0 in both only by convention, not by a shared definition.
+// doc comment in translate.go's Usage case), so each constant is guaranteed
+// to agree with its sysml counterpart only by both listing them in this
+// same order, not by a shared definition.
 type DefKind int
 
 const (
 	DefPart DefKind = iota
+	DefAttribute
+	DefItem
+	DefPort
 )
 
 func (k DefKind) String() string {
 	switch k {
 	case DefPart:
 		return "part"
+	case DefAttribute:
+		return "attribute"
+	case DefItem:
+		return "item"
+	case DefPort:
+		return "port"
 	default:
 		return "unknown"
 	}

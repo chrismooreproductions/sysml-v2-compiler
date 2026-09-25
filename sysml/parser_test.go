@@ -67,6 +67,49 @@ func TestModelParse(t *testing.T) {
 	}
 }
 
+// TestModelParseDefKeywords checks that "attribute", "item", and "port" are
+// each accepted as a definition/usage keyword family alongside "part",
+// dispatched through the same defKeywords table -- so a definition and a
+// usage of each kind parse into a Definition/Usage carrying the matching
+// DefKind, with no bespoke per-keyword parsing.
+func TestModelParseDefKeywords(t *testing.T) {
+	cases := map[string]struct {
+		keyword string
+		want    sysml.DefKind
+	}{
+		"part":      {"part", sysml.DefPart},
+		"attribute": {"attribute", sysml.DefAttribute},
+		"item":      {"item", sysml.DefItem},
+		"port":      {"port", sysml.DefPort},
+	}
+
+	for name, tt := range cases {
+		t.Run(name+" definition", func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.keyword+` def X; }`)
+
+			def, ok := pkg.Members[0].(*sysml.Definition)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+			}
+			if def.Kind != tt.want || def.Name != "X" {
+				t.Errorf("member 0 = %+v, want Definition{Kind: %v, Name: X}", def, tt.want)
+			}
+		})
+
+		t.Run(name+" usage", func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.keyword+` def X; `+tt.keyword+` x : X; }`)
+
+			usage, ok := pkg.Members[1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+			}
+			if usage.Kind != tt.want || usage.Name != "x" || usage.Type != "X" {
+				t.Errorf("member 1 = %+v, want Usage{Kind: %v, Name: x, Type: X}", usage, tt.want)
+			}
+		})
+	}
+}
+
 func TestModelParseQualifiedType(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Vehicle {
 		part def Car {

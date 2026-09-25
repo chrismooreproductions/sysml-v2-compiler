@@ -5,6 +5,9 @@ type Kind int
 const (
 	Pkg Kind = iota
 	Part
+	Attribute
+	Item
+	Port
 	Def
 	ImportKw
 	PublicKw
@@ -30,6 +33,12 @@ func (k Kind) String() string {
 		return "'package'"
 	case Part:
 		return "'part'"
+	case Attribute:
+		return "'attribute'"
+	case Item:
+		return "'item'"
+	case Port:
+		return "'port'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -72,6 +81,9 @@ func (k Kind) String() string {
 var kinds = map[string]Kind{
 	"package":   Pkg,
 	"part":      Part,
+	"attribute": Attribute,
+	"item":      Item,
+	"port":      Port,
 	"def":       Def,
 	"import":    ImportKw,
 	"public":    PublicKw,

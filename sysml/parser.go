@@ -96,7 +96,10 @@ func (p *parser) parseMembers() ([]Member, error) {
 // introduces -- the dispatch table parseMember consults after ruling out
 // package and import members.
 var defKeywords = map[Kind]DefKind{
-	Part: DefPart,
+	Part:      DefPart,
+	Attribute: DefAttribute,
+	Item:      DefItem,
+	Port:      DefPort,
 }
 
 // visibilityKeywords maps each visibility keyword token to the Visibility
