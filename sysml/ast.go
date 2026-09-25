@@ -9,12 +9,42 @@ type Namespace struct {
 	Members []Member
 }
 
+// Visibility is a member's `public`/`private`/`protected` prefix, e.g. the
+// `private` in `private import Vehicle;`. The grammar attaches this to the
+// membership relationship rather than the element itself (MemberPrefix), but
+// this project has no first-class Membership yet, so it's folded onto the
+// member directly. VisibilityUnspecified means no keyword was written --
+// not yet given any enforced meaning (SysML defaults it to public), just
+// recorded as parsed.
+type Visibility int
+
+const (
+	VisibilityUnspecified Visibility = iota
+	VisibilityPublic
+	VisibilityPrivate
+	VisibilityProtected
+)
+
+func (v Visibility) String() string {
+	switch v {
+	case VisibilityPublic:
+		return "public"
+	case VisibilityPrivate:
+		return "private"
+	case VisibilityProtected:
+		return "protected"
+	default:
+		return "unspecified"
+	}
+}
+
 // Package is a named container of members, e.g. `package Vehicle { ... }`.
 // It's also itself a Member, so packages can nest inside one another (or
 // appear directly in the root Namespace).
 type Package struct {
-	Name    string
-	Members []Member
+	Visibility Visibility
+	Name       string
+	Members    []Member
 }
 
 func (*Package) memberNode() {}
@@ -46,9 +76,10 @@ func (k DefKind) String() string {
 // Definition declares a definition, e.g. `part def Engine;` or
 // `part def Car { ... }`. Members is nil for the semicolon form.
 type Definition struct {
-	Kind    DefKind
-	Name    string
-	Members []Member
+	Visibility Visibility
+	Kind       DefKind
+	Name       string
+	Members    []Member
 }
 
 func (*Definition) memberNode() {}
@@ -58,6 +89,7 @@ func (*Definition) memberNode() {}
 // Multiplicity. Multiplicity is nil for the plain (unbounded-in-the-other-
 // sense -- exactly one) form.
 type Usage struct {
+	Visibility   Visibility
 	Kind         DefKind
 	Name         string
 	Type         string
@@ -84,7 +116,8 @@ type Multiplicity struct {
 // wildcard form -- those are wider SysML v2 import forms this doesn't cover
 // yet.
 type Import struct {
-	Path string
+	Visibility Visibility
+	Path       string
 }
 
 func (*Import) memberNode() {}

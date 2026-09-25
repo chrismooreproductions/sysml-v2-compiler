@@ -105,6 +105,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		if !ok {
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
+		t.model.Elements[id].Visibility = Visibility(m.Visibility)
 		return t.declareMembers(m.Members, id, newScope())
 
 	case *sysml.Definition:
@@ -116,6 +117,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		// convention (see DefKind's doc comment), so this conversion is
 		// safe without a lookup table.
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
+		t.model.Elements[id].Visibility = Visibility(m.Visibility)
 		return t.declareMembers(m.Members, id, newScope())
 
 	case *sysml.Usage:
@@ -124,6 +126,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
+		t.model.Elements[id].Visibility = Visibility(m.Visibility)
 		if m.Multiplicity != nil {
 			// sysml.Unbounded and metamodel.Unbounded are both -1 by
 			// convention, so the bounds carry over unchanged.

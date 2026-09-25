@@ -7,6 +7,9 @@ const (
 	Part
 	Def
 	ImportKw
+	PublicKw
+	PrivateKw
+	ProtectedKw
 	Semicolon
 	OpenBrace
 	CloseBrace
@@ -31,6 +34,12 @@ func (k Kind) String() string {
 		return "'def'"
 	case ImportKw:
 		return "'import'"
+	case PublicKw:
+		return "'public'"
+	case PrivateKw:
+		return "'private'"
+	case ProtectedKw:
+		return "'protected'"
 	case Semicolon:
 		return "';'"
 	case OpenBrace:
@@ -61,19 +70,22 @@ func (k Kind) String() string {
 }
 
 var kinds = map[string]Kind{
-	"package": Pkg,
-	"part":    Part,
-	"def":     Def,
-	"import":  ImportKw,
-	";":       Semicolon,
-	"{":       OpenBrace,
-	"}":       CloseBrace,
-	":":       Colon,
-	"::":      PathSep,
-	"[":       OpenBracket,
-	"]":       CloseBracket,
-	"*":       Star,
-	"..":      DotDot,
+	"package":   Pkg,
+	"part":      Part,
+	"def":       Def,
+	"import":    ImportKw,
+	"public":    PublicKw,
+	"private":   PrivateKw,
+	"protected": ProtectedKw,
+	";":         Semicolon,
+	"{":         OpenBrace,
+	"}":         CloseBrace,
+	":":         Colon,
+	"::":        PathSep,
+	"[":         OpenBracket,
+	"]":         CloseBracket,
+	"*":         Star,
+	"..":        DotDot,
 }
 
 type Pos struct {

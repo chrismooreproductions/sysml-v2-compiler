@@ -99,18 +99,54 @@ var defKeywords = map[Kind]DefKind{
 	Part: DefPart,
 }
 
+// visibilityKeywords maps each visibility keyword token to the Visibility
+// it introduces, for parseMember's optional leading prefix.
+var visibilityKeywords = map[Kind]Visibility{
+	PublicKw:    VisibilityPublic,
+	PrivateKw:   VisibilityPrivate,
+	ProtectedKw: VisibilityProtected,
+}
+
+// parseVisibility consumes a leading 'public'/'private'/'protected'
+// keyword if the next token is one, returning the Visibility it names.
+// Consumes nothing and returns VisibilityUnspecified otherwise.
+func (p *parser) parseVisibility() Visibility {
+	tok, ok := p.current()
+	if !ok {
+		return VisibilityUnspecified
+	}
+	vis, ok := visibilityKeywords[tok.Kind]
+	if !ok {
+		return VisibilityUnspecified
+	}
+	p.pos++
+	return vis
+}
+
 func (p *parser) parseMember() (Member, error) {
+	vis := p.parseVisibility()
+
 	tok, ok := p.current()
 	if !ok {
 		return nil, fmt.Errorf("unexpected end of input, want %s, %s, or %s", Pkg, ImportKw, Part)
 	}
 
 	if tok.Kind == Pkg {
-		return p.parsePackage()
+		pkg, err := p.parsePackage()
+		if err != nil {
+			return nil, err
+		}
+		pkg.Visibility = vis
+		return pkg, nil
 	}
 
 	if tok.Kind == ImportKw {
-		return p.parseImport()
+		imp, err := p.parseImport()
+		if err != nil {
+			return nil, err
+		}
+		imp.Visibility = vis
+		return imp, nil
 	}
 
 	defKind, ok := defKeywords[tok.Kind]
@@ -127,10 +163,20 @@ func (p *parser) parseMember() (Member, error) {
 
 	if tok.Kind == Def {
 		p.pos++
-		return p.parseDefinition(defKind)
+		def, err := p.parseDefinition(defKind)
+		if err != nil {
+			return nil, err
+		}
+		def.Visibility = vis
+		return def, nil
 	}
 
-	return p.parseUsage(defKind)
+	usage, err := p.parseUsage(defKind)
+	if err != nil {
+		return nil, err
+	}
+	usage.Visibility = vis
+	return usage, nil
 }
 
 func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {

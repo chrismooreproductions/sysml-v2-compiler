@@ -161,6 +161,73 @@ func TestModelParseImportQualifiedPath(t *testing.T) {
 	}
 }
 
+// TestModelParseVisibility checks that an optional leading
+// public/private/protected keyword is parsed and attached to whichever kind
+// of member follows it -- a package, a definition, a usage, or an import --
+// and that omitting it leaves Visibility at its unspecified zero value.
+func TestModelParseVisibility(t *testing.T) {
+	cases := map[string]struct {
+		member string
+		want   sysml.Visibility
+	}{
+		"unspecified": {`part def Engine;`, sysml.VisibilityUnspecified},
+		"public":      {`public part def Engine;`, sysml.VisibilityPublic},
+		"private":     {`private part def Engine;`, sysml.VisibilityPrivate},
+		"protected":   {`protected part def Engine;`, sysml.VisibilityProtected},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.member+` }`)
+
+			def, ok := pkg.Members[0].(*sysml.Definition)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+			}
+			if def.Visibility != tt.want {
+				t.Errorf("Visibility = %v, want %v", def.Visibility, tt.want)
+			}
+		})
+	}
+}
+
+// TestModelParseVisibilityOnEveryMemberKind checks that a package, a usage,
+// and an import each accept the same leading visibility prefix as a
+// definition does -- one shared parseVisibility step ahead of whichever
+// member follows, not something special-cased per keyword.
+func TestModelParseVisibilityOnEveryMemberKind(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		private package Sub { }
+		public part def Engine;
+		protected part engine : Engine;
+		private import Other;
+	}`)
+
+	if len(pkg.Members) != 4 {
+		t.Fatalf("got %d members, want 4", len(pkg.Members))
+	}
+
+	sub, ok := pkg.Members[0].(*sysml.Package)
+	if !ok || sub.Visibility != sysml.VisibilityPrivate {
+		t.Errorf("member 0 = %+v, want a private Package", pkg.Members[0])
+	}
+
+	def, ok := pkg.Members[1].(*sysml.Definition)
+	if !ok || def.Visibility != sysml.VisibilityPublic {
+		t.Errorf("member 1 = %+v, want a public Definition", pkg.Members[1])
+	}
+
+	usage, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok || usage.Visibility != sysml.VisibilityProtected {
+		t.Errorf("member 2 = %+v, want a protected Usage", pkg.Members[2])
+	}
+
+	imp, ok := pkg.Members[3].(*sysml.Import)
+	if !ok || imp.Visibility != sysml.VisibilityPrivate {
+		t.Errorf("member 3 = %+v, want a private Import", pkg.Members[3])
+	}
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without

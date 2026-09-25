@@ -235,6 +235,48 @@ func TestFromASTMultiplicity(t *testing.T) {
 	}
 }
 
+// TestFromASTVisibility checks that a package, definition, and usage each
+// carry their parsed sysml.Visibility over onto their Element unchanged
+// (including the unspecified case), across the sysml.Visibility ->
+// metamodel.Visibility conversion translate.go does by enum-order
+// convention rather than a lookup table.
+func TestFromASTVisibility(t *testing.T) {
+	source := `package Vehicle {
+		private package Sub { }
+		public part def Engine;
+		part engine : Engine;
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	tests := []struct {
+		id   metamodel.ElementID
+		want metamodel.Visibility
+	}{
+		{"Vehicle::Sub", metamodel.VisibilityPrivate},
+		{"Vehicle::Engine", metamodel.VisibilityPublic},
+		{"Vehicle::engine", metamodel.VisibilityUnspecified},
+	}
+
+	for _, tt := range tests {
+		el, ok := model.Elements[tt.id]
+		if !ok {
+			t.Fatalf("missing element %q", tt.id)
+		}
+		if el.Visibility != tt.want {
+			t.Errorf("%s: Visibility = %v, want %v", tt.id, el.Visibility, tt.want)
+		}
+	}
+}
+
 // TestFromASTNestedPackage checks that a package nested inside another
 // package (rather than only inside a Definition) is declared as its own
 // namespace, containment-linked to its enclosing package via Owner just

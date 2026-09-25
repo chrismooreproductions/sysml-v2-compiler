@@ -67,6 +67,34 @@ func (k DefKind) String() string {
 	}
 }
 
+// Visibility mirrors sysml.Visibility: an Element's `public`/`private`/
+// `protected` prefix, carried over as parsed but not yet enforced anywhere
+// (nothing consults it to restrict what Resolve can see). The two packages
+// keep separate types the same way DefKind does, so the two enums are
+// guaranteed to agree only by both listing Unspecified/Public/Private/
+// Protected in this same order.
+type Visibility int
+
+const (
+	VisibilityUnspecified Visibility = iota
+	VisibilityPublic
+	VisibilityPrivate
+	VisibilityProtected
+)
+
+func (v Visibility) String() string {
+	switch v {
+	case VisibilityPublic:
+		return "public"
+	case VisibilityPrivate:
+		return "private"
+	case VisibilityProtected:
+		return "protected"
+	default:
+		return "unspecified"
+	}
+}
+
 // Element is a single node in the metamodel. Every kind of thing (package,
 // definition, usage, ...) is represented the same way and distinguished by
 // Kind, rather than as a distinct Go type per kind.
@@ -79,6 +107,11 @@ type Element struct {
 	// was declared with. Meaningful only when Kind is KindDefinition or
 	// KindUsage; always DefPart's zero value otherwise.
 	DefKind DefKind
+
+	// Visibility is this Element's public/private/protected prefix, or
+	// VisibilityUnspecified if it had none. Recorded but not yet enforced --
+	// see Visibility's doc comment.
+	Visibility Visibility
 
 	// Owner is the ID of the Element that directly contains this one, or
 	// "" for the root. Containment is kept as a plain field rather than a
