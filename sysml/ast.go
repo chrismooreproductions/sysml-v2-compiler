@@ -93,30 +93,53 @@ type Definition struct {
 
 func (*Definition) memberNode() {}
 
-// Usage declares a typed usage, e.g. `part engine : Engine;`, or
-// `part friendlyCombatants : Combatant[*];` for one bounded by a
-// Multiplicity. Multiplicity is nil for the plain (unbounded-in-the-other-
-// sense -- exactly one) form.
+// Usage declares a usage, e.g. `part engine : Engine;`, `port p;` (untyped),
+// or `part friendlyCombatants : Combatant[*];` for one bounded by a
+// Multiplicity. Type, Multiplicity, and Value are each independently
+// optional, and a Type/Multiplicity pair may appear in either order (e.g.
+// `part b[0..2] : P;` or `part c : P[2..*];`) -- Type is "" and Multiplicity
+// is nil when absent, regardless of which of the two, if either, was
+// written.
 type Usage struct {
 	Visibility   Visibility
 	Kind         DefKind
 	Name         string
 	Type         string
 	Multiplicity *Multiplicity
+
+	// Value is the usage's assigned value, e.g. the 5 in
+	// `attribute n : ScalarValues::Integer = 5;`. Only SysML's plain '='
+	// FeatureValue form is supported (not ':=' or 'default'), and only
+	// integer literals, not full expressions -- nil if no value was
+	// assigned.
+	Value *int
 }
 
 func (*Usage) memberNode() {}
 
-// Unbounded marks a Multiplicity's Upper bound as unlimited, e.g. the "*"
-// in "[*]" or "[1..*]".
+// Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or
+// "[1..*]".
 const Unbounded = -1
+
+// Bound is one side of a Multiplicity range: either a literal integer
+// (Value, where Unbounded means "*"), or an unresolved name reference to a
+// declared value, e.g. the "n" in "[n]" (Name). Resolving a name bound
+// needs feature-reference expressions, which are out of scope here -- it's
+// parsed and stored, never resolved. Name is "" for a literal or Unbounded
+// bound, in which case Value holds the actual bound; Value is meaningless
+// when Name is set.
+type Bound struct {
+	Value int
+	Name  string
+}
 
 // Multiplicity bounds how many instances a Usage represents, spelled
 // as a bracketed suffix on its type: "[*]" (0..Unbounded), "[3]" (an exact
-// count, Lower == Upper), "[1..*]", or "[0..5]".
+// count, Lower == Upper), "[1..*]", "[0..5]", or a name-valued bound like
+// "[n]" or "[1..n]".
 type Multiplicity struct {
-	Lower int
-	Upper int
+	Lower Bound
+	Upper Bound
 }
 
 // Import declares that another package's members should be resolvable by

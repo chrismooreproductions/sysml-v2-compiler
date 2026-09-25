@@ -139,10 +139,13 @@ func TestModelParseMultiplicity(t *testing.T) {
 		source string
 		want   *sysml.Multiplicity
 	}{
-		"unbounded star":     {`part combatants : Combatant[*];`, &sysml.Multiplicity{Lower: 0, Upper: sysml.Unbounded}},
-		"exact count":        {`part combatants : Combatant[3];`, &sysml.Multiplicity{Lower: 3, Upper: 3}},
-		"bounded range":      {`part combatants : Combatant[0..5];`, &sysml.Multiplicity{Lower: 0, Upper: 5}},
-		"lower to unbounded": {`part combatants : Combatant[1..*];`, &sysml.Multiplicity{Lower: 1, Upper: sysml.Unbounded}},
+		"unbounded star":     {`part combatants : Combatant[*];`, &sysml.Multiplicity{Lower: sysml.Bound{Value: 0}, Upper: sysml.Bound{Value: sysml.Unbounded}}},
+		"exact count":        {`part combatants : Combatant[3];`, &sysml.Multiplicity{Lower: sysml.Bound{Value: 3}, Upper: sysml.Bound{Value: 3}}},
+		"bounded range":      {`part combatants : Combatant[0..5];`, &sysml.Multiplicity{Lower: sysml.Bound{Value: 0}, Upper: sysml.Bound{Value: 5}}},
+		"lower to unbounded": {`part combatants : Combatant[1..*];`, &sysml.Multiplicity{Lower: sysml.Bound{Value: 1}, Upper: sysml.Bound{Value: sysml.Unbounded}}},
+		"name bound":         {`part combatants : Combatant[n];`, &sysml.Multiplicity{Lower: sysml.Bound{Name: "n"}, Upper: sysml.Bound{Name: "n"}}},
+		"name to unbounded":  {`part combatants : Combatant[n..*];`, &sysml.Multiplicity{Lower: sysml.Bound{Name: "n"}, Upper: sysml.Bound{Value: sysml.Unbounded}}},
+		"literal to name":    {`part combatants : Combatant[1..n];`, &sysml.Multiplicity{Lower: sysml.Bound{Value: 1}, Upper: sysml.Bound{Name: "n"}}},
 		"no multiplicity":    {`part combatants : Combatant;`, nil},
 	}
 
@@ -168,6 +171,100 @@ func TestModelParseMultiplicity(t *testing.T) {
 		})
 	}
 }
+
+// TestModelParseUsageUntyped checks that a usage's type is optional --
+// "port p;" is a complete usage with Type == "" and no Multiplicity -- and
+// that an untyped usage can still carry a multiplicity ("part a[1];").
+func TestModelParseUsageUntyped(t *testing.T) {
+	cases := map[string]struct {
+		source   string
+		wantType string
+		wantMult *sysml.Multiplicity
+	}{
+		"bare":              {`port p;`, "", nil},
+		"with multiplicity": {`part a[1];`, "", &sysml.Multiplicity{Lower: sysml.Bound{Value: 1}, Upper: sysml.Bound{Value: 1}}},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.source+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+			if usage.Type != tt.wantType {
+				t.Errorf("Type = %q, want %q", usage.Type, tt.wantType)
+			}
+			if tt.wantMult == nil {
+				if usage.Multiplicity != nil {
+					t.Errorf("Multiplicity = %+v, want nil", usage.Multiplicity)
+				}
+				return
+			}
+			if usage.Multiplicity == nil || *usage.Multiplicity != *tt.wantMult {
+				t.Errorf("Multiplicity = %+v, want %+v", usage.Multiplicity, tt.wantMult)
+			}
+		})
+	}
+}
+
+// TestModelParseUsageMultiplicityBeforeType checks that a multiplicity may
+// precede its usage's type ("part b[0..2] : P;"), not just follow it, since
+// FeatureSpecializationPart allows either order.
+func TestModelParseUsageMultiplicityBeforeType(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle { part def P; part b[0..2] : P; }`)
+
+	usage, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+	}
+	if usage.Type != "P" {
+		t.Errorf("Type = %q, want %q", usage.Type, "P")
+	}
+	want := sysml.Multiplicity{Lower: sysml.Bound{Value: 0}, Upper: sysml.Bound{Value: 2}}
+	if usage.Multiplicity == nil || *usage.Multiplicity != want {
+		t.Errorf("Multiplicity = %+v, want %+v", usage.Multiplicity, want)
+	}
+}
+
+// TestModelParseUsageValue checks that a usage's assigned value ("= 5") is
+// parsed as an integer and attached to Usage.Value, and that a usage with
+// no assigned value leaves it nil.
+func TestModelParseUsageValue(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   *int
+	}{
+		"assigned":   {`attribute n : Integer = 5;`, intPtr(5)},
+		"no value":   {`attribute n : Integer;`, nil},
+		"zero value": {`attribute n : Integer = 0;`, intPtr(0)},
+		"combined":   {`attribute n : Integer[1] = 5;`, intPtr(5)},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.source+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+
+			if tt.want == nil {
+				if usage.Value != nil {
+					t.Errorf("Value = %v, want nil", *usage.Value)
+				}
+				return
+			}
+			if usage.Value == nil || *usage.Value != *tt.want {
+				t.Errorf("Value = %v, want %v", usage.Value, *tt.want)
+			}
+		})
+	}
+}
+
+func intPtr(n int) *int { return &n }
 
 func TestModelParseImport(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Car {
@@ -362,19 +459,21 @@ func TestModelParseEmptySource(t *testing.T) {
 
 func TestModelParseErrors(t *testing.T) {
 	cases := map[string]string{
-		"unterminated package body":        "package Vehicle {",
-		"missing package braces":           "package Vehicle",
-		"part usage missing colon":         "package Vehicle { part Engine; }",
-		"part usage missing type":          "package Vehicle { part engine : ; }",
-		"unmatched closing brace":          "package Vehicle { } }",
-		"qualified type missing segment":   "package Vehicle { part engine : Vehicle::; }",
-		"qualified type trailing path sep": "package Vehicle { part engine : Vehicle::Engine::; }",
-		"import missing path":              "package Vehicle { import; }",
-		"import missing semicolon":         "package Vehicle { import Engine }",
-		"multiplicity missing bound":       "package Vehicle { part combatants : Combatant[]; }",
-		"multiplicity missing close":       "package Vehicle { part combatants : Combatant[*; }",
-		"multiplicity non-numeric bound":   "package Vehicle { part combatants : Combatant[abc]; }",
-		"multiplicity negative bound":      "package Vehicle { part combatants : Combatant[-1]; }",
+		"unterminated package body":         "package Vehicle {",
+		"missing package braces":            "package Vehicle",
+		"part usage missing type":           "package Vehicle { part engine : ; }",
+		"part usage duplicate type":         "package Vehicle { part engine : Engine : Engine; }",
+		"part usage duplicate multiplicity": "package Vehicle { part engine : Engine[1][1]; }",
+		"unmatched closing brace":           "package Vehicle { } }",
+		"qualified type missing segment":    "package Vehicle { part engine : Vehicle::; }",
+		"qualified type trailing path sep":  "package Vehicle { part engine : Vehicle::Engine::; }",
+		"import missing path":               "package Vehicle { import; }",
+		"import missing semicolon":          "package Vehicle { import Engine }",
+		"multiplicity missing bound":        "package Vehicle { part combatants : Combatant[]; }",
+		"multiplicity missing close":        "package Vehicle { part combatants : Combatant[*; }",
+		"multiplicity punctuation bound":    "package Vehicle { part combatants : Combatant[;]; }",
+		"multiplicity negative bound":       "package Vehicle { part combatants : Combatant[-1]; }",
+		"assigned value non-integer":        "package Vehicle { attribute n : Integer = abc; }",
 	}
 
 	for name, source := range cases {

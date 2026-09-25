@@ -73,7 +73,7 @@ func isSpace(r rune) bool {
 
 func isPunct(r rune) bool {
 	switch r {
-	case ';', '{', '}', ':', '[', ']', '*', '.':
+	case ';', '{', '}', ':', '[', ']', '*', '.', '=':
 		return true
 	default:
 		return false

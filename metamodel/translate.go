@@ -129,13 +129,17 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
 		if m.Multiplicity != nil {
 			// sysml.Unbounded and metamodel.Unbounded are both -1 by
-			// convention, so the bounds carry over unchanged.
+			// convention, so each Bound's Value carries over unchanged.
 			t.model.Elements[id].Multiplicity = &Multiplicity{
-				Lower: m.Multiplicity.Lower,
-				Upper: m.Multiplicity.Upper,
+				Lower: Bound{Value: m.Multiplicity.Lower.Value, Name: m.Multiplicity.Lower.Name},
+				Upper: Bound{Value: m.Multiplicity.Upper.Value, Name: m.Multiplicity.Upper.Name},
 			}
 		}
-		t.pending = append(t.pending, pendingType{usage: id, name: m.Type, owner: owner})
+		t.model.Elements[id].Value = m.Value
+		// An untyped usage (e.g. "port p;") has nothing to resolve.
+		if m.Type != "" {
+			t.pending = append(t.pending, pendingType{usage: id, name: m.Type, owner: owner})
+		}
 		return nil
 
 	case *sysml.Import:

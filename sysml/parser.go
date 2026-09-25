@@ -236,31 +236,89 @@ func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(Colon); err != nil {
-		return nil, err
-	}
-	typ, err := p.parseQualifiedName()
-	if err != nil {
+
+	usage := &Usage{Kind: kind, Name: string(name.Value)}
+
+	if err := p.parseFeatureSpecializationPart(usage); err != nil {
 		return nil, err
 	}
 
-	var mult *Multiplicity
-	if tok, ok := p.current(); ok && tok.Kind == OpenBracket {
-		mult, err = p.parseMultiplicity()
-		if err != nil {
-			return nil, err
-		}
+	if err := p.parseValuePart(usage); err != nil {
+		return nil, err
 	}
 
 	if _, err := p.expect(Semicolon); err != nil {
 		return nil, err
 	}
-	return &Usage{Kind: kind, Name: string(name.Value), Type: typ, Multiplicity: mult}, nil
+	return usage, nil
 }
 
-// parseMultiplicity parses a bracketed multiplicity clause following a part
-// usage's type: "[*]" (0..Unbounded), "[3]" (Lower == Upper == 3), or a
-// "lower..upper" range where either side may itself be "*".
+// parseFeatureSpecializationPart consumes a typing (": Type") and a
+// multiplicity ("[...]") in whichever order they appear, each at most once,
+// and either or both absent -- so "part b[0..2] : P;", "part c : P[2..*];",
+// "port p;", and "part a[1];" all parse through the same loop.
+func (p *parser) parseFeatureSpecializationPart(usage *Usage) error {
+	for {
+		tok, ok := p.current()
+		if !ok {
+			return nil
+		}
+
+		switch tok.Kind {
+		case Colon:
+			if usage.Type != "" {
+				return fmt.Errorf("line %d: unexpected %s, a type was already given", tok.Pos.Line, Colon)
+			}
+			p.pos++
+			typ, err := p.parseQualifiedName()
+			if err != nil {
+				return err
+			}
+			usage.Type = typ
+
+		case OpenBracket:
+			if usage.Multiplicity != nil {
+				return fmt.Errorf("line %d: unexpected %s, a multiplicity was already given", tok.Pos.Line, OpenBracket)
+			}
+			mult, err := p.parseMultiplicity()
+			if err != nil {
+				return err
+			}
+			usage.Multiplicity = mult
+
+		default:
+			return nil
+		}
+	}
+}
+
+// parseValuePart consumes an optional assigned value, e.g. the "= 5" in
+// `attribute n : ScalarValues::Integer = 5;`. Only SysML's plain '='
+// FeatureValue form is supported (not ':=' or 'default'), and only integer
+// literals, not full expressions. Consumes nothing if the next token isn't
+// '='.
+func (p *parser) parseValuePart(usage *Usage) error {
+	tok, ok := p.current()
+	if !ok || tok.Kind != Equals {
+		return nil
+	}
+	p.pos++
+
+	valTok, err := p.expect(Identifier)
+	if err != nil {
+		return err
+	}
+	n, err := strconv.Atoi(string(valTok.Value))
+	if err != nil {
+		return fmt.Errorf("line %d: unsupported value %q -- only integer literals are supported", valTok.Pos.Line, string(valTok.Value))
+	}
+	usage.Value = &n
+	return nil
+}
+
+// parseMultiplicity parses a bracketed multiplicity clause: "[*]"
+// (0..Unbounded), "[3]" (Lower == Upper == 3), or a "lower..upper" range
+// where either side may be "*" or a name (see Bound's doc comment).
 func (p *parser) parseMultiplicity() (*Multiplicity, error) {
 	if _, err := p.expect(OpenBracket); err != nil {
 		return nil, err
@@ -271,7 +329,7 @@ func (p *parser) parseMultiplicity() (*Multiplicity, error) {
 		if _, err := p.expect(CloseBracket); err != nil {
 			return nil, err
 		}
-		return &Multiplicity{Lower: 0, Upper: Unbounded}, nil
+		return &Multiplicity{Lower: Bound{Value: 0}, Upper: Bound{Value: Unbounded}}, nil
 	}
 
 	lower, err := p.parseBound()
@@ -293,29 +351,33 @@ func (p *parser) parseMultiplicity() (*Multiplicity, error) {
 	return &Multiplicity{Lower: lower, Upper: upper}, nil
 }
 
-// parseBound parses one side of a multiplicity range: either "*"
-// (Unbounded) or a non-negative integer literal.
-func (p *parser) parseBound() (int, error) {
+// parseBound parses one side of a multiplicity range: "*" (Unbounded), a
+// non-negative integer literal, or -- anything else identifier-shaped -- a
+// name reference, left unresolved (see Bound's doc comment).
+func (p *parser) parseBound() (Bound, error) {
 	tok, ok := p.current()
 	if !ok {
-		return 0, fmt.Errorf("unexpected end of input in multiplicity, want a bound or %s", Star)
+		return Bound{}, fmt.Errorf("unexpected end of input in multiplicity, want a bound or %s", Star)
 	}
 
 	if tok.Kind == Star {
 		p.pos++
-		return Unbounded, nil
+		return Bound{Value: Unbounded}, nil
 	}
 
 	if tok.Kind != Identifier {
-		return 0, fmt.Errorf("line %d: unexpected %s, want a multiplicity bound", tok.Pos.Line, describeToken(tok))
-	}
-
-	n, err := strconv.Atoi(string(tok.Value))
-	if err != nil || n < 0 {
-		return 0, fmt.Errorf("line %d: invalid multiplicity bound %q", tok.Pos.Line, string(tok.Value))
+		return Bound{}, fmt.Errorf("line %d: unexpected %s, want a multiplicity bound", tok.Pos.Line, describeToken(tok))
 	}
 	p.pos++
-	return n, nil
+
+	if n, err := strconv.Atoi(string(tok.Value)); err == nil {
+		if n < 0 {
+			return Bound{}, fmt.Errorf("line %d: invalid multiplicity bound %q", tok.Pos.Line, string(tok.Value))
+		}
+		return Bound{Value: n}, nil
+	}
+
+	return Bound{Name: string(tok.Value)}, nil
 }
 
 // parseQualifiedName parses an identifier, optionally followed by more

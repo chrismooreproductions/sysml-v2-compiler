@@ -22,6 +22,7 @@ const (
 	CloseBracket
 	Star
 	DotDot
+	Equals
 	Space
 	Comment
 	Identifier
@@ -67,6 +68,8 @@ func (k Kind) String() string {
 		return "'*'"
 	case DotDot:
 		return "'..'"
+	case Equals:
+		return "'='"
 	case Space:
 		return "space"
 	case Comment:
@@ -98,6 +101,7 @@ var kinds = map[string]Kind{
 	"]":         CloseBracket,
 	"*":         Star,
 	"..":        DotDot,
+	"=":         Equals,
 }
 
 type Pos struct {

@@ -25,10 +25,7 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// short names ("part <'1'> b: B;") aren't supported -- the whole
 		// "<'1'>" gets swallowed as one identifier by the current lexer,
 		// so parseUsage's expected name/colon shape trips up on "b" next.
-		{"PartTest.sysml", `line 6: unexpected identifier "b", want ':'`},
-		// assigned values ("= 5") on a usage aren't supported. "=" isn't
-		// punctuation yet, so it lexes as an identifier token.
-		{"MultiplicityTest.sysml", `line 4: unexpected identifier "=", want ';'`},
+		{"PartTest.sysml", `line 6: unexpected identifier "b", want ';'`},
 		// wildcard imports ("P1::*") aren't supported.
 		{"QualifiedNameImportTest.sysml", `line 7: unexpected '*', want identifier`},
 		// wildcard imports ("P2::*") aren't supported.
@@ -49,6 +46,30 @@ func TestModelParseSpecExamples(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("Parse() error = %q, want it to contain %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestModelParseSpecExamplesSuccess holds spec example fixtures (see
+// testdata/spec_examples/README.md) that fully parse today -- moved here
+// out of TestModelParseSpecExamples once their last blocker was resolved,
+// per that test's own doc comment.
+func TestModelParseSpecExamplesSuccess(t *testing.T) {
+	// MultiplicityTest.sysml exercises every increment-6 addition at once:
+	// untyped usages, multiplicity before or after a type, name-valued
+	// bounds ("[n]"), and an assigned integer value ("= 5").
+	files := []string{"MultiplicityTest.sysml"}
+
+	for _, file := range files {
+		t.Run(file, func(t *testing.T) {
+			source, err := os.ReadFile("testdata/spec_examples/" + file)
+			if err != nil {
+				t.Fatalf("reading fixture: %v", err)
+			}
+
+			if _, err := sysml.NewModel(string(source)).Parse(); err != nil {
+				t.Errorf("Parse() failed on %s: %v", file, err)
 			}
 		})
 	}

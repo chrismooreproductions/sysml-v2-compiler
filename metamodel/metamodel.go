@@ -134,16 +134,31 @@ type Element struct {
 	// exactly one, SysML's implicit default; always nil for kinds other
 	// than KindUsage.
 	Multiplicity *Multiplicity
+
+	// Value is this Usage's assigned value, e.g. the 5 in
+	// `attribute n : ScalarValues::Integer = 5;`. Only integer literals are
+	// supported (see sysml.Usage.Value); nil if none was assigned, and
+	// always nil for kinds other than KindUsage.
+	Value *int
 }
 
-// Unbounded marks a Multiplicity's Upper bound as unlimited, e.g. the "*"
-// in "[*]" or "[1..*]".
+// Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or
+// "[1..*]".
 const Unbounded = -1
+
+// Bound mirrors sysml.Bound: a literal integer (Value, where Unbounded
+// means "*") or an unresolved name reference to a declared value (Name).
+// See sysml.Bound's doc comment -- resolving a name bound isn't done here
+// either.
+type Bound struct {
+	Value int
+	Name  string
+}
 
 // Multiplicity bounds how many instances a Usage Element represents.
 type Multiplicity struct {
-	Lower int
-	Upper int
+	Lower Bound
+	Upper Bound
 }
 
 // RelationshipKind distinguishes the different ways two Elements can

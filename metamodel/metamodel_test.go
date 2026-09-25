@@ -211,9 +211,9 @@ func TestFromASTMultiplicity(t *testing.T) {
 		want *metamodel.Multiplicity
 	}{
 		{"Battlefield::solo", nil},
-		{"Battlefield::friendlyCombatants", &metamodel.Multiplicity{Lower: 0, Upper: metamodel.Unbounded}},
-		{"Battlefield::enemyCombatants", &metamodel.Multiplicity{Lower: 1, Upper: metamodel.Unbounded}},
-		{"Battlefield::squad", &metamodel.Multiplicity{Lower: 5, Upper: 5}},
+		{"Battlefield::friendlyCombatants", &metamodel.Multiplicity{Lower: metamodel.Bound{Value: 0}, Upper: metamodel.Bound{Value: metamodel.Unbounded}}},
+		{"Battlefield::enemyCombatants", &metamodel.Multiplicity{Lower: metamodel.Bound{Value: 1}, Upper: metamodel.Bound{Value: metamodel.Unbounded}}},
+		{"Battlefield::squad", &metamodel.Multiplicity{Lower: metamodel.Bound{Value: 5}, Upper: metamodel.Bound{Value: 5}}},
 	}
 
 	for _, tt := range tests {
@@ -232,6 +232,65 @@ func TestFromASTMultiplicity(t *testing.T) {
 		if el.Multiplicity == nil || *el.Multiplicity != *tt.want {
 			t.Errorf("%s: Multiplicity = %+v, want %+v", tt.id, el.Multiplicity, tt.want)
 		}
+	}
+}
+
+// TestFromASTUntypedUsage checks that an untyped usage (e.g. "port p;")
+// translates without error and without a TypedBy relationship -- there's no
+// type reference to queue as pendingType or resolve, unlike every other
+// usage this package translates.
+func TestFromASTUntypedUsage(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { port p; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	if _, ok := model.Elements["Vehicle::p"]; !ok {
+		t.Fatal("missing element Vehicle::p")
+	}
+	if _, ok := typeOf(model, "Vehicle::p"); ok {
+		t.Error("untyped usage has a TypedBy relationship, want none")
+	}
+}
+
+// TestFromASTUsageValue checks that a usage's assigned value carries over
+// onto Element.Value, and that a usage with none leaves it nil.
+func TestFromASTUsageValue(t *testing.T) {
+	source := `package Vehicle {
+		attribute def Integer;
+		attribute n : Integer = 5;
+		attribute m : Integer;
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	n, ok := model.Elements["Vehicle::n"]
+	if !ok {
+		t.Fatal("missing element Vehicle::n")
+	}
+	if n.Value == nil || *n.Value != 5 {
+		t.Errorf("n.Value = %v, want 5", n.Value)
+	}
+
+	m, ok := model.Elements["Vehicle::m"]
+	if !ok {
+		t.Fatal("missing element Vehicle::m")
+	}
+	if m.Value != nil {
+		t.Errorf("m.Value = %v, want nil", *m.Value)
 	}
 }
 
@@ -792,7 +851,7 @@ func TestFromASTWithImports_Battlefield(t *testing.T) {
 	if !ok {
 		t.Fatal("missing element Battlefield::squad")
 	}
-	want := &metamodel.Multiplicity{Lower: 0, Upper: metamodel.Unbounded}
+	want := &metamodel.Multiplicity{Lower: metamodel.Bound{Value: 0}, Upper: metamodel.Bound{Value: metamodel.Unbounded}}
 	if squad.Multiplicity == nil || *squad.Multiplicity != *want {
 		t.Errorf("squad Multiplicity = %+v, want %+v", squad.Multiplicity, want)
 	}
@@ -948,8 +1007,8 @@ func TestFromASTVehicleMultiPackage(t *testing.T) {
 	}
 
 	wantMultiplicity := map[metamodel.ElementID]metamodel.Multiplicity{
-		"Vehicle::Powertrain::Engine::cylinders": {Lower: 4, Upper: 4},
-		"Vehicle::Electrical::sensors":           {Lower: 0, Upper: metamodel.Unbounded},
+		"Vehicle::Powertrain::Engine::cylinders": {Lower: metamodel.Bound{Value: 4}, Upper: metamodel.Bound{Value: 4}},
+		"Vehicle::Electrical::sensors":           {Lower: metamodel.Bound{Value: 0}, Upper: metamodel.Bound{Value: metamodel.Unbounded}},
 	}
 	for id, want := range wantMultiplicity {
 		el, ok := model.Elements[id]

@@ -2,11 +2,16 @@
 
 A from-scratch implementation of a SysML v2-style modeling language: a
 lexer and recursive-descent parser (`sysml`) over a flat, KerML-shaped
-metamodel (`metamodel`). Currently covers packages, part definitions and
-usages, qualified (`::`) references, multiplicity (`[*]`, `[n]`, `[n..m]`),
-and a minimal `import` statement for cross-package type resolution — a
-deliberate subset of the full language, grown incrementally rather than
-implemented against the spec wholesale.
+metamodel (`metamodel`). Currently covers a root namespace of top-level
+packages/definitions/usages/imports (not just one wrapping package),
+`part`/`attribute`/`item`/`port` definitions and usages (typed or untyped,
+in either order relative to a multiplicity), qualified (`::`) references,
+`public`/`private`/`protected` visibility prefixes (parsed, not yet
+enforced), `//` and `/* */` comments, multiplicity (`[*]`, `[3]`,
+`[0..5]`, or a name-valued bound like `[n]`, left unresolved), assigned
+integer values (`= 5`), and a minimal `import` statement for cross-package
+type resolution — a deliberate subset of the full language, grown
+incrementally rather than implemented against the spec wholesale.
 
 ## References
 
