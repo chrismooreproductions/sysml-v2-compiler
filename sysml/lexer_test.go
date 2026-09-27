@@ -202,6 +202,46 @@ func TestLexerBareSlash(t *testing.T) {
 // TestLexerPathSep checks "::" lexes as one PathSep token rather than two
 // separate Colon tokens, while a lone ":" (including one merely adjacent
 // to whitespace rather than another ":") still lexes as Colon.
+// TestLexerColonForms checks that a leading ':' resolves to the right
+// token depending on how many characters follow it -- ':' alone (Colon),
+// '::' (PathSep), ':>' (Subsets), or ':>>' (Redefines) -- and that each
+// consumes only its own characters, leaving whatever comes after untouched.
+func TestLexerColonForms(t *testing.T) {
+	cases := map[string]struct {
+		source    string
+		wantKind  sysml.Kind
+		wantValue string
+	}{
+		"colon":     {"a : b", sysml.Colon, ":"},
+		"path sep":  {"a::b", sysml.PathSep, "::"},
+		"subsets":   {"a :> b", sysml.Subsets, ":>"},
+		"redefines": {"a :>> b", sysml.Redefines, ":>>"},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			tokens, err := sysml.NewModel(tt.source).Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var found *sysml.Token
+			for i := range tokens {
+				if tokens[i].Kind != sysml.Identifier && tokens[i].Kind != sysml.Space {
+					found = &tokens[i]
+					break
+				}
+			}
+			if found == nil {
+				t.Fatalf("no punctuation token in %v", tokens)
+			}
+			if found.Kind != tt.wantKind || string(found.Value) != tt.wantValue {
+				t.Errorf("got {%v %q}, want {%v %q}", found.Kind, string(found.Value), tt.wantKind, tt.wantValue)
+			}
+		})
+	}
+}
+
 func TestLexerPathSep(t *testing.T) {
 	m := sysml.NewModel(`Vehicle::Car : x`)
 

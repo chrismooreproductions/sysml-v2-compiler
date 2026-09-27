@@ -81,8 +81,10 @@ func isPunct(r rune) bool {
 }
 
 // doubled is the set of punctuation runes that pair with themselves to form
-// a two-character token ("::" and "..") rather than standing alone.
-var doubled = map[rune]bool{':': true, '.': true}
+// a two-character token ("..") rather than standing alone. ':' is handled
+// separately by scanColon, since its own multi-character forms ("::", ":>",
+// ":>>") don't just double the same rune.
+var doubled = map[rune]bool{'.': true}
 
 func isIdentRune(r rune) bool {
 	return r != newline && !isSpace(r) && !isPunct(r)
@@ -92,6 +94,31 @@ func isIdentRune(r rune) bool {
 // through word) starting at the current position.
 func (l *lexer) scanIdentifier(start Pos) Token {
 	return word(l.scanWhile(isIdentRune), start)
+}
+
+// scanColon scans a leading ':' through however many of its multi-character
+// forms follow: "::" (PathSep), ":>" (Subsets), or ":>>" (Redefines) --
+// falling back to a bare ':' (Colon) if none do. '>' is deliberately not
+// punctuation in its own right (isPunct), so this is the only place it's
+// ever meaningful; elsewhere it's just an ordinary identifier rune.
+func (l *lexer) scanColon(start Pos) Token {
+	l.advance()
+
+	if next, size := l.current(); size > 0 && next == ':' {
+		l.advance()
+		return word([]rune{':', ':'}, start)
+	}
+
+	if next, size := l.current(); size > 0 && next == '>' {
+		l.advance()
+		if next2, size2 := l.current(); size2 > 0 && next2 == '>' {
+			l.advance()
+			return word([]rune{':', '>', '>'}, start)
+		}
+		return word([]rune{':', '>'}, start)
+	}
+
+	return word([]rune{':'}, start)
 }
 
 // scanLineComment scans a "//"-style comment through end of line, leaving
@@ -173,6 +200,9 @@ func (l *lexer) next() (Token, bool) {
 
 		case r == '/' && nextSize > 0 && next == '*':
 			return l.scanBlockComment(start), true
+
+		case r == ':':
+			return l.scanColon(start), true
 
 		case isPunct(r):
 			l.advance()

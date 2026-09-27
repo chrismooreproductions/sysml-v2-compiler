@@ -26,11 +26,12 @@ func FromAST(ns *sysml.Namespace) (*Model, error) {
 // namespace (that root itself, each Package, and each Definition's body)
 // against declaring the same name twice within it, and records each
 // `import` member against its supplied Model. Resolution then walks the
-// type references collected along the way, resolving each via
-// Model.Resolve from the namespace it was declared in — so a Usage can
-// see names declared in its own namespace or any enclosing one (but not an
-// unrelated sibling's) for a bare name. A "::"-qualified name resolves the
-// same way for its first segment (see resolveQualifiedFrom), reaching a
+// references collected along the way -- each Usage's type, subsetted
+// feature, and/or redefined feature (see pendingReference) -- resolving
+// each via Model.Resolve from the namespace it was declared in — so a Usage
+// can see names declared in its own namespace or any enclosing one (but not
+// an unrelated sibling's) for a bare name. A "::"-qualified name resolves
+// the same way for its first segment (see resolveQualifiedFrom), reaching a
 // sibling's nested namespace without the full path from Root, before
 // falling back to an absolute path from Root or an import. Anything left
 // unresolved is an error.
@@ -57,20 +58,24 @@ func FromASTWithImports(ns *sysml.Namespace, imports map[string]*Model) (*Model,
 		return nil, err
 	}
 
-	if err := t.resolveTypes(); err != nil {
+	if err := t.resolveReferences(); err != nil {
 		return nil, err
 	}
 
 	return t.model, nil
 }
 
-// pendingType is a Usage's type reference, still unresolved: name must
-// be resolved from owner (the namespace containing the usage) once every
-// declaration has been seen.
-type pendingType struct {
+// pendingReference is a Usage's not-yet-resolved reference to another
+// Element -- its type ("part engine : Engine;", kind TypedBy), a subsetted
+// feature ("part b subsets a;", kind Subsets), or a redefined one
+// ("part x redefines y;", kind Redefines). name must be resolved from owner
+// (the namespace containing the usage) once every declaration has been
+// seen, producing a Relationship of kind once it does.
+type pendingReference struct {
 	usage ElementID
 	name  string
 	owner ElementID
+	kind  RelationshipKind
 }
 
 // pendingWildcardImport is an `import Foo::*;` member, still unresolved:
@@ -85,7 +90,7 @@ type pendingWildcardImport struct {
 
 type translator struct {
 	model   *Model
-	pending []pendingType
+	pending []pendingReference
 
 	// pendingWildcardImports queues each `import Foo::*;` member for
 	// resolveWildcardImports, the same way pending queues type references
@@ -162,9 +167,17 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 			}
 		}
 		t.model.Elements[id].Value = m.Value
-		// An untyped usage (e.g. "port p;") has nothing to resolve.
+		// An untyped usage (e.g. "port p;") has no type to resolve; a usage
+		// can independently have a type, a subsets, and/or a redefines,
+		// each queued as its own pendingReference.
 		if m.Type != "" {
-			t.pending = append(t.pending, pendingType{usage: id, name: m.Type, owner: owner})
+			t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})
+		}
+		if m.Subsets != "" {
+			t.pending = append(t.pending, pendingReference{usage: id, name: m.Subsets, owner: owner, kind: Subsets})
+		}
+		if m.Redefines != "" {
+			t.pending = append(t.pending, pendingReference{usage: id, name: m.Redefines, owner: owner, kind: Redefines})
 		}
 		return nil
 
@@ -223,17 +236,23 @@ func (t *translator) resolveWildcardImports() error {
 	return nil
 }
 
-func (t *translator) resolveTypes() error {
+// resolveReferences resolves every queued pendingReference -- a usage's
+// type, subsetted feature, or redefined feature -- into a Relationship of
+// the matching kind. A usage with more than one (e.g. both a type and a
+// subsets) gets one Relationship per reference, distinguished by kind, so
+// their IDs (each usage's ID joined with that kind's own name) never
+// collide.
+func (t *translator) resolveReferences() error {
 	for _, p := range t.pending {
-		typeID, ok := t.model.Resolve(p.owner, p.name)
+		targetID, ok := t.model.Resolve(p.owner, p.name)
 		if !ok {
-			return fmt.Errorf("metamodel: %s: unresolved type %q", t.model.Elements[p.usage].Name, p.name)
+			return fmt.Errorf("metamodel: %s: unresolved %s %q", t.model.Elements[p.usage].Name, p.kind, p.name)
 		}
 		t.model.Relationships = append(t.model.Relationships, &Relationship{
-			ID:     p.usage + "::" + ElementID(TypedBy.String()),
-			Kind:   TypedBy,
+			ID:     p.usage + "::" + ElementID(p.kind.String()),
+			Kind:   p.kind,
 			Source: p.usage,
-			Target: typeID,
+			Target: targetID,
 		})
 	}
 	return nil

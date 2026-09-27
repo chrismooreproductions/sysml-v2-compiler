@@ -23,6 +23,8 @@ const (
 	Star
 	DotDot
 	Equals
+	Subsets
+	Redefines
 	Space
 	Comment
 	Identifier
@@ -70,6 +72,10 @@ func (k Kind) String() string {
 		return "'..'"
 	case Equals:
 		return "'='"
+	case Subsets:
+		return "'subsets'"
+	case Redefines:
+		return "'redefines'"
 	case Space:
 		return "space"
 	case Comment:
@@ -102,6 +108,10 @@ var kinds = map[string]Kind{
 	"*":         Star,
 	"..":        DotDot,
 	"=":         Equals,
+	"subsets":   Subsets,
+	"redefines": Redefines,
+	":>":        Subsets,
+	":>>":       Redefines,
 }
 
 type Pos struct {

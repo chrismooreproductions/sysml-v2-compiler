@@ -228,6 +228,83 @@ func TestModelParseUsageMultiplicityBeforeType(t *testing.T) {
 	}
 }
 
+// TestModelParseUsageSubsets checks that both spellings of a subsetting
+// ("subsets a" and ":> a") parse into the same Usage.Subsets, and that an
+// untyped usage can subset without ever mentioning a type.
+func TestModelParseUsageSubsets(t *testing.T) {
+	cases := map[string]string{
+		"keyword": `part b subsets a;`,
+		"symbol":  `part b :> a;`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { part a; `+source+` }`)
+
+			usage, ok := pkg.Members[1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+			}
+			if usage.Subsets != "a" {
+				t.Errorf("Subsets = %q, want %q", usage.Subsets, "a")
+			}
+			if usage.Type != "" {
+				t.Errorf("Type = %q, want %q", usage.Type, "")
+			}
+		})
+	}
+}
+
+// TestModelParseUsageRedefines checks that both spellings of a redefinition
+// ("redefines B::b" and ":>> B::b") parse into the same Usage.Redefines,
+// including a qualified target.
+func TestModelParseUsageRedefines(t *testing.T) {
+	cases := map[string]string{
+		"keyword": `part B_b redefines B::b;`,
+		"symbol":  `part B_b :>> B::b;`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+source+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+			if usage.Redefines != "B::b" {
+				t.Errorf("Redefines = %q, want %q", usage.Redefines, "B::b")
+			}
+		})
+	}
+}
+
+// TestModelParseUsageTypeAndSubsets checks that a typing and a subsetting
+// can appear together on the same usage, in either order.
+func TestModelParseUsageTypeAndSubsets(t *testing.T) {
+	cases := map[string]string{
+		"type then subsets": `part b : Wheel subsets wheels;`,
+		"subsets then type": `part b subsets wheels : Wheel;`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+source+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+			if usage.Type != "Wheel" {
+				t.Errorf("Type = %q, want %q", usage.Type, "Wheel")
+			}
+			if usage.Subsets != "wheels" {
+				t.Errorf("Subsets = %q, want %q", usage.Subsets, "wheels")
+			}
+		})
+	}
+}
+
 // TestModelParseUsageValue checks that a usage's assigned value ("= 5") is
 // parsed as an integer and attached to Usage.Value, and that a usage with
 // no assigned value leaves it nil.
@@ -493,6 +570,8 @@ func TestModelParseErrors(t *testing.T) {
 		"part usage missing type":           "package Vehicle { part engine : ; }",
 		"part usage duplicate type":         "package Vehicle { part engine : Engine : Engine; }",
 		"part usage duplicate multiplicity": "package Vehicle { part engine : Engine[1][1]; }",
+		"part usage duplicate subsets":      "package Vehicle { part b subsets a subsets a; }",
+		"part usage duplicate redefines":    "package Vehicle { part b redefines a redefines a; }",
 		"unmatched closing brace":           "package Vehicle { } }",
 		"qualified type missing segment":    "package Vehicle { part engine : Vehicle::; }",
 		"qualified type trailing path sep":  "package Vehicle { part engine : Vehicle::Engine::; }",

@@ -169,12 +169,22 @@ const (
 	// TypedBy relates a usage to the definition that types it, e.g. the
 	// Engine in `part engine : Engine;`.
 	TypedBy RelationshipKind = iota
+	// Subsets relates a usage to the feature it subsets, e.g. the a in
+	// `part b subsets a;`.
+	Subsets
+	// Redefines relates a usage to the feature it redefines, e.g. the
+	// B::b in `part B_b redefines B::b;`.
+	Redefines
 )
 
 func (k RelationshipKind) String() string {
 	switch k {
 	case TypedBy:
 		return "typedBy"
+	case Subsets:
+		return "subsets"
+	case Redefines:
+		return "redefines"
 	default:
 		return "unknown"
 	}

@@ -432,15 +432,22 @@ func TestFromASTNestedPackage(t *testing.T) {
 	}
 }
 
-// typeOf finds the ElementID a usage is typed by, via the TypedBy
-// relationship model.FromAST produced for it.
-func typeOf(model *metamodel.Model, usage metamodel.ElementID) (metamodel.ElementID, bool) {
+// relationshipTarget finds the ElementID a usage relates to via a
+// Relationship of the given kind, e.g. relationshipTarget(model, id,
+// metamodel.Subsets) for the feature it subsets.
+func relationshipTarget(model *metamodel.Model, usage metamodel.ElementID, kind metamodel.RelationshipKind) (metamodel.ElementID, bool) {
 	for _, rel := range model.RelationshipsFrom(usage) {
-		if rel.Kind == metamodel.TypedBy {
+		if rel.Kind == kind {
 			return rel.Target, true
 		}
 	}
 	return "", false
+}
+
+// typeOf finds the ElementID a usage is typed by, via the TypedBy
+// relationship model.FromAST produced for it.
+func typeOf(model *metamodel.Model, usage metamodel.ElementID) (metamodel.ElementID, bool) {
+	return relationshipTarget(model, usage, metamodel.TypedBy)
 }
 
 func TestFromASTEmptyPackage(t *testing.T) {
@@ -1036,6 +1043,106 @@ func TestFromASTWithImports_Battlefield(t *testing.T) {
 	want := &metamodel.Multiplicity{Lower: metamodel.Bound{Value: 0}, Upper: metamodel.Bound{Value: metamodel.Unbounded}}
 	if squad.Multiplicity == nil || *squad.Multiplicity != *want {
 		t.Errorf("squad Multiplicity = %+v, want %+v", squad.Multiplicity, want)
+	}
+}
+
+// TestFromASTSubsets checks that "part b subsets a;" produces a Subsets
+// Relationship from b to a, resolved the same way a type reference is.
+func TestFromASTSubsets(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part a;
+		part b subsets a;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	target, ok := relationshipTarget(model, "Vehicle::b", metamodel.Subsets)
+	if !ok {
+		t.Fatal("no Subsets relationship found for Vehicle::b")
+	}
+	if target != "Vehicle::a" {
+		t.Errorf("b subsets %q, want %q", target, "Vehicle::a")
+	}
+}
+
+// TestFromASTRedefines is TestFromASTSubsets's counterpart for
+// "redefines", including a qualified target ("B::b").
+func TestFromASTRedefines(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def B {
+			part b;
+		}
+		part B_b redefines B::b;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	target, ok := relationshipTarget(model, "Vehicle::B_b", metamodel.Redefines)
+	if !ok {
+		t.Fatal("no Redefines relationship found for Vehicle::B_b")
+	}
+	if target != "Vehicle::B::b" {
+		t.Errorf("B_b redefines %q, want %q", target, "Vehicle::B::b")
+	}
+}
+
+// TestFromASTTypeAndSubsetsTogether checks that a usage with both a type
+// and a subsets gets one Relationship of each kind, since they're resolved
+// as independent pendingReferences.
+func TestFromASTTypeAndSubsetsTogether(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def Wheel;
+		part wheels : Wheel;
+		part b : Wheel subsets wheels;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeTarget, ok := relationshipTarget(model, "Vehicle::b", metamodel.TypedBy)
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Vehicle::b")
+	}
+	if typeTarget != "Vehicle::Wheel" {
+		t.Errorf("b typed by %q, want %q", typeTarget, "Vehicle::Wheel")
+	}
+
+	subsetsTarget, ok := relationshipTarget(model, "Vehicle::b", metamodel.Subsets)
+	if !ok {
+		t.Fatal("no Subsets relationship found for Vehicle::b")
+	}
+	if subsetsTarget != "Vehicle::wheels" {
+		t.Errorf("b subsets %q, want %q", subsetsTarget, "Vehicle::wheels")
+	}
+}
+
+// TestFromASTUnresolvedSubsets checks that "subsets" is resolved the same
+// strictly-required way a type is: an unresolvable target fails translation.
+func TestFromASTUnresolvedSubsets(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { part b subsets nope; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved subsets target, got nil")
 	}
 }
 

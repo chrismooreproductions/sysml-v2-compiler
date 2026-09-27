@@ -286,10 +286,12 @@ func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
 	return usage, nil
 }
 
-// parseFeatureSpecializationPart consumes a typing (": Type") and a
-// multiplicity ("[...]") in whichever order they appear, each at most once,
-// and either or both absent -- so "part b[0..2] : P;", "part c : P[2..*];",
-// "port p;", and "part a[1];" all parse through the same loop.
+// parseFeatureSpecializationPart consumes a typing (": Type"), a
+// multiplicity ("[...]"), a subsetting ("subsets X" or ":> X"), and a
+// redefinition ("redefines X" or ":>> X") in whichever order they appear,
+// each at most once, and all absent -- so "part b[0..2] : P;",
+// "part c : P[2..*];", "port p;", "part b subsets a;", and
+// "part B_b :>> B::b;" all parse through the same loop.
 func (p *parser) parseFeatureSpecializationPart(usage *Usage) error {
 	for {
 		tok, ok := p.current()
@@ -318,6 +320,28 @@ func (p *parser) parseFeatureSpecializationPart(usage *Usage) error {
 				return err
 			}
 			usage.Multiplicity = mult
+
+		case Subsets:
+			if usage.Subsets != "" {
+				return fmt.Errorf("line %d: unexpected %s, a subsetted feature was already given", tok.Pos.Line, Subsets)
+			}
+			p.pos++
+			target, err := p.parseQualifiedName()
+			if err != nil {
+				return err
+			}
+			usage.Subsets = target
+
+		case Redefines:
+			if usage.Redefines != "" {
+				return fmt.Errorf("line %d: unexpected %s, a redefined feature was already given", tok.Pos.Line, Redefines)
+			}
+			p.pos++
+			target, err := p.parseQualifiedName()
+			if err != nil {
+				return err
+			}
+			usage.Redefines = target
 
 		default:
 			return nil

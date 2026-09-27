@@ -95,17 +95,28 @@ func (*Definition) memberNode() {}
 
 // Usage declares a usage, e.g. `part engine : Engine;`, `port p;` (untyped),
 // or `part friendlyCombatants : Combatant[*];` for one bounded by a
-// Multiplicity. Type, Multiplicity, and Value are each independently
-// optional, and a Type/Multiplicity pair may appear in either order (e.g.
-// `part b[0..2] : P;` or `part c : P[2..*];`) -- Type is "" and Multiplicity
-// is nil when absent, regardless of which of the two, if either, was
-// written.
+// Multiplicity. Type, Multiplicity, Subsets, Redefines, and Value are each
+// independently optional, and any combination of Type/Multiplicity/Subsets/
+// Redefines may appear in any order (e.g. `part b[0..2] : P;`,
+// `part c : P[2..*];`, or `part b subsets a;`) -- each is "" (or nil, for
+// Multiplicity/Value) when absent, regardless of order or which others were
+// written. Only a single Subsets and a single Redefines target are
+// supported, not SysML's comma-separated lists of either.
 type Usage struct {
 	Visibility   Visibility
 	Kind         DefKind
 	Name         string
 	Type         string
 	Multiplicity *Multiplicity
+
+	// Subsets is the feature this usage subsets, e.g. the "a" in
+	// `part b subsets a;` or `part b :> a;` (both spellings parse the same
+	// way). "" if none.
+	Subsets string
+
+	// Redefines is the feature this usage redefines, e.g. the "B::b" in
+	// `part B_b redefines B::b;` or `part B_b :>> B::b;`. "" if none.
+	Redefines string
 
 	// Value is the usage's assigned value, e.g. the 5 in
 	// `attribute n : ScalarValues::Integer = 5;`. Only SysML's plain '='
