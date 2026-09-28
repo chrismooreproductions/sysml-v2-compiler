@@ -23,6 +23,13 @@ const (
 	// top-level member is declared under (see rootID), mirroring
 	// sysml.Namespace. Never appears anywhere else in a Model.
 	KindNamespace
+	// KindFunction marks a KerML Function element, e.g. a standard-library
+	// operator stub like ScalarFunctions::'+' (see stdlib.go). Never
+	// produced by translate.go for user source -- sysml has no "function"
+	// definition of its own (Function is a KerML-level concrete syntax
+	// this project hasn't implemented); it only ever appears as a
+	// resolution target an expression's operator points at.
+	KindFunction
 )
 
 func (k Kind) String() string {
@@ -35,6 +42,8 @@ func (k Kind) String() string {
 		return "usage"
 	case KindNamespace:
 		return "namespace"
+	case KindFunction:
+		return "function"
 	default:
 		return "unknown"
 	}

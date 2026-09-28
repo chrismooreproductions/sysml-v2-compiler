@@ -48,6 +48,14 @@ func FromASTWithImports(ns *sysml.Namespace, imports map[string]*Model) (*Model,
 
 	t.model.Elements[rootID] = &Element{ID: rootID, Kind: KindNamespace}
 
+	// The standard library is implicitly available in every model, the
+	// same as in real SysML -- seeded before any user `import` is
+	// processed, so declareMember's own Import case (below) can still
+	// shadow these entries if a caller-supplied import happens to reuse
+	// one of these path names.
+	t.model.Imports["ScalarValues"] = stdlib
+	t.model.Imports["ScalarFunctions"] = stdlib
+
 	if err := t.declareMembers(ns.Members, rootID, newScope()); err != nil {
 		return nil, err
 	}

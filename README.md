@@ -19,6 +19,16 @@ or `redefines`/`:>>` another feature, in any combination with a typing and
 a multiplicity. A deliberate subset of the full language, grown
 incrementally rather than implemented against the spec wholesale.
 
+`metamodel` also seeds every translation with a small hand-built stand-in
+for a slice of the real OMG standard library (`metamodel/stdlib.go`):
+`ScalarValues` (`Boolean`, `String`, `Real`, `Rational`, `Integer`,
+`Natural`) and `ScalarFunctions` (the operator symbols the in-progress
+expression subsystem resolves against, e.g. `+`, `<=`), both implicitly
+available without an explicit `import`, matching real SysML. This is a
+deliberate bridge rather than the genuine article — the real library is
+written in KerML's own textual notation, which this project doesn't parse
+— see the stub's own doc comment for the full reasoning.
+
 ## References
 
 This project follows the OMG specifications for the language it
