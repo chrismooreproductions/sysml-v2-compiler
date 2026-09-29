@@ -71,6 +71,8 @@ const (
 	DefPort
 	DefConstraint
 	DefCalculation
+	DefConnection
+	DefInterface
 )
 
 func (k DefKind) String() string {
@@ -87,6 +89,10 @@ func (k DefKind) String() string {
 		return "constraint"
 	case DefCalculation:
 		return "calc"
+	case DefConnection:
+		return "connection"
+	case DefInterface:
+		return "interface"
 	default:
 		return "unknown"
 	}
@@ -162,6 +168,12 @@ type Element struct {
 	// sysml.Usage.Result. nil for every DefKind other than DefConstraint/
 	// DefCalculation, and for a body without one.
 	Result Expression
+
+	// Connects holds the resolved ElementIDs of a connection/interface
+	// usage's ends (see sysml.Connection), in the order they were written,
+	// e.g. the [p, y] behind `connect p to y;`. nil for every DefKind
+	// other than DefConnection/DefInterface.
+	Connects []ElementID
 }
 
 // Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or

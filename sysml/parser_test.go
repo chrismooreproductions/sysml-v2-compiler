@@ -259,6 +259,118 @@ func TestModelParseUsageWithBody(t *testing.T) {
 	}
 }
 
+// TestModelParseConnectionBareShorthand checks the bare
+// "'connect' ConnectorPart" form -- no "connection" keyword, no name, no
+// type at all -- for both the binary ("a to b") and n-ary ("(a, b, ...)")
+// connector shapes.
+func TestModelParseConnectionBareShorthand(t *testing.T) {
+	t.Run("binary", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			part p;
+			part y;
+			connect p to y;
+		}`)
+
+		conn, ok := pkg.Members[2].(*sysml.Connection)
+		if !ok {
+			t.Fatalf("member 2 is %T, want *sysml.Connection", pkg.Members[2])
+		}
+		if conn.Name != "" || conn.Type != "" {
+			t.Errorf("Name/Type = %q/%q, want both empty", conn.Name, conn.Type)
+		}
+		if len(conn.Ends) != 2 {
+			t.Fatalf("got %d ends, want 2", len(conn.Ends))
+		}
+		p, ok := conn.Ends[0].(*sysml.NameRef)
+		if !ok || p.Path != "p" {
+			t.Errorf("Ends[0] = %+v, want NameRef{Path: p}", conn.Ends[0])
+		}
+		y, ok := conn.Ends[1].(*sysml.NameRef)
+		if !ok || y.Path != "y" {
+			t.Errorf("Ends[1] = %+v, want NameRef{Path: y}", conn.Ends[1])
+		}
+	})
+
+	t.Run("n-ary with feature chain ends", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			part p1;
+			part d1;
+			part d2;
+			connect (p1.x, d1, d2);
+		}`)
+
+		conn, ok := pkg.Members[3].(*sysml.Connection)
+		if !ok {
+			t.Fatalf("member 3 is %T, want *sysml.Connection", pkg.Members[3])
+		}
+		if len(conn.Ends) != 3 {
+			t.Fatalf("got %d ends, want 3", len(conn.Ends))
+		}
+		chain, ok := conn.Ends[0].(*sysml.FeatureChain)
+		if !ok || len(chain.Path) != 2 || chain.Path[0] != "p1" || chain.Path[1] != "x" {
+			t.Errorf("Ends[0] = %+v, want FeatureChain{Path: [p1 x]}", conn.Ends[0])
+		}
+	})
+}
+
+// TestModelParseConnectionUsage checks the "connection"/"interface"
+// keyword form, with a name, an optional type, and an explicit "connect"
+// clause -- as opposed to a plain "connection bus : C;" with no connect
+// clause at all, which stays an ordinary *sysml.Usage (checked separately
+// below) since it uses none of Connection's machinery.
+func TestModelParseConnectionUsage(t *testing.T) {
+	cases := map[string]struct {
+		keyword string
+		want    sysml.DefKind
+	}{
+		"connection": {"connection", sysml.DefConnection},
+		"interface":  {"interface", sysml.DefInterface},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle {
+				`+tt.keyword+` def C;
+				part d1;
+				part d2;
+				part d3;
+				part d4;
+				`+tt.keyword+` bus : C connect (d1, d2, d3, d4);
+			}`)
+
+			conn, ok := pkg.Members[5].(*sysml.Connection)
+			if !ok {
+				t.Fatalf("member 5 is %T, want *sysml.Connection", pkg.Members[5])
+			}
+			if conn.Kind != tt.want || conn.Name != "bus" || conn.Type != "C" {
+				t.Errorf("Connection = %+v, want Kind: %v, Name: bus, Type: C", conn, tt.want)
+			}
+			if len(conn.Ends) != 4 {
+				t.Errorf("got %d ends, want 4", len(conn.Ends))
+			}
+		})
+	}
+}
+
+// TestModelParseConnectionUsageWithoutConnect checks that a
+// "connection"/"interface" usage with no explicit "connect" clause parses
+// as an ordinary *sysml.Usage, not a *sysml.Connection -- there are no
+// ends to carry.
+func TestModelParseConnectionUsageWithoutConnect(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		connection def C;
+		connection bus : C;
+	}`)
+
+	usage, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+	}
+	if usage.Kind != sysml.DefConnection || usage.Name != "bus" || usage.Type != "C" {
+		t.Errorf("Usage = %+v, want Kind: DefConnection, Name: bus, Type: C", usage)
+	}
+}
+
 func TestModelParseQualifiedType(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Vehicle {
 		part def Car {
@@ -834,6 +946,9 @@ func TestModelParseErrors(t *testing.T) {
 		"import missing path":               "package Vehicle { import; }",
 		"import missing semicolon":          "package Vehicle { import Engine }",
 		"import recursive not supported":    "package Vehicle { import P1::**; }",
+		"connection missing to":             "package Vehicle { connect a b; }",
+		"connection missing close paren":    "package Vehicle { connect (a, b; }",
+		"connection missing end":            "package Vehicle { connect a to ; }",
 		"multiplicity missing bound":        "package Vehicle { part combatants : Combatant[]; }",
 		"multiplicity missing close":        "package Vehicle { part combatants : Combatant[*; }",
 		"multiplicity punctuation bound":    "package Vehicle { part combatants : Combatant[;]; }",

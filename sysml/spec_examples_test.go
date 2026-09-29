@@ -37,6 +37,17 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// this project's ":>"/"subsets" only cover usage-level feature
 		// subsetting, not classifier specialization on a definition.
 		{"CalculationTest.sysml", `line 9: unexpected 'subsets', want ';' or '{'`},
+		// a plain (non-constraint/calc) usage body isn't supported -- only
+		// constraint/calc usages can carry a body (see hasCalculationBody).
+		// General usage bodies for every kind are a bigger, separate piece
+		// of work than this phase covers.
+		{"ConnectionTest.sysml", `line 3: unexpected '{', want ';'`},
+		// "end" as a body member introducing a connector end inside a
+		// definition (InterfaceBodyItem's DefaultInterfaceEnd) isn't
+		// supported -- this phase only covers the usage-level "connect a
+		// to b" / "connect (a, b, ...)" syntax, not this def-body member
+		// form.
+		{"InterfaceTest.sysml", `line 7: unexpected identifier "end", want 'package', 'import', or 'part'`},
 	}
 
 	for _, tt := range cases {

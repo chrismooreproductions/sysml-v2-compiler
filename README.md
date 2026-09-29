@@ -4,9 +4,9 @@ A from-scratch implementation of a SysML v2-style modeling language: a
 lexer and recursive-descent parser (`sysml`) over a flat, KerML-shaped
 metamodel (`metamodel`). Currently covers a root namespace of top-level
 packages/definitions/usages/imports (not just one wrapping package),
-`part`/`attribute`/`item`/`port`/`constraint`/`calc` definitions and usages
-(typed or untyped, in either order relative to a multiplicity), qualified
-(`::`) references,
+`part`/`attribute`/`item`/`port`/`constraint`/`calc`/`connection`/`interface`
+definitions and usages (typed or untyped, in either order relative to a
+multiplicity), qualified (`::`) references,
 `public`/`private`/`protected` visibility prefixes (parsed; enforced only
 for wildcard-import re-export, see below), `//` and `/* */` comments,
 multiplicity (`[*]`, `[3]`, `[0..5]`, or a name-valued bound like `[n]`,
@@ -48,6 +48,16 @@ throughout (not just for constraint/calc), since nothing that can start a
 usage's specialization part is ever spelled as a bare identifier: an
 anonymous usage like `constraint { mass <= massLimit }` is unambiguous
 with no lookahead needed.
+
+A `connection`/`interface` usage can carry an explicit connector part:
+`connect p to y;` (binary, no name or type at all — the bare shorthand
+form) or `connection bus : C connect (d1, d2, d3, d4);` (n-ary, named and
+typed). Each end is a plain or dotted feature reference (`y`, `p1.x`),
+resolved through the same feature-chain machinery as any other expression.
+Not yet supported: `bind`/`succession` (structurally unrelated shorthand
+forms), `abstract` as a prefix modifier, and `end` as a body member
+introducing a connector end inside a *definition* (only the usage-level
+`connect` syntax is covered).
 
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):

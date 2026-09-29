@@ -79,11 +79,18 @@ func FromASTWithImports(ns *sysml.Namespace, imports map[string]*Model) (*Model,
 		return nil, err
 	}
 
-	// Feature chains resolve last: each segment after the first walks a
+	// Feature chains resolve next: each segment after the first walks a
 	// TypedBy relationship (see ResolveFeatureChain), so every ordinary
 	// reference above needs to have already produced the TypedBy
 	// relationships a chain might step through.
 	if err := t.resolveFeatureChains(); err != nil {
+		return nil, err
+	}
+
+	// Connects resolve last: each end is an expression (NameRef or
+	// FeatureChain) already resolved by one of the two passes above --
+	// this just harvests the result.
+	if err := t.resolveConnects(); err != nil {
 		return nil, err
 	}
 
@@ -142,6 +149,17 @@ type pendingFeatureChain struct {
 	set   func(ElementID)
 }
 
+// pendingConnect records one end of a connection/interface usage (see
+// sysml.Connection): element is the connection's own ElementID, and end is
+// that end's already-converted expression (a *NameRef or *FeatureChain,
+// queued for resolution the same as any other expression) -- resolveConnects
+// reads end's Target once resolveExpressions/resolveFeatureChains have set
+// it, appending it to element's Connects in order.
+type pendingConnect struct {
+	element ElementID
+	end     Expression
+}
+
 type translator struct {
 	model   *Model
 	pending []pendingReference
@@ -162,6 +180,12 @@ type translator struct {
 	// pendingFeatureChains queues every FeatureChain found inside an
 	// expression tree for resolveFeatureChains.
 	pendingFeatureChains []pendingFeatureChain
+
+	// pendingConnects queues each connection/interface usage's ends for
+	// resolveConnects, run once expression/feature-chain resolution (which
+	// each end's already-converted expression goes through like any
+	// other) has resolved every end's target.
+	pendingConnects []pendingConnect
 
 	// imports is the caller-supplied lookup an `import` member resolves
 	// against, keyed the same way as Model.Imports. Left nil by FromAST.
@@ -296,6 +320,33 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		if m.Redefines != "" {
 			t.pending = append(t.pending, pendingReference{usage: id, name: m.Redefines, owner: owner, kind: Redefines})
+		}
+		return nil
+
+	case *sysml.Connection:
+		id, ok := t.declare(KindUsage, m.Name, owner, sc)
+		if !ok {
+			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
+		}
+		t.model.Elements[id].DefKind = DefKind(m.Kind)
+		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		if m.Type != "" {
+			t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})
+		}
+		if err := t.declareMembers(m.Members, id, newScope()); err != nil {
+			return err
+		}
+		// Each end is a plain expression (NameRef or FeatureChain) already
+		// -- converting it queues its own resolution exactly like any
+		// other expression reference (resolveExpressions/
+		// resolveFeatureChains). resolveConnects (after both) harvests
+		// each end's now-resolved Target into Connects, in order.
+		for _, end := range m.Ends {
+			converted, err := t.convertExpression(end, owner)
+			if err != nil {
+				return err
+			}
+			t.pendingConnects = append(t.pendingConnects, pendingConnect{element: id, end: converted})
 		}
 		return nil
 
@@ -476,6 +527,29 @@ func (t *translator) resolveFeatureChains() error {
 			return fmt.Errorf("metamodel: unresolved feature chain %q", strings.Join(p.path, "."))
 		}
 		p.set(id)
+	}
+	return nil
+}
+
+// resolveConnects harvests each queued pendingConnect's already-resolved
+// target (its end's NameRef.Target or FeatureChain.Target -- resolved by
+// resolveExpressions or resolveFeatureChains before this runs) into its
+// connection's Connects, in order.
+func (t *translator) resolveConnects() error {
+	for _, p := range t.pendingConnects {
+		var target ElementID
+		switch end := p.end.(type) {
+		case *NameRef:
+			target = end.Target
+		case *FeatureChain:
+			target = end.Target
+		default:
+			return fmt.Errorf("metamodel: connector end has unexpected expression type %T", p.end)
+		}
+		if target == "" {
+			return fmt.Errorf("metamodel: %s: unresolved connector end", t.model.Elements[p.element].Name)
+		}
+		t.model.Elements[p.element].Connects = append(t.model.Elements[p.element].Connects, target)
 	}
 	return nil
 }

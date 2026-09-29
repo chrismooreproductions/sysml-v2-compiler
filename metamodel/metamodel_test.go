@@ -1,6 +1,7 @@
 package metamodel_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/chrismooreproductions/sysml-modeller/metamodel"
@@ -162,7 +163,7 @@ func TestFromAST(t *testing.T) {
 			t.Errorf("missing element %q", id)
 			continue
 		}
-		if *got != wantElem {
+		if !reflect.DeepEqual(*got, wantElem) {
 			t.Errorf("element %q = %+v, want %+v", id, *got, wantElem)
 		}
 	}
@@ -595,6 +596,169 @@ func TestFromASTAnonymousUsage(t *testing.T) {
 	}
 }
 
+// TestFromASTConnectionBareShorthand checks that the bare "connect a to
+// b;" shorthand resolves both ends into Connects, in order.
+func TestFromASTConnectionBareShorthand(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part p;
+		part y;
+		connect p to y;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	var conn *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle" && el.DefKind == metamodel.DefConnection && el.Name == "" {
+			conn = el
+		}
+	}
+	if conn == nil {
+		t.Fatal("no anonymous connection found under Vehicle")
+	}
+	want := []metamodel.ElementID{"Vehicle::p", "Vehicle::y"}
+	if !reflect.DeepEqual(conn.Connects, want) {
+		t.Errorf("Connects = %v, want %v", conn.Connects, want)
+	}
+}
+
+// TestFromASTConnectionUsageNary checks the named "connection bus : C
+// connect (d1, d2, d3, d4);" form: the type resolves via the ordinary
+// TypedBy relationship, and all four ends resolve into Connects in order.
+func TestFromASTConnectionUsageNary(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		connection def C;
+		part d1;
+		part d2;
+		part d3;
+		part d4;
+		connection bus : C connect (d1, d2, d3, d4);
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	bus, ok := model.Elements["Vehicle::bus"]
+	if !ok {
+		t.Fatal("missing element Vehicle::bus")
+	}
+	typeID, ok := typeOf(model, "Vehicle::bus")
+	if !ok || typeID != "Vehicle::C" {
+		t.Errorf("bus typed by %q, ok=%v, want Vehicle::C", typeID, ok)
+	}
+	want := []metamodel.ElementID{"Vehicle::d1", "Vehicle::d2", "Vehicle::d3", "Vehicle::d4"}
+	if !reflect.DeepEqual(bus.Connects, want) {
+		t.Errorf("Connects = %v, want %v", bus.Connects, want)
+	}
+}
+
+// TestFromASTConnectionFeatureChainEnd checks that a connector end can be
+// a feature chain, resolved via ResolveFeatureChain exactly like any other
+// feature-chain expression.
+func TestFromASTConnectionFeatureChainEnd(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def X {
+			part x1;
+		}
+		part def P1 {
+			part x : X;
+		}
+		part p1 : P1;
+		part y;
+		connect p1.x.x1 to y;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	var conn *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle" && el.DefKind == metamodel.DefConnection {
+			conn = el
+		}
+	}
+	if conn == nil {
+		t.Fatal("no connection found under Vehicle")
+	}
+	want := []metamodel.ElementID{"Vehicle::X::x1", "Vehicle::y"}
+	if !reflect.DeepEqual(conn.Connects, want) {
+		t.Errorf("Connects = %v, want %v", conn.Connects, want)
+	}
+}
+
+// TestFromASTInterfaceUsesSameMechanism checks that "interface" resolves
+// its connect clause through the identical mechanism "connection" does --
+// same DefKind-driven parsing, same Connects resolution.
+func TestFromASTInterfaceUsesSameMechanism(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		port def P1;
+		port def P2;
+		part def PartX {
+			port p1 : P1;
+		}
+		part def PartY {
+			port p2 : P2;
+		}
+		part x : PartX;
+		part y : PartY;
+		interface def I;
+		interface i1 : I connect x.p1 to y.p2;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	i1, ok := model.Elements["Vehicle::i1"]
+	if !ok {
+		t.Fatal("missing element Vehicle::i1")
+	}
+	if i1.DefKind != metamodel.DefInterface {
+		t.Errorf("DefKind = %v, want DefInterface", i1.DefKind)
+	}
+	want := []metamodel.ElementID{"Vehicle::PartX::p1", "Vehicle::PartY::p2"}
+	if !reflect.DeepEqual(i1.Connects, want) {
+		t.Errorf("Connects = %v, want %v", i1.Connects, want)
+	}
+}
+
+// TestFromASTConnectionUnresolvedEnd checks that a connector end that
+// doesn't resolve fails translation, the same as any other unresolved
+// reference does.
+func TestFromASTConnectionUnresolvedEnd(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part p;
+		connect p to nope;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved connector end, got nil")
+	}
+}
+
 // TestFromASTVisibility checks that a package, definition, and usage each
 // carry their parsed sysml.Visibility over onto their Element unchanged
 // (including the unspecified case), across the sysml.Visibility ->
@@ -727,7 +891,7 @@ func TestFromASTNestedPackage(t *testing.T) {
 			t.Errorf("missing element %q", id)
 			continue
 		}
-		if *got != wantElem {
+		if !reflect.DeepEqual(*got, wantElem) {
 			t.Errorf("element %q = %+v, want %+v", id, *got, wantElem)
 		}
 	}

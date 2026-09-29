@@ -67,6 +67,8 @@ const (
 	DefPort
 	DefConstraint
 	DefCalculation
+	DefConnection
+	DefInterface
 )
 
 func (k DefKind) String() string {
@@ -83,6 +85,10 @@ func (k DefKind) String() string {
 		return "constraint"
 	case DefCalculation:
 		return "calc"
+	case DefConnection:
+		return "connection"
+	case DefInterface:
+		return "interface"
 	default:
 		return "unknown"
 	}
@@ -155,6 +161,33 @@ type Usage struct {
 }
 
 func (*Usage) memberNode() {}
+
+// Connection is a connection or interface usage's connector part, e.g.
+// `connect p to y;` (binary, no name/type at all -- the bare
+// "'connect' ConnectorPart" shorthand), or
+// `connection bus : C connect (d1, d2, d3, d4);` (n-ary, with a name and
+// type). Distinct from Usage because a connector's ends aren't expressed
+// through FeatureSpecializationPart syntax: each of Ends is a *NameRef or
+// *FeatureChain (a plain or dotted feature reference, e.g. "y" or
+// "p1.x"), reusing Phase 2's expression machinery rather than inventing a
+// separate reference shape. Kind is always DefConnection or DefInterface.
+//
+// Deliberately out of scope: the optional multiplicity/`references`
+// prefix on an individual end (ConnectorEnd's own fuller grammar), `bind`/
+// `succession` (BindingConnectorAsUsage/SuccessionAsUsage -- structurally
+// unrelated shorthand forms, not ConnectorPart variants), and `end` as a
+// body member introducing a connector end inside a definition (only the
+// usage-level connect syntax is covered here).
+type Connection struct {
+	Visibility Visibility
+	Kind       DefKind
+	Name       string
+	Type       string
+	Ends       []Expression
+	Members    []Member
+}
+
+func (*Connection) memberNode() {}
 
 // Expression is a value-producing expression, e.g. the "5" in
 // `attribute n : Integer = 5;` or the "mass <= massLimit" a constraint

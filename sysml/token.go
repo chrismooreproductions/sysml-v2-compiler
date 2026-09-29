@@ -10,6 +10,10 @@ const (
 	Port
 	ConstraintKw
 	CalcKw
+	ConnectionKw
+	InterfaceKw
+	ConnectKw
+	ToKw
 	Def
 	ImportKw
 	PublicKw
@@ -43,6 +47,7 @@ const (
 	NotEq
 	OpenParen
 	CloseParen
+	Comma
 	TrueKw
 	FalseKw
 	NotKw
@@ -69,6 +74,14 @@ func (k Kind) String() string {
 		return "'constraint'"
 	case CalcKw:
 		return "'calc'"
+	case ConnectionKw:
+		return "'connection'"
+	case InterfaceKw:
+		return "'interface'"
+	case ConnectKw:
+		return "'connect'"
+	case ToKw:
+		return "'to'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -135,6 +148,8 @@ func (k Kind) String() string {
 		return "'('"
 	case CloseParen:
 		return "')'"
+	case Comma:
+		return "','"
 	case TrueKw:
 		return "'true'"
 	case FalseKw:
@@ -164,6 +179,10 @@ var kinds = map[string]Kind{
 	"port":       Port,
 	"constraint": ConstraintKw,
 	"calc":       CalcKw,
+	"connection": ConnectionKw,
+	"interface":  InterfaceKw,
+	"connect":    ConnectKw,
+	"to":         ToKw,
 	"def":        Def,
 	"import":     ImportKw,
 	"public":     PublicKw,
@@ -198,6 +217,7 @@ var kinds = map[string]Kind{
 	"==":         Eq,
 	"!=":         NotEq,
 	"(":          OpenParen,
+	",":          Comma,
 	")":          CloseParen,
 	"true":       TrueKw,
 	"false":      FalseKw,

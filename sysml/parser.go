@@ -102,6 +102,15 @@ var defKeywords = map[Kind]DefKind{
 	Port:         DefPort,
 	ConstraintKw: DefConstraint,
 	CalcKw:       DefCalculation,
+	ConnectionKw: DefConnection,
+	InterfaceKw:  DefInterface,
+}
+
+// isConnectorKind reports whether kind's usage form can carry an explicit
+// "connect" connector part (see Connection), instead of only ever being a
+// plain ";"-terminated declaration.
+func isConnectorKind(kind DefKind) bool {
+	return kind == DefConnection || kind == DefInterface
 }
 
 // hasCalculationBody reports whether kind's usages/definitions have a
@@ -162,6 +171,18 @@ func (p *parser) parseMember() (Member, error) {
 		return imp, nil
 	}
 
+	if tok.Kind == ConnectKw {
+		// The bare "'connect' ConnectorPart" shorthand: no "connection"/
+		// "interface" keyword, no name, no type at all.
+		p.pos++
+		conn, err := p.parseConnectorPart(DefConnection, "", "")
+		if err != nil {
+			return nil, err
+		}
+		conn.Visibility = vis
+		return conn, nil
+	}
+
 	defKind, ok := defKeywords[tok.Kind]
 	if !ok {
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s, %s, or %s", tok.Pos.Line, describeToken(tok), Pkg, ImportKw, Part)
@@ -184,12 +205,17 @@ func (p *parser) parseMember() (Member, error) {
 		return def, nil
 	}
 
-	usage, err := p.parseUsage(defKind)
+	member, err := p.parseUsage(defKind)
 	if err != nil {
 		return nil, err
 	}
-	usage.Visibility = vis
-	return usage, nil
+	switch m := member.(type) {
+	case *Usage:
+		m.Visibility = vis
+	case *Connection:
+		m.Visibility = vis
+	}
+	return member, nil
 }
 
 func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
@@ -287,7 +313,12 @@ func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
 // parseUsage parses a usage. Its name is optional (see Usage's doc
 // comment): a leading Identifier is consumed as the name if present,
 // otherwise the usage is anonymous and nothing is consumed for it.
-func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
+// parseUsage parses a usage declaration and, for most DefKinds, the plain
+// Usage that follows from it. For a connector kind (see isConnectorKind)
+// followed by an explicit "connect" clause, it instead returns a
+// Connection carrying the name/type already parsed -- the one case this
+// function's result isn't a *Usage.
+func (p *parser) parseUsage(kind DefKind) (Member, error) {
 	usage := &Usage{Kind: kind}
 
 	if tok, ok := p.current(); ok && tok.Kind == Identifier {
@@ -301,6 +332,13 @@ func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
 
 	if err := p.parseValuePart(usage); err != nil {
 		return nil, err
+	}
+
+	if isConnectorKind(kind) {
+		if tok, ok := p.current(); ok && tok.Kind == ConnectKw {
+			p.pos++
+			return p.parseConnectorPart(kind, usage.Name, usage.Type)
+		}
 	}
 
 	if hasCalculationBody(kind) {
@@ -323,6 +361,69 @@ func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
 		return nil, err
 	}
 	return usage, nil
+}
+
+// parseConnectorPart parses a ConnectorPart -- "a to b" (binary) or
+// "(a, b, c, ...)" (n-ary) -- producing a Connection with kind/name/typ
+// already known (both "" for the bare "connect a to b;" shorthand, which
+// has no preceding usage declaration at all). The caller has already
+// consumed "connect".
+func (p *parser) parseConnectorPart(kind DefKind, name, typ string) (*Connection, error) {
+	conn := &Connection{Kind: kind, Name: name, Type: typ}
+
+	if tok, ok := p.current(); ok && tok.Kind == OpenParen {
+		p.pos++
+		for {
+			end, err := p.parseConnectorEnd()
+			if err != nil {
+				return nil, err
+			}
+			conn.Ends = append(conn.Ends, end)
+
+			tok, ok := p.current()
+			if !ok {
+				return nil, fmt.Errorf("unexpected end of input, want %s or %s", Comma, CloseParen)
+			}
+			if tok.Kind == CloseParen {
+				p.pos++
+				break
+			}
+			if _, err := p.expect(Comma); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		first, err := p.parseConnectorEnd()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(ToKw); err != nil {
+			return nil, err
+		}
+		second, err := p.parseConnectorEnd()
+		if err != nil {
+			return nil, err
+		}
+		conn.Ends = []Expression{first, second}
+	}
+
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+// parseConnectorEnd parses one connector end: a plain or dotted feature
+// reference (e.g. "y" or "p1.x"), reusing the same NameRef/FeatureChain
+// parsing a primary expression already uses (see Connection's doc comment
+// for what a fuller ConnectorEnd -- an optional leading multiplicity or
+// "name references" form -- leaves out).
+func (p *parser) parseConnectorEnd() (Expression, error) {
+	path, err := p.parseQualifiedName()
+	if err != nil {
+		return nil, err
+	}
+	return p.parseFeatureChainTail(path)
 }
 
 // parseCalculationBody parses a constraint/calculation body
