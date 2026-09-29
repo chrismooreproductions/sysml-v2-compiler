@@ -104,6 +104,7 @@ var defKeywords = map[Kind]DefKind{
 	CalcKw:       DefCalculation,
 	ConnectionKw: DefConnection,
 	InterfaceKw:  DefInterface,
+	MetadataKw:   DefMetadata,
 }
 
 // isConnectorKind reports whether kind's usage form can carry an explicit
@@ -119,6 +120,15 @@ func isConnectorKind(kind DefKind) bool {
 // DefKind uses.
 func hasCalculationBody(kind DefKind) bool {
 	return kind == DefConstraint || kind == DefCalculation
+}
+
+// hasPlainBody reports whether kind's usages have an ordinary
+// member-list body (MetadataBody: ";" or "{ members }", no trailing result
+// expression) -- distinct from hasCalculationBody's shape, and from every
+// other DefKind, whose usages are never anything but a plain
+// ";"-terminated declaration.
+func hasPlainBody(kind DefKind) bool {
+	return kind == DefMetadata
 }
 
 // visibilityKeywords maps each visibility keyword token to the Visibility
@@ -147,6 +157,10 @@ func (p *parser) parseVisibility() Visibility {
 
 func (p *parser) parseMember() (Member, error) {
 	vis := p.parseVisibility()
+	metadata, err := p.parseMetadataPrefixes()
+	if err != nil {
+		return nil, err
+	}
 
 	tok, ok := p.current()
 	if !ok {
@@ -159,6 +173,7 @@ func (p *parser) parseMember() (Member, error) {
 			return nil, err
 		}
 		pkg.Visibility = vis
+		pkg.Metadata = metadata
 		return pkg, nil
 	}
 
@@ -180,6 +195,7 @@ func (p *parser) parseMember() (Member, error) {
 			return nil, err
 		}
 		conn.Visibility = vis
+		conn.Metadata = metadata
 		return conn, nil
 	}
 
@@ -202,6 +218,7 @@ func (p *parser) parseMember() (Member, error) {
 			return nil, err
 		}
 		def.Visibility = vis
+		def.Metadata = metadata
 		return def, nil
 	}
 
@@ -212,10 +229,34 @@ func (p *parser) parseMember() (Member, error) {
 	switch m := member.(type) {
 	case *Usage:
 		m.Visibility = vis
+		m.Metadata = metadata
 	case *Connection:
 		m.Visibility = vis
+		m.Metadata = metadata
 	}
 	return member, nil
+}
+
+// parseMetadataPrefixes consumes zero or more `#Tag` prefix annotations
+// (PrefixMetadataAnnotation), e.g. the "Classified" and "Security" in
+// `#Classified #Security z1;`, returning their (plain, not feature-chain)
+// qualified type names in the order written. See Usage.Metadata's doc
+// comment for what this simplifies away from the full grammar.
+func (p *parser) parseMetadataPrefixes() ([]string, error) {
+	var tags []string
+	for {
+		tok, ok := p.current()
+		if !ok || tok.Kind != Hash {
+			return tags, nil
+		}
+		p.pos++
+
+		tag, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
 }
 
 func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
@@ -353,6 +394,21 @@ func (p *parser) parseUsage(kind DefKind) (Member, error) {
 			}
 			usage.Members = members
 			usage.Result = result
+			return usage, nil
+		}
+	}
+
+	if hasPlainBody(kind) {
+		if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+			p.pos++
+			members, err := p.parseMembers()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(CloseBrace); err != nil {
+				return nil, err
+			}
+			usage.Members = members
 			return usage, nil
 		}
 	}

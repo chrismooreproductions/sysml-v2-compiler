@@ -45,6 +45,11 @@ type Package struct {
 	Visibility Visibility
 	Name       string
 	Members    []Member
+
+	// Metadata is this member's `#Tag` prefix annotations, e.g. the
+	// "Security" in `#Security enum def ...`. See DefMetadata's sibling
+	// doc comment on Usage for what this simplifies away.
+	Metadata []string
 }
 
 func (*Package) memberNode() {}
@@ -69,6 +74,7 @@ const (
 	DefCalculation
 	DefConnection
 	DefInterface
+	DefMetadata
 )
 
 func (k DefKind) String() string {
@@ -89,6 +95,8 @@ func (k DefKind) String() string {
 		return "connection"
 	case DefInterface:
 		return "interface"
+	case DefMetadata:
+		return "metadata"
 	default:
 		return "unknown"
 	}
@@ -109,6 +117,10 @@ type Definition struct {
 	Name       string
 	Members    []Member
 	Result     Expression
+
+	// Metadata is this member's `#Tag` prefix annotations -- see Usage's
+	// doc comment on its own Metadata field for the full explanation.
+	Metadata []string
 }
 
 func (*Definition) memberNode() {}
@@ -156,8 +168,25 @@ type Usage struct {
 	// Definition's doc comment) -- only ever set for DefConstraint/
 	// DefCalculation, since only those keyword families give a usage a
 	// CalculationBody instead of a plain "; "-terminated declaration.
+	// Members alone (no Result) is also how a metadata usage's plain body
+	// (MetadataBody, no trailing expression) is represented, for
+	// DefMetadata.
 	Members []Member
 	Result  Expression
+
+	// Metadata is this usage's `#Tag` prefix annotations, e.g. the
+	// "Classified" and "Security" in `#Classified #Security z1;` -- each a
+	// shorthand for "this member has an anonymous metadata usage typed by
+	// Tag" (PrefixMetadataAnnotation). Simplified from the full grammar in
+	// two ways: only parsed once, immediately after an optional leading
+	// visibility keyword and before the definition/usage keyword itself
+	// (real SysML allows `#Tag` interspersed with other prefix keywords in
+	// more positions, including on a bare usage with no kind keyword at
+	// all -- e.g. `ref #Classified z1;` -- which this project doesn't
+	// support declaring in the first place); and each Tag is a plain
+	// qualified name, not the fuller OwnedFeatureTyping a real
+	// PrefixMetadataUsage allows.
+	Metadata []string
 }
 
 func (*Usage) memberNode() {}
@@ -185,6 +214,10 @@ type Connection struct {
 	Type       string
 	Ends       []Expression
 	Members    []Member
+
+	// Metadata is this member's `#Tag` prefix annotations -- see Usage's
+	// doc comment on its own Metadata field for the full explanation.
+	Metadata []string
 }
 
 func (*Connection) memberNode() {}

@@ -842,6 +842,113 @@ func TestModelParseVisibilityOnEveryMemberKind(t *testing.T) {
 	}
 }
 
+// TestModelParseMetadataPrefixes checks that a member can carry one or more
+// leading "#Tag" annotations (PrefixMetadataAnnotation), stacked in the
+// order written, alongside its own leading visibility prefix.
+func TestModelParseMetadataPrefixes(t *testing.T) {
+	cases := map[string]struct {
+		member string
+		want   []string
+	}{
+		"none":             {`part engine : Engine;`, nil},
+		"single":           {`#Classified part engine : Engine;`, []string{"Classified"}},
+		"stacked":          {`#Classified #Security part engine : Engine;`, []string{"Classified", "Security"}},
+		"qualified":        {`#Meta::Classified part engine : Engine;`, []string{"Meta::Classified"}},
+		"after visibility": {`private #Classified part engine : Engine;`, []string{"Classified"}},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.member+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+			if !reflect.DeepEqual(usage.Metadata, tt.want) {
+				t.Errorf("Metadata = %#v, want %#v", usage.Metadata, tt.want)
+			}
+		})
+	}
+}
+
+// TestModelParseMetadataOnEveryMemberKind checks that "#Tag" is accepted
+// ahead of a package, a definition, a usage, and a connection alike (every
+// Member kind that has a Metadata field), the same shared-prefix pattern
+// TestModelParseVisibilityOnEveryMemberKind already checks for visibility.
+func TestModelParseMetadataOnEveryMemberKind(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		#Classified package Sub { }
+		#Classified part def Engine;
+		#Classified part engine : Engine;
+		#Classified connect engine to engine;
+	}`)
+
+	if len(pkg.Members) != 4 {
+		t.Fatalf("got %d members, want 4", len(pkg.Members))
+	}
+
+	sub, ok := pkg.Members[0].(*sysml.Package)
+	if !ok || !reflect.DeepEqual(sub.Metadata, []string{"Classified"}) {
+		t.Errorf("member 0 = %+v, want a Package with Metadata [Classified]", pkg.Members[0])
+	}
+
+	def, ok := pkg.Members[1].(*sysml.Definition)
+	if !ok || !reflect.DeepEqual(def.Metadata, []string{"Classified"}) {
+		t.Errorf("member 1 = %+v, want a Definition with Metadata [Classified]", pkg.Members[1])
+	}
+
+	usage, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok || !reflect.DeepEqual(usage.Metadata, []string{"Classified"}) {
+		t.Errorf("member 2 = %+v, want a Usage with Metadata [Classified]", pkg.Members[2])
+	}
+
+	conn, ok := pkg.Members[3].(*sysml.Connection)
+	if !ok || !reflect.DeepEqual(conn.Metadata, []string{"Classified"}) {
+		t.Errorf("member 3 = %+v, want a Connection with Metadata [Classified]", pkg.Members[3])
+	}
+}
+
+// TestModelParseMetadataDefKind checks that "metadata"/"@" is accepted as a
+// definition/usage keyword family alongside part/attribute/etc, and that
+// its usage form accepts a plain member-list body (MetadataBody) rather
+// than the calc/constraint shape.
+func TestModelParseMetadataDefKind(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		metadata def Classified {
+			attribute classificationLevel : Integer;
+		}
+		metadata x : Classified;
+		@x2 : Classified {
+			attribute other : Integer;
+		}
+	}`)
+
+	def, ok := pkg.Members[0].(*sysml.Definition)
+	if !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+	}
+	if def.Kind != sysml.DefMetadata || def.Name != "Classified" || len(def.Members) != 1 {
+		t.Errorf("member 0 = %+v, want DefMetadata Classified with 1 member", def)
+	}
+
+	usage, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+	}
+	if usage.Kind != sysml.DefMetadata || usage.Name != "x" || usage.Type != "Classified" {
+		t.Errorf("member 1 = %+v, want DefMetadata usage x : Classified", usage)
+	}
+
+	usage2, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Usage", pkg.Members[2])
+	}
+	if usage2.Kind != sysml.DefMetadata || usage2.Name != "x2" || len(usage2.Members) != 1 {
+		t.Errorf("member 2 = %+v, want DefMetadata usage x2 with 1 member", usage2)
+	}
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without
@@ -933,29 +1040,31 @@ func TestModelParseEmptySource(t *testing.T) {
 
 func TestModelParseErrors(t *testing.T) {
 	cases := map[string]string{
-		"unterminated package body":         "package Vehicle {",
-		"missing package braces":            "package Vehicle",
-		"part usage missing type":           "package Vehicle { part engine : ; }",
-		"part usage duplicate type":         "package Vehicle { part engine : Engine : Engine; }",
-		"part usage duplicate multiplicity": "package Vehicle { part engine : Engine[1][1]; }",
-		"part usage duplicate subsets":      "package Vehicle { part b subsets a subsets a; }",
-		"part usage duplicate redefines":    "package Vehicle { part b redefines a redefines a; }",
-		"unmatched closing brace":           "package Vehicle { } }",
-		"qualified type missing segment":    "package Vehicle { part engine : Vehicle::; }",
-		"qualified type trailing path sep":  "package Vehicle { part engine : Vehicle::Engine::; }",
-		"import missing path":               "package Vehicle { import; }",
-		"import missing semicolon":          "package Vehicle { import Engine }",
-		"import recursive not supported":    "package Vehicle { import P1::**; }",
-		"connection missing to":             "package Vehicle { connect a b; }",
-		"connection missing close paren":    "package Vehicle { connect (a, b; }",
-		"connection missing end":            "package Vehicle { connect a to ; }",
-		"multiplicity missing bound":        "package Vehicle { part combatants : Combatant[]; }",
-		"multiplicity missing close":        "package Vehicle { part combatants : Combatant[*; }",
-		"multiplicity punctuation bound":    "package Vehicle { part combatants : Combatant[;]; }",
-		"multiplicity negative bound":       "package Vehicle { part combatants : Combatant[-1]; }",
-		"assigned value missing operand":    "package Vehicle { attribute n : Integer = ; }",
-		"assigned value trailing operator":  "package Vehicle { attribute n : Integer = 1 + ; }",
-		"assigned value unclosed paren":     "package Vehicle { attribute n : Integer = (1 + 2; }",
+		"unterminated package body":                   "package Vehicle {",
+		"missing package braces":                      "package Vehicle",
+		"part usage missing type":                     "package Vehicle { part engine : ; }",
+		"part usage duplicate type":                   "package Vehicle { part engine : Engine : Engine; }",
+		"part usage duplicate multiplicity":           "package Vehicle { part engine : Engine[1][1]; }",
+		"part usage duplicate subsets":                "package Vehicle { part b subsets a subsets a; }",
+		"part usage duplicate redefines":              "package Vehicle { part b redefines a redefines a; }",
+		"unmatched closing brace":                     "package Vehicle { } }",
+		"qualified type missing segment":              "package Vehicle { part engine : Vehicle::; }",
+		"qualified type trailing path sep":            "package Vehicle { part engine : Vehicle::Engine::; }",
+		"import missing path":                         "package Vehicle { import; }",
+		"import missing semicolon":                    "package Vehicle { import Engine }",
+		"import recursive not supported":              "package Vehicle { import P1::**; }",
+		"connection missing to":                       "package Vehicle { connect a b; }",
+		"connection missing close paren":              "package Vehicle { connect (a, b; }",
+		"connection missing end":                      "package Vehicle { connect a to ; }",
+		"multiplicity missing bound":                  "package Vehicle { part combatants : Combatant[]; }",
+		"multiplicity missing close":                  "package Vehicle { part combatants : Combatant[*; }",
+		"multiplicity punctuation bound":              "package Vehicle { part combatants : Combatant[;]; }",
+		"multiplicity negative bound":                 "package Vehicle { part combatants : Combatant[-1]; }",
+		"assigned value missing operand":              "package Vehicle { attribute n : Integer = ; }",
+		"assigned value trailing operator":            "package Vehicle { attribute n : Integer = 1 + ; }",
+		"assigned value unclosed paren":               "package Vehicle { attribute n : Integer = (1 + 2; }",
+		"metadata prefix missing tag":                 "package Vehicle { # part engine : Engine; }",
+		"metadata prefix qualified trailing path sep": "package Vehicle { #Meta:: part engine : Engine; }",
 	}
 
 	for name, source := range cases {

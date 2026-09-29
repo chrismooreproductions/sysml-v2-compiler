@@ -48,6 +48,14 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// to b" / "connect (a, b, ...)" syntax, not this def-body member
 		// form.
 		{"InterfaceTest.sysml", `line 7: unexpected identifier "end", want 'package', 'import', or 'part'`},
+		// single-quoted/restricted names ("'User Defined Extensions'")
+		// aren't supported -- the lexer has no handling for '\'' at all,
+		// so it gets swept into the identifier it's touching ("'User"),
+		// and the space inside the quoted name splits what should be one
+		// name into two tokens. This trips well before anything
+		// metadata-related: it's the qualified name in this fixture's
+		// own private import, on line 2.
+		{"MetadataTest.sysml", `line 2: unexpected identifier "Defined", want ';'`},
 	}
 
 	for _, tt := range cases {

@@ -69,6 +69,20 @@ bridge rather than the genuine article — the real library is written in
 KerML's own textual notation, which this project doesn't parse — see the
 stub's own doc comment for the full reasoning.
 
+A member can also carry one or more leading `#Tag` annotations (`#Classified
+#Security z1;`), each resolved to a real `AnnotatedBy` relationship pointing
+at the tag's own declaration, the same as a type or subsets reference is —
+not just parsed and stored. `metadata def`/usage (or its `@` shorthand) is
+one more definition/usage keyword family, whose usage form takes a plain
+member-list body rather than the constraint/calc shape. Simplified from the
+full grammar: a `#Tag` is only parsed once, right after an optional leading
+visibility keyword and before the definition/usage keyword itself (real
+SysML allows it interspersed more freely, including on a bare usage with no
+kind keyword at all); and each tag is a plain qualified name, not the fuller
+typing a real metadata usage allows. Not yet supported: single-quoted/
+restricted names (`'User Defined Extensions'`) — unrelated to metadata
+itself, but the first thing a real metadata-heavy example file trips on.
+
 ## References
 
 This project follows the OMG specifications for the language it

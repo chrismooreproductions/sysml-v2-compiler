@@ -14,6 +14,7 @@ const (
 	InterfaceKw
 	ConnectKw
 	ToKw
+	MetadataKw
 	Def
 	ImportKw
 	PublicKw
@@ -48,6 +49,7 @@ const (
 	OpenParen
 	CloseParen
 	Comma
+	Hash
 	TrueKw
 	FalseKw
 	NotKw
@@ -82,6 +84,8 @@ func (k Kind) String() string {
 		return "'connect'"
 	case ToKw:
 		return "'to'"
+	case MetadataKw:
+		return "'metadata'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -150,6 +154,8 @@ func (k Kind) String() string {
 		return "')'"
 	case Comma:
 		return "','"
+	case Hash:
+		return "'#'"
 	case TrueKw:
 		return "'true'"
 	case FalseKw:
@@ -183,6 +189,8 @@ var kinds = map[string]Kind{
 	"interface":  InterfaceKw,
 	"connect":    ConnectKw,
 	"to":         ToKw,
+	"metadata":   MetadataKw,
+	"@":          MetadataKw,
 	"def":        Def,
 	"import":     ImportKw,
 	"public":     PublicKw,
@@ -218,6 +226,7 @@ var kinds = map[string]Kind{
 	"!=":         NotEq,
 	"(":          OpenParen,
 	",":          Comma,
+	"#":          Hash,
 	")":          CloseParen,
 	"true":       TrueKw,
 	"false":      FalseKw,

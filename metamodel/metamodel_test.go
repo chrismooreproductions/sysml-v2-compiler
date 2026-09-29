@@ -1611,6 +1611,109 @@ func TestFromASTUnresolvedSubsets(t *testing.T) {
 	}
 }
 
+// relationshipTargets returns every target of usage's Relationships of the
+// given kind, in the order they appear in model.Relationships --
+// AnnotatedBy's counterpart to relationshipTarget, which only returns the
+// first match (fine for TypedBy/Subsets/Redefines, which a usage only ever
+// has at most one of, but not for AnnotatedBy's "#Tag1 #Tag2 x;" case).
+func relationshipTargets(model *metamodel.Model, usage metamodel.ElementID, kind metamodel.RelationshipKind) []metamodel.ElementID {
+	var targets []metamodel.ElementID
+	for _, rel := range model.RelationshipsFrom(usage) {
+		if rel.Kind == kind {
+			targets = append(targets, rel.Target)
+		}
+	}
+	return targets
+}
+
+// TestFromASTMetadata checks that a single "#Tag" prefix resolves to an
+// AnnotatedBy Relationship pointing at the tag's declaration.
+func TestFromASTMetadata(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		metadata def Classified;
+		#Classified part engine : Engine;
+		part def Engine;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	targets := relationshipTargets(model, "Vehicle::engine", metamodel.AnnotatedBy)
+	if !reflect.DeepEqual(targets, []metamodel.ElementID{"Vehicle::Classified"}) {
+		t.Errorf("AnnotatedBy targets = %v, want [Vehicle::Classified]", targets)
+	}
+}
+
+// TestFromASTMetadataStacked checks that stacked "#Tag1 #Tag2" prefixes each
+// produce their own AnnotatedBy Relationship, in the order written.
+func TestFromASTMetadataStacked(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		metadata def Classified;
+		metadata def Security;
+		#Classified #Security part engine : Engine;
+		part def Engine;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	targets := relationshipTargets(model, "Vehicle::engine", metamodel.AnnotatedBy)
+	want := []metamodel.ElementID{"Vehicle::Classified", "Vehicle::Security"}
+	if !reflect.DeepEqual(targets, want) {
+		t.Errorf("AnnotatedBy targets = %v, want %v", targets, want)
+	}
+}
+
+// TestFromASTMetadataOnDefinitionAndPackage checks that "#Tag" resolves the
+// same way when it prefixes a Definition or a Package, not just a Usage --
+// queueMetadata is shared across every Member case that carries Metadata.
+func TestFromASTMetadataOnDefinitionAndPackage(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		metadata def Classified;
+		#Classified part def Engine;
+		#Classified package Sub { }
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	if targets := relationshipTargets(model, "Vehicle::Engine", metamodel.AnnotatedBy); !reflect.DeepEqual(targets, []metamodel.ElementID{"Vehicle::Classified"}) {
+		t.Errorf("Engine's AnnotatedBy targets = %v, want [Vehicle::Classified]", targets)
+	}
+	if targets := relationshipTargets(model, "Vehicle::Sub", metamodel.AnnotatedBy); !reflect.DeepEqual(targets, []metamodel.ElementID{"Vehicle::Classified"}) {
+		t.Errorf("Sub's AnnotatedBy targets = %v, want [Vehicle::Classified]", targets)
+	}
+}
+
+// TestFromASTUnresolvedMetadata checks that an unresolvable "#Tag" fails
+// translation the same strictly-required way an unresolved type/subsets
+// does.
+func TestFromASTUnresolvedMetadata(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { #Nope part engine; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved metadata tag, got nil")
+	}
+}
+
 // TestFromASTShadowing checks that a name redeclared in a nested scope
 // doesn't collide with the outer declaration (that's legal shadowing, not
 // a duplicate declaration), and that a usage in the inner scope resolves

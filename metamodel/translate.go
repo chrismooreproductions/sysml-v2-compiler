@@ -226,6 +226,18 @@ func (t *translator) declare(kind Kind, name string, owner ElementID, sc *scope)
 	return id, true
 }
 
+// queueMetadata queues one pendingReference per #Tag annotation (see
+// sysml.Usage.Metadata) on an Element just declared, each resolving (from
+// owner, the namespace containing the annotated member) to an AnnotatedBy
+// Relationship. Shared by every Member case that can carry Metadata
+// (Package, Definition, Usage, Connection -- everything but Import, which
+// isn't declared as an Element at all).
+func (t *translator) queueMetadata(id ElementID, tags []string, owner ElementID) {
+	for _, tag := range tags {
+		t.pending = append(t.pending, pendingReference{usage: id, name: tag, owner: owner, kind: AnnotatedBy})
+	}
+}
+
 func (t *translator) declareMembers(members []sysml.Member, owner ElementID, sc *scope) error {
 	for _, member := range members {
 		if err := t.declareMember(member, owner, sc); err != nil {
@@ -243,6 +255,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.queueMetadata(id, m.Metadata, owner)
 		return t.declareMembers(m.Members, id, newScope())
 
 	case *sysml.Definition:
@@ -255,6 +268,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		// safe without a lookup table.
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.queueMetadata(id, m.Metadata, owner)
 		if err := t.declareMembers(m.Members, id, newScope()); err != nil {
 			return err
 		}
@@ -279,6 +293,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.queueMetadata(id, m.Metadata, owner)
 		if m.Multiplicity != nil {
 			// sysml.Unbounded and metamodel.Unbounded are both -1 by
 			// convention, so each Bound's Value carries over unchanged.
@@ -330,6 +345,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.queueMetadata(id, m.Metadata, owner)
 		if m.Type != "" {
 			t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})
 		}
@@ -417,8 +433,17 @@ func (t *translator) resolveReferences() error {
 		if !ok {
 			return fmt.Errorf("metamodel: %s: unresolved %s %q", t.model.Elements[p.usage].Name, p.kind, p.name)
 		}
+		// AnnotatedBy is the one kind a single Element can carry more than
+		// one of (e.g. "#Classified #Security z1;"), so its ID also folds
+		// in the target's own name to stay unique -- every other kind keeps
+		// the plain usage+kind ID, since a usage only ever has at most one
+		// type/subsets/redefines.
+		id := p.usage + "::" + ElementID(p.kind.String())
+		if p.kind == AnnotatedBy {
+			id += "::" + ElementID(p.name)
+		}
 		t.model.Relationships = append(t.model.Relationships, &Relationship{
-			ID:     p.usage + "::" + ElementID(p.kind.String()),
+			ID:     id,
 			Kind:   p.kind,
 			Source: p.usage,
 			Target: targetID,

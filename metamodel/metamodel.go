@@ -73,6 +73,7 @@ const (
 	DefCalculation
 	DefConnection
 	DefInterface
+	DefMetadata
 )
 
 func (k DefKind) String() string {
@@ -93,6 +94,8 @@ func (k DefKind) String() string {
 		return "connection"
 	case DefInterface:
 		return "interface"
+	case DefMetadata:
+		return "metadata"
 	default:
 		return "unknown"
 	}
@@ -279,6 +282,10 @@ const (
 	// Redefines relates a usage to the feature it redefines, e.g. the
 	// B::b in `part B_b redefines B::b;`.
 	Redefines
+	// AnnotatedBy relates an Element to a metadata definition/usage tagging
+	// it, e.g. the Classified in `#Classified z1;` (see sysml.Usage.Metadata).
+	// One Relationship per tag, Source always the annotated Element.
+	AnnotatedBy
 )
 
 func (k RelationshipKind) String() string {
@@ -289,6 +296,8 @@ func (k RelationshipKind) String() string {
 		return "subsets"
 	case Redefines:
 		return "redefines"
+	case AnnotatedBy:
+		return "annotatedBy"
 	default:
 		return "unknown"
 	}
