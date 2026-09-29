@@ -96,10 +96,20 @@ func (p *parser) parseMembers() ([]Member, error) {
 // introduces -- the dispatch table parseMember consults after ruling out
 // package and import members.
 var defKeywords = map[Kind]DefKind{
-	Part:      DefPart,
-	Attribute: DefAttribute,
-	Item:      DefItem,
-	Port:      DefPort,
+	Part:         DefPart,
+	Attribute:    DefAttribute,
+	Item:         DefItem,
+	Port:         DefPort,
+	ConstraintKw: DefConstraint,
+	CalcKw:       DefCalculation,
+}
+
+// hasCalculationBody reports whether kind's usages/definitions have a
+// CalculationBody (zero or more members, then an optional trailing result
+// expression) instead of the plain ";"/"{ members }" shape every other
+// DefKind uses.
+func hasCalculationBody(kind DefKind) bool {
+	return kind == DefConstraint || kind == DefCalculation
 }
 
 // visibilityKeywords maps each visibility keyword token to the Visibility
@@ -200,6 +210,16 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 
 	case OpenBrace:
 		p.pos++
+		if hasCalculationBody(kind) {
+			members, result, err := p.parseCalculationBody()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(CloseBrace); err != nil {
+				return nil, err
+			}
+			return &Definition{Kind: kind, Name: string(name.Value), Members: members, Result: result}, nil
+		}
 		members, err := p.parseMembers()
 		if err != nil {
 			return nil, err
@@ -264,13 +284,16 @@ func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
 	}
 }
 
+// parseUsage parses a usage. Its name is optional (see Usage's doc
+// comment): a leading Identifier is consumed as the name if present,
+// otherwise the usage is anonymous and nothing is consumed for it.
 func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
-	name, err := p.expect(Identifier)
-	if err != nil {
-		return nil, err
-	}
+	usage := &Usage{Kind: kind}
 
-	usage := &Usage{Kind: kind, Name: string(name.Value)}
+	if tok, ok := p.current(); ok && tok.Kind == Identifier {
+		p.pos++
+		usage.Name = string(tok.Value)
+	}
 
 	if err := p.parseFeatureSpecializationPart(usage); err != nil {
 		return nil, err
@@ -280,10 +303,74 @@ func (p *parser) parseUsage(kind DefKind) (*Usage, error) {
 		return nil, err
 	}
 
+	if hasCalculationBody(kind) {
+		if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+			p.pos++
+			members, result, err := p.parseCalculationBody()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(CloseBrace); err != nil {
+				return nil, err
+			}
+			usage.Members = members
+			usage.Result = result
+			return usage, nil
+		}
+	}
+
 	if _, err := p.expect(Semicolon); err != nil {
 		return nil, err
 	}
 	return usage, nil
+}
+
+// parseCalculationBody parses a constraint/calculation body
+// (CalculationBody): zero or more ordinary members, followed optionally
+// by one trailing, unterminated result expression -- e.g. the
+// "totalMass == sum(componentMasses)" directly before the closing brace,
+// with no semicolon of its own. A token is treated as starting another
+// member (see startsMember) for as long as one keeps matching; the first
+// token that doesn't is either the result expression or (if it's the
+// closing brace) simply the end of an empty/member-only body. The caller
+// consumes the surrounding braces.
+func (p *parser) parseCalculationBody() (members []Member, result Expression, err error) {
+	for {
+		tok, ok := p.current()
+		if !ok {
+			return nil, nil, fmt.Errorf("unexpected end of input, want %s", CloseBrace)
+		}
+		if tok.Kind == CloseBrace {
+			return members, result, nil
+		}
+		if startsMember(tok.Kind) {
+			member, err := p.parseMember()
+			if err != nil {
+				return nil, nil, err
+			}
+			members = append(members, member)
+			continue
+		}
+
+		result, err = p.parseExpression()
+		if err != nil {
+			return nil, nil, err
+		}
+		return members, result, nil
+	}
+}
+
+// startsMember reports whether kind can begin a member: a visibility
+// prefix, 'package', 'import', or any definition/usage keyword.
+func startsMember(kind Kind) bool {
+	if kind == Pkg || kind == ImportKw {
+		return true
+	}
+	if _, ok := visibilityKeywords[kind]; ok {
+		return true
+	}
+	_, ok := defKeywords[kind]
+	return ok
 }
 
 // parseFeatureSpecializationPart consumes a typing (": Type"), a

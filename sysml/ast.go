@@ -65,6 +65,8 @@ const (
 	DefAttribute
 	DefItem
 	DefPort
+	DefConstraint
+	DefCalculation
 )
 
 func (k DefKind) String() string {
@@ -77,6 +79,10 @@ func (k DefKind) String() string {
 		return "item"
 	case DefPort:
 		return "port"
+	case DefConstraint:
+		return "constraint"
+	case DefCalculation:
+		return "calc"
 	default:
 		return "unknown"
 	}
@@ -84,11 +90,19 @@ func (k DefKind) String() string {
 
 // Definition declares a definition, e.g. `part def Engine;` or
 // `part def Car { ... }`. Members is nil for the semicolon form.
+//
+// A constraint/calculation definition's body (CalculationBody) can end in
+// a trailing, unterminated result expression after its members, e.g. the
+// "totalMass == sum(componentMasses)" directly before the closing brace in
+// `constraint def MassAnalysis { attribute totalMass: MassValue; ...
+// totalMass == sum(componentMasses) }` -- captured in Result, nil for
+// every other DefKind and for a body without one.
 type Definition struct {
 	Visibility Visibility
 	Kind       DefKind
 	Name       string
 	Members    []Member
+	Result     Expression
 }
 
 func (*Definition) memberNode() {}
@@ -102,6 +116,14 @@ func (*Definition) memberNode() {}
 // Multiplicity/Value) when absent, regardless of order or which others were
 // written. Only a single Subsets and a single Redefines target are
 // supported, not SysML's comma-separated lists of either.
+//
+// Name is also independently optional -- SysML's Identification is broadly
+// optional throughout, and an anonymous usage (Name == "") is how e.g. an
+// inline constraint (`constraint { mass <= massLimit }`) is written.
+// Disambiguating an absent name needs no lookahead: nothing that can start
+// a usage's specialization part (':' , '[', 'subsets', ':>', ...) is ever
+// spelled as a bare identifier, so seeing anything other than an
+// Identifier right after the keyword unambiguously means there's no name.
 type Usage struct {
 	Visibility   Visibility
 	Kind         DefKind
@@ -123,6 +145,13 @@ type Usage struct {
 	// FeatureValue form is supported (not ':=' or 'default'). nil if no
 	// value was assigned.
 	Value Expression
+
+	// Members and Result are a constraint/calculation usage's body (see
+	// Definition's doc comment) -- only ever set for DefConstraint/
+	// DefCalculation, since only those keyword families give a usage a
+	// CalculationBody instead of a plain "; "-terminated declaration.
+	Members []Member
+	Result  Expression
 }
 
 func (*Usage) memberNode() {}

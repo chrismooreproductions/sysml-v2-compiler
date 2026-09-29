@@ -8,6 +8,8 @@ const (
 	Attribute
 	Item
 	Port
+	ConstraintKw
+	CalcKw
 	Def
 	ImportKw
 	PublicKw
@@ -63,6 +65,10 @@ func (k Kind) String() string {
 		return "'item'"
 	case Port:
 		return "'port'"
+	case ConstraintKw:
+		return "'constraint'"
+	case CalcKw:
+		return "'calc'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -151,50 +157,52 @@ func (k Kind) String() string {
 }
 
 var kinds = map[string]Kind{
-	"package":   Pkg,
-	"part":      Part,
-	"attribute": Attribute,
-	"item":      Item,
-	"port":      Port,
-	"def":       Def,
-	"import":    ImportKw,
-	"public":    PublicKw,
-	"private":   PrivateKw,
-	"protected": ProtectedKw,
-	";":         Semicolon,
-	"{":         OpenBrace,
-	"}":         CloseBrace,
-	":":         Colon,
-	"::":        PathSep,
-	"[":         OpenBracket,
-	"]":         CloseBracket,
-	"*":         Star,
-	".":         Dot,
-	"..":        DotDot,
-	"=":         Equals,
-	"subsets":   Subsets,
-	"redefines": Redefines,
-	":>":        Subsets,
-	":>>":       Redefines,
-	"+":         Plus,
-	"-":         Minus,
-	"/":         Slash,
-	"%":         Percent,
-	"**":        Power,
-	"&":         Ampersand,
-	"|":         Pipe,
-	"<":         Lt,
-	">":         Gt,
-	"<=":        Le,
-	">=":        Ge,
-	"==":        Eq,
-	"!=":        NotEq,
-	"(":         OpenParen,
-	")":         CloseParen,
-	"true":      TrueKw,
-	"false":     FalseKw,
-	"not":       NotKw,
-	"xor":       XorKw,
+	"package":    Pkg,
+	"part":       Part,
+	"attribute":  Attribute,
+	"item":       Item,
+	"port":       Port,
+	"constraint": ConstraintKw,
+	"calc":       CalcKw,
+	"def":        Def,
+	"import":     ImportKw,
+	"public":     PublicKw,
+	"private":    PrivateKw,
+	"protected":  ProtectedKw,
+	";":          Semicolon,
+	"{":          OpenBrace,
+	"}":          CloseBrace,
+	":":          Colon,
+	"::":         PathSep,
+	"[":          OpenBracket,
+	"]":          CloseBracket,
+	"*":          Star,
+	".":          Dot,
+	"..":         DotDot,
+	"=":          Equals,
+	"subsets":    Subsets,
+	"redefines":  Redefines,
+	":>":         Subsets,
+	":>>":        Redefines,
+	"+":          Plus,
+	"-":          Minus,
+	"/":          Slash,
+	"%":          Percent,
+	"**":         Power,
+	"&":          Ampersand,
+	"|":          Pipe,
+	"<":          Lt,
+	">":          Gt,
+	"<=":         Le,
+	">=":         Ge,
+	"==":         Eq,
+	"!=":         NotEq,
+	"(":          OpenParen,
+	")":          CloseParen,
+	"true":       TrueKw,
+	"false":      FalseKw,
+	"not":        NotKw,
+	"xor":        XorKw,
 }
 
 type Pos struct {

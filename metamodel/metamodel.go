@@ -69,6 +69,8 @@ const (
 	DefAttribute
 	DefItem
 	DefPort
+	DefConstraint
+	DefCalculation
 )
 
 func (k DefKind) String() string {
@@ -81,6 +83,10 @@ func (k DefKind) String() string {
 		return "item"
 	case DefPort:
 		return "port"
+	case DefConstraint:
+		return "constraint"
+	case DefCalculation:
+		return "calc"
 	default:
 		return "unknown"
 	}
@@ -149,6 +155,13 @@ type Element struct {
 	// (see Expression). nil if none was assigned, and always nil for kinds
 	// other than KindUsage.
 	Value Expression
+
+	// Result is a constraint/calculation's trailing result expression,
+	// e.g. the "totalMass <= massLimit" in `constraint def MassAnalysis {
+	// ... totalMass <= massLimit }`, mirroring sysml.Definition.Result /
+	// sysml.Usage.Result. nil for every DefKind other than DefConstraint/
+	// DefCalculation, and for a body without one.
+	Result Expression
 }
 
 // Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or

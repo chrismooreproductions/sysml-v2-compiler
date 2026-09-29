@@ -4,8 +4,9 @@ A from-scratch implementation of a SysML v2-style modeling language: a
 lexer and recursive-descent parser (`sysml`) over a flat, KerML-shaped
 metamodel (`metamodel`). Currently covers a root namespace of top-level
 packages/definitions/usages/imports (not just one wrapping package),
-`part`/`attribute`/`item`/`port` definitions and usages (typed or untyped,
-in either order relative to a multiplicity), qualified (`::`) references,
+`part`/`attribute`/`item`/`port`/`constraint`/`calc` definitions and usages
+(typed or untyped, in either order relative to a multiplicity), qualified
+(`::`) references,
 `public`/`private`/`protected` visibility prefixes (parsed; enforced only
 for wildcard-import re-export, see below), `//` and `/* */` comments,
 multiplicity (`[*]`, `[3]`, `[0..5]`, or a name-valued bound like `[n]`,
@@ -37,6 +38,16 @@ after that is looked up among the *type* of the previous one (following
 its typing relationship to a definition and finding a member there),
 matching how a feature chain actually navigates through typed values
 rather than through nested namespaces.
+
+A `constraint`/`calc` definition or usage can have a body ending in a
+trailing, unterminated result expression (`constraint def MassAnalysis {
+attribute totalMass : Real; attribute massLimit : Real; totalMass <=
+massLimit }`) — the one place a usage, not just a definition, carries its
+own nested members. A usage's name is also independently optional
+throughout (not just for constraint/calc), since nothing that can start a
+usage's specialization part is ever spelled as a bare identifier: an
+anonymous usage like `constraint { mass <= massLimit }` is unambiguous
+with no lookahead needed.
 
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):

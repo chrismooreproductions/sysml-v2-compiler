@@ -146,6 +146,10 @@ type translator struct {
 	model   *Model
 	pending []pendingReference
 
+	// anonCount counts anonymous usages declared so far, giving each a
+	// distinct synthetic ID (see declare).
+	anonCount int
+
 	// pendingWildcardImports queues each `import Foo::*;` member for
 	// resolveWildcardImports, the same way pending queues type references
 	// for resolveTypes.
@@ -170,6 +174,22 @@ type translator struct {
 // itself as its ID, with no "::" prefix -- the root has no name of its own
 // to join against.
 func (t *translator) declare(kind Kind, name string, owner ElementID, sc *scope) (id ElementID, ok bool) {
+	if name == "" {
+		// An anonymous usage (e.g. "constraint { ... }", Phase 3) has
+		// nothing to deduplicate against or address by name -- skip the
+		// scope-uniqueness check (there's no name to compare) and give it
+		// a synthetic ID instead of the empty-name one every anonymous
+		// usage in the same scope would otherwise collide on. t.anonCount
+		// only needs to be unique per translator run, which it is by
+		// construction; "::" can't appear inside a real identifier (see
+		// rootID's doc comment), so this can never collide with a real
+		// qualified name either.
+		t.anonCount++
+		id = owner + ElementID(fmt.Sprintf("::<anonymous %d>", t.anonCount))
+		t.model.Elements[id] = &Element{ID: id, Kind: kind, Owner: owner}
+		return id, true
+	}
+
 	id = ElementID(name)
 	if owner != rootID {
 		id = owner + "::" + ElementID(name)
@@ -211,7 +231,22 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		// safe without a lookup table.
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
-		return t.declareMembers(m.Members, id, newScope())
+		if err := t.declareMembers(m.Members, id, newScope()); err != nil {
+			return err
+		}
+		// A constraint/calculation's trailing result expression is part of
+		// its own body, so it resolves names against id (its own scope,
+		// where its Members were just declared), not owner (the scope
+		// containing the definition itself) -- "totalMass <= massLimit"
+		// needs to see totalMass/massLimit as its own siblings.
+		if m.Result != nil {
+			result, err := t.convertExpression(m.Result, id)
+			if err != nil {
+				return err
+			}
+			t.model.Elements[id].Result = result
+		}
+		return nil
 
 	case *sysml.Usage:
 		id, ok := t.declare(KindUsage, m.Name, owner, sc)
@@ -234,6 +269,21 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 				return err
 			}
 			t.model.Elements[id].Value = val
+		}
+		// Only a constraint/calc usage ever has Members/Result (see
+		// hasCalculationBody in sysml/parser.go) -- declareMembers on a nil
+		// slice is a no-op for every other kind. Both resolve against id,
+		// the same as a Definition's own Members/Result do, for the same
+		// reason: they're the usage's own body, not its containing scope.
+		if err := t.declareMembers(m.Members, id, newScope()); err != nil {
+			return err
+		}
+		if m.Result != nil {
+			result, err := t.convertExpression(m.Result, id)
+			if err != nil {
+				return err
+			}
+			t.model.Elements[id].Result = result
 		}
 		// An untyped usage (e.g. "port p;") has no type to resolve; a usage
 		// can independently have a type, a subsets, and/or a redefines,

@@ -470,6 +470,131 @@ func TestFromASTFeatureChainErrors(t *testing.T) {
 	}
 }
 
+// TestFromASTConstraintDefinitionResult checks that a constraint
+// definition's trailing result expression resolves its names against the
+// definition's own body -- "totalMass <= massLimit" needs to see
+// totalMass/massLimit as its own members, not as siblings of the
+// definition itself.
+func TestFromASTConstraintDefinitionResult(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		constraint def MassAnalysis {
+			attribute totalMass : Real;
+			attribute massLimit : Real;
+			totalMass <= massLimit
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	def, ok := model.Elements["Vehicle::MassAnalysis"]
+	if !ok {
+		t.Fatal("missing element Vehicle::MassAnalysis")
+	}
+	result, ok := def.Result.(*metamodel.BinaryExpr)
+	if !ok {
+		t.Fatalf("Result is %T, want *metamodel.BinaryExpr", def.Result)
+	}
+	left, ok := result.Left.(*metamodel.NameRef)
+	if !ok || left.Target != "Vehicle::MassAnalysis::totalMass" {
+		t.Errorf("Result.Left = %+v, want a NameRef targeting Vehicle::MassAnalysis::totalMass", result.Left)
+	}
+	right, ok := result.Right.(*metamodel.NameRef)
+	if !ok || right.Target != "Vehicle::MassAnalysis::massLimit" {
+		t.Errorf("Result.Right = %+v, want a NameRef targeting Vehicle::MassAnalysis::massLimit", result.Right)
+	}
+}
+
+// TestFromASTUsageCalculationBody checks that a named constraint/calc
+// usage's own body (Members and Result) is declared and resolved the same
+// way a definition's is -- as its own scope, not its containing one.
+func TestFromASTUsageCalculationBody(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		constraint def C;
+		constraint check : C {
+			attribute a : Real;
+			attribute b : Real;
+			a == b
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	if _, ok := model.Elements["Vehicle::check::a"]; !ok {
+		t.Error("missing element Vehicle::check::a")
+	}
+
+	check, ok := model.Elements["Vehicle::check"]
+	if !ok {
+		t.Fatal("missing element Vehicle::check")
+	}
+	result, ok := check.Result.(*metamodel.BinaryExpr)
+	if !ok {
+		t.Fatalf("Result is %T, want *metamodel.BinaryExpr", check.Result)
+	}
+	left, ok := result.Left.(*metamodel.NameRef)
+	if !ok || left.Target != "Vehicle::check::a" {
+		t.Errorf("Result.Left = %+v, want a NameRef targeting Vehicle::check::a", result.Left)
+	}
+}
+
+// TestFromASTAnonymousUsage checks that an anonymous usage (no name --
+// Phase 3's "constraint { ... }" form) still translates to its own
+// distinct Element, and that two anonymous usages in the same scope don't
+// collide with each other despite neither having a name to deduplicate
+// against.
+func TestFromASTAnonymousUsage(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		attribute mass : Real;
+		attribute massLimit : Real;
+		constraint { mass <= massLimit }
+		constraint { mass == mass }
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	var anonymous []*metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle" && el.Kind == metamodel.KindUsage && el.DefKind == metamodel.DefConstraint {
+			anonymous = append(anonymous, el)
+		}
+	}
+	if len(anonymous) != 2 {
+		t.Fatalf("got %d anonymous constraint usages, want 2", len(anonymous))
+	}
+	if anonymous[0].ID == anonymous[1].ID {
+		t.Errorf("both anonymous usages share ID %q, want distinct IDs", anonymous[0].ID)
+	}
+	for _, el := range anonymous {
+		if el.Name != "" {
+			t.Errorf("anonymous usage Name = %q, want %q", el.Name, "")
+		}
+		if el.Result == nil {
+			t.Errorf("anonymous usage %q has no Result", el.ID)
+		}
+	}
+}
+
 // TestFromASTVisibility checks that a package, definition, and usage each
 // carry their parsed sysml.Visibility over onto their Element unchanged
 // (including the unspecified case), across the sysml.Visibility ->

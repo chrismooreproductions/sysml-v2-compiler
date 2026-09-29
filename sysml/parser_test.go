@@ -78,10 +78,12 @@ func TestModelParseDefKeywords(t *testing.T) {
 		keyword string
 		want    sysml.DefKind
 	}{
-		"part":      {"part", sysml.DefPart},
-		"attribute": {"attribute", sysml.DefAttribute},
-		"item":      {"item", sysml.DefItem},
-		"port":      {"port", sysml.DefPort},
+		"part":       {"part", sysml.DefPart},
+		"attribute":  {"attribute", sysml.DefAttribute},
+		"item":       {"item", sysml.DefItem},
+		"port":       {"port", sysml.DefPort},
+		"constraint": {"constraint", sysml.DefConstraint},
+		"calc":       {"calc", sysml.DefCalculation},
 	}
 
 	for name, tt := range cases {
@@ -108,6 +110,152 @@ func TestModelParseDefKeywords(t *testing.T) {
 				t.Errorf("member 1 = %+v, want Usage{Kind: %v, Name: x, Type: X}", usage, tt.want)
 			}
 		})
+	}
+}
+
+// TestModelParseCalculationBodyResult checks that a constraint/calc
+// definition's body can end in a trailing, unterminated result expression
+// after its ordinary members (CalculationBody), and that a body with only
+// members (no result) leaves Result nil.
+func TestModelParseCalculationBodyResult(t *testing.T) {
+	t.Run("constraint def with result", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			constraint def MassAnalysis {
+				attribute totalMass : Real;
+				attribute massLimit : Real;
+				totalMass <= massLimit
+			}
+		}`)
+
+		def, ok := pkg.Members[0].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+		}
+		if len(def.Members) != 2 {
+			t.Fatalf("got %d members, want 2", len(def.Members))
+		}
+		result, ok := def.Result.(*sysml.BinaryExpr)
+		if !ok {
+			t.Fatalf("Result is %T, want *sysml.BinaryExpr", def.Result)
+		}
+		if result.Op != "<=" {
+			t.Errorf("Result.Op = %q, want %q", result.Op, "<=")
+		}
+	})
+
+	t.Run("calc def with result", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			calc def Sum {
+				attribute a : Real;
+				attribute b : Real;
+				a + b
+			}
+		}`)
+
+		def, ok := pkg.Members[0].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+		}
+		result, ok := def.Result.(*sysml.BinaryExpr)
+		if !ok {
+			t.Fatalf("Result is %T, want *sysml.BinaryExpr", def.Result)
+		}
+		if result.Op != "+" {
+			t.Errorf("Result.Op = %q, want %q", result.Op, "+")
+		}
+	})
+
+	t.Run("members only, no result", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			constraint def C {
+				attribute a : Real;
+			}
+		}`)
+
+		def, ok := pkg.Members[0].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+		}
+		if len(def.Members) != 1 {
+			t.Errorf("got %d members, want 1", len(def.Members))
+		}
+		if def.Result != nil {
+			t.Errorf("Result = %+v, want nil", def.Result)
+		}
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle { constraint def C { } }`)
+
+		def, ok := pkg.Members[0].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+		}
+		if len(def.Members) != 0 || def.Result != nil {
+			t.Errorf("Definition = %+v, want no members and nil Result", def)
+		}
+	})
+}
+
+// TestModelParseAnonymousUsage checks that a usage's name is optional --
+// an inline constraint like `constraint { mass <= massLimit }` has no
+// identifier at all between the keyword and its body.
+func TestModelParseAnonymousUsage(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		attribute mass : Real;
+		attribute massLimit : Real;
+		constraint { mass <= massLimit }
+	}`)
+
+	usage, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Usage", pkg.Members[2])
+	}
+	if usage.Name != "" {
+		t.Errorf("Name = %q, want %q (anonymous)", usage.Name, "")
+	}
+	if usage.Type != "" {
+		t.Errorf("Type = %q, want %q (untyped)", usage.Type, "")
+	}
+	result, ok := usage.Result.(*sysml.BinaryExpr)
+	if !ok {
+		t.Fatalf("Result is %T, want *sysml.BinaryExpr", usage.Result)
+	}
+	if result.Op != "<=" {
+		t.Errorf("Result.Op = %q, want %q", result.Op, "<=")
+	}
+}
+
+// TestModelParseUsageWithBody checks that a named constraint/calc usage
+// can carry its own CalculationBody (members and/or a trailing result),
+// the same shape a definition's body has -- unlike every other DefKind's
+// usage, which is always a plain ";"-terminated declaration.
+func TestModelParseUsageWithBody(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		constraint def C;
+		constraint check : C {
+			attribute a : Real;
+			attribute b : Real;
+			a == b
+		}
+	}`)
+
+	usage, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+	}
+	if usage.Name != "check" || usage.Type != "C" {
+		t.Errorf("Name/Type = %q/%q, want %q/%q", usage.Name, usage.Type, "check", "C")
+	}
+	if len(usage.Members) != 2 {
+		t.Fatalf("got %d members, want 2", len(usage.Members))
+	}
+	result, ok := usage.Result.(*sysml.BinaryExpr)
+	if !ok {
+		t.Fatalf("Result is %T, want *sysml.BinaryExpr", usage.Result)
+	}
+	if result.Op != "==" {
+		t.Errorf("Result.Op = %q, want %q", result.Op, "==")
 	}
 }
 

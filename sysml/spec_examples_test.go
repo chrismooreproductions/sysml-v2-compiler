@@ -22,10 +22,21 @@ func TestModelParseSpecExamples(t *testing.T) {
 		file    string
 		wantErr string
 	}{
-		// short names ("part <'1'> b: B;") aren't supported -- '<' now
-		// lexes as its own token (Phase 1's comparison operators), so a
-		// usage's name position rejects it immediately.
-		{"PartTest.sysml", `line 6: unexpected '<', want identifier`},
+		// short names ("part <'1'> b: B;") aren't supported. Since Phase 3
+		// made a usage's name optional, '<' no longer needs to be an
+		// identifier there -- it's just treated as "no name", so parsing
+		// now gets one token further before rejecting '<' as neither a
+		// specialization part nor a value nor ';'.
+		{"PartTest.sysml", `line 6: unexpected '<', want ';'`},
+		// invocation expressions ("sum(componentMasses)") aren't
+		// supported -- deliberately out of scope for this project's
+		// expression subsystem (see sysml.Expression's doc comment).
+		{"ConstraintTest.sysml", `line 10: unexpected '(', want '}'`},
+		// definition-level specialization ("part def Vehicle :>
+		// VehiclePart;", KerML's SubclassificationPart) isn't supported --
+		// this project's ":>"/"subsets" only cover usage-level feature
+		// subsetting, not classifier specialization on a definition.
+		{"CalculationTest.sysml", `line 9: unexpected 'subsets', want ';' or '{'`},
 	}
 
 	for _, tt := range cases {
