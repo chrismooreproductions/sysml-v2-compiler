@@ -21,6 +21,7 @@ const (
 	OpenBracket
 	CloseBracket
 	Star
+	Dot
 	DotDot
 	Equals
 	Subsets
@@ -88,6 +89,8 @@ func (k Kind) String() string {
 		return "']'"
 	case Star:
 		return "'*'"
+	case Dot:
+		return "'.'"
 	case DotDot:
 		return "'..'"
 	case Equals:
@@ -166,6 +169,7 @@ var kinds = map[string]Kind{
 	"[":         OpenBracket,
 	"]":         CloseBracket,
 	"*":         Star,
+	".":         Dot,
 	"..":        DotDot,
 	"=":         Equals,
 	"subsets":   Subsets,

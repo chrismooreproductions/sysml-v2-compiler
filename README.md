@@ -30,6 +30,14 @@ genuinely resolved during translation (an operator like `<=` resolves to
 a real `ScalarFunctions::'<='`-shaped standard-library stub), not just
 parsed and stored.
 
+An expression can also be a dot-separated feature chain
+(`vehicle.chassis.mass`), resolved differently from a `::`-qualified name:
+only the first segment is an ordinary namespace lookup, and each segment
+after that is looked up among the *type* of the previous one (following
+its typing relationship to a definition and finding a member there),
+matching how a feature chain actually navigates through typed values
+rather than through nested namespaces.
+
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):
 `ScalarValues` (`Boolean`, `String`, `Real`, `Rational`, `Integer`,

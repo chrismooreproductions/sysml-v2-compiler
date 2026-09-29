@@ -201,6 +201,19 @@ type NameRef struct {
 
 func (*NameRef) expressionNode() {}
 
+// FeatureChain is a resolved dot-separated feature chain, e.g.
+// "vehicle.chassis.mass". Target is "" until translate.go's
+// resolveFeatureChains resolves it via Model.ResolveFeatureChain, which --
+// unlike a NameRef's plain Model.Resolve -- walks each segment after the
+// first through the previous one's TypedBy relationship rather than a
+// namespace's direct members.
+type FeatureChain struct {
+	Path   []string
+	Target ElementID
+}
+
+func (*FeatureChain) expressionNode() {}
+
 // BinaryExpr is a resolved binary operator expression. Function is the
 // ElementID of the standard-library Function stub Op resolves to (see
 // stdlib.go).
@@ -525,4 +538,47 @@ func (m *Model) resolveQualified(path string) (ElementID, bool) {
 	}
 
 	return m.descend(first, segments[1:])
+}
+
+// typeOf returns the ElementID id is TypedBy, if it has one.
+func (m *Model) typeOf(id ElementID) (ElementID, bool) {
+	for _, rel := range m.RelationshipsFrom(id) {
+		if rel.Kind == TypedBy {
+			return rel.Target, true
+		}
+	}
+	return "", false
+}
+
+// ResolveFeatureChain resolves a dot-separated feature chain (e.g.
+// "vehicle.chassis.mass") from the perspective of from, the ElementID of
+// the namespace containing the reference -- unlike a "::"-qualified name,
+// where every segment is looked up as a namespace member. Only path[0]
+// resolves that way, via the ordinary Resolve; each segment after that is
+// looked up among the *type* of the previous one -- following its TypedBy
+// relationship to a Definition and finding a child of that Definition
+// named by the next segment (via lookupChildExternal, the same "stepping
+// in from outside" visibility a qualified path's descend uses) -- since
+// "vehicle.chassis" means "chassis, a feature of whatever vehicle is typed
+// by," not "chassis, a member of vehicle's own namespace." Returns false
+// if any segment fails to resolve, including when a middle segment's
+// element has no TypedBy relationship to walk at all.
+func (m *Model) ResolveFeatureChain(from ElementID, path []string) (ElementID, bool) {
+	current, ok := m.Resolve(from, path[0])
+	if !ok {
+		return "", false
+	}
+
+	for _, segment := range path[1:] {
+		typeID, ok := m.typeOf(current)
+		if !ok {
+			return "", false
+		}
+		next, ok := m.lookupChildExternal(typeID, segment)
+		if !ok {
+			return "", false
+		}
+		current = next
+	}
+	return current, true
 }

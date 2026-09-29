@@ -325,6 +325,22 @@ func TestModelParseExpression(t *testing.T) {
 		"qualified name ref": {
 			"Vehicle::mass", &sysml.NameRef{Path: "Vehicle::mass"},
 		},
+		"feature chain": {
+			"vehicle.chassis.mass",
+			&sysml.FeatureChain{Path: []string{"vehicle", "chassis", "mass"}},
+		},
+		"feature chain with qualified first segment": {
+			"Vehicle::vehicle.mass",
+			&sysml.FeatureChain{Path: []string{"Vehicle::vehicle", "mass"}},
+		},
+		"feature chain in binary expression": {
+			"vehicle.mass <= massLimit",
+			&sysml.BinaryExpr{
+				Op:    "<=",
+				Left:  &sysml.FeatureChain{Path: []string{"vehicle", "mass"}},
+				Right: &sysml.NameRef{Path: "massLimit"},
+			},
+		},
 		"binary add": {
 			"1 + 2",
 			&sysml.BinaryExpr{Op: "+", Left: &sysml.IntLiteral{Value: 1}, Right: &sysml.IntLiteral{Value: 2}},

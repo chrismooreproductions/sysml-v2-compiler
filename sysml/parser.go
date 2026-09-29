@@ -534,11 +534,36 @@ func (p *parser) parsePrimary() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &NameRef{Path: path}, nil
+		return p.parseFeatureChainTail(path)
 
 	default:
 		return nil, fmt.Errorf("line %d: unexpected %s, want an expression", tok.Pos.Line, describeToken(tok))
 	}
+}
+
+// parseFeatureChainTail continues parsing a primary expression begun as a
+// qualified name (first) into a FeatureChain if a '.'-separated segment
+// follows, e.g. the ".chassis.mass" in "vehicle.chassis.mass" -- returning
+// a plain NameRef unchanged if no '.' follows at all.
+func (p *parser) parseFeatureChainTail(first string) (Expression, error) {
+	if tok, ok := p.current(); !ok || tok.Kind != Dot {
+		return &NameRef{Path: first}, nil
+	}
+
+	path := []string{first}
+	for {
+		tok, ok := p.current()
+		if !ok || tok.Kind != Dot {
+			break
+		}
+		p.pos++
+		seg, err := p.expect(Identifier)
+		if err != nil {
+			return nil, err
+		}
+		path = append(path, string(seg.Value))
+	}
+	return &FeatureChain{Path: path}, nil
 }
 
 // unquoteString strips a StringLit token's surrounding quotes. value

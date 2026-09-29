@@ -398,6 +398,78 @@ func TestFromASTExpressionOperatorResolvesToStdlib(t *testing.T) {
 	}
 }
 
+// TestFromASTFeatureChain checks the VehicleRequirementDerivation.sysml
+// shape -- a multi-segment feature chain ("vehicle.chassis.mass") --
+// resolving each segment after the first by walking the previous
+// segment's TypedBy relationship rather than by namespace containment.
+func TestFromASTFeatureChain(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+
+		part def Chassis {
+			attribute mass : Real;
+		}
+		part def Car {
+			part chassis : Chassis;
+		}
+
+		part vehicle : Car;
+		attribute n : Real = vehicle.chassis.mass;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	n, ok := model.Elements["Vehicle::n"]
+	if !ok {
+		t.Fatal("missing element Vehicle::n")
+	}
+	fc, ok := n.Value.(*metamodel.FeatureChain)
+	if !ok {
+		t.Fatalf("n.Value is %T, want *metamodel.FeatureChain", n.Value)
+	}
+	if fc.Target != "Vehicle::Chassis::mass" {
+		t.Errorf("FeatureChain.Target = %q, want %q", fc.Target, "Vehicle::Chassis::mass")
+	}
+}
+
+// TestFromASTFeatureChainErrors checks that a feature chain fails
+// translation both when its first segment doesn't resolve at all, and
+// when a later segment names something that isn't a member of the
+// previous segment's type.
+func TestFromASTFeatureChainErrors(t *testing.T) {
+	cases := map[string]string{
+		"unresolved first segment": `package Vehicle {
+			attribute def Real;
+			attribute n : Real = nope.mass;
+		}`,
+		"unresolved later segment": `package Vehicle {
+			attribute def Real;
+			part def Chassis;
+			part vehicle : Chassis;
+			attribute n : Real = vehicle.nope;
+		}`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			ns, err := sysml.NewModel(source).Parse()
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+
+			if _, err := metamodel.FromAST(ns); err == nil {
+				t.Error("expected an error for an unresolved feature chain, got nil")
+			}
+		})
+	}
+}
+
 // TestFromASTVisibility checks that a package, definition, and usage each
 // carry their parsed sysml.Visibility over onto their Element unchanged
 // (including the unspecified case), across the sysml.Visibility ->

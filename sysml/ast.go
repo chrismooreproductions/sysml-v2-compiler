@@ -168,6 +168,17 @@ type NameRef struct{ Path string }
 
 func (*NameRef) expressionNode() {}
 
+// FeatureChain is a dot-separated chain of feature references, e.g.
+// "vehicle.chassis.mass" in `subject :>> mass = vehicle.chassis.mass;`.
+// Path[0] is the (possibly "::"-qualified) first segment; each segment
+// after that is a single plain name. Resolved differently from a
+// "::"-qualified NameRef: each later segment is looked up among the
+// *type* of the previous one, not among a namespace's direct members --
+// see metamodel.Model.ResolveFeatureChain.
+type FeatureChain struct{ Path []string }
+
+func (*FeatureChain) expressionNode() {}
+
 // BinaryExpr is a binary operator expression, e.g. `mass <= massLimit`.
 // The supported operator set matches this project's standard-library stub
 // (see metamodel/stdlib.go) exactly: "+ - * / % ** < > <= >= == != xor |

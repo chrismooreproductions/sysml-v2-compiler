@@ -422,3 +422,25 @@ func TestLexerNumericLiteral(t *testing.T) {
 		})
 	}
 }
+
+// TestLexerDot checks that a bare '.' (not doubled into "..") lexes as its
+// own Dot token -- needed for Phase 2's feature chains (e.g. "a.b") -- and
+// that "::" and ".." are unaffected.
+func TestLexerDot(t *testing.T) {
+	tokens, err := sysml.NewModel("a.b").Lex()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantKinds := []sysml.Kind{sysml.Identifier, sysml.Dot, sysml.Identifier}
+	wantValues := []string{"a", ".", "b"}
+
+	if len(tokens) != len(wantKinds) {
+		t.Fatalf("got %d tokens (%v), want %d", len(tokens), tokens, len(wantKinds))
+	}
+	for i, tok := range tokens {
+		if tok.Kind != wantKinds[i] || string(tok.Value) != wantValues[i] {
+			t.Errorf("token %d: got {%v %q}, want {%v %q}", i, tok.Kind, string(tok.Value), wantKinds[i], wantValues[i])
+		}
+	}
+}

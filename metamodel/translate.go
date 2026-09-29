@@ -2,6 +2,7 @@ package metamodel
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
 )
@@ -70,11 +71,19 @@ func FromASTWithImports(ns *sysml.Namespace, imports map[string]*Model) (*Model,
 		return nil, err
 	}
 
-	// Expression references resolve last: an expression can reference a
+	// Expression references resolve next: an expression can reference a
 	// sibling usage (e.g. a constraint naming an attribute by its own
 	// name), so its type/subsets/redefines needs to already be resolved
 	// first, the same way pendingWildcardImports resolves before pending.
 	if err := t.resolveExpressions(); err != nil {
+		return nil, err
+	}
+
+	// Feature chains resolve last: each segment after the first walks a
+	// TypedBy relationship (see ResolveFeatureChain), so every ordinary
+	// reference above needs to have already produced the TypedBy
+	// relationships a chain might step through.
+	if err := t.resolveFeatureChains(); err != nil {
 		return nil, err
 	}
 
@@ -119,6 +128,20 @@ type pendingExprRef struct {
 	set   func(ElementID)
 }
 
+// pendingFeatureChain is a FeatureChain's not-yet-resolved path, resolved
+// via Model.ResolveFeatureChain rather than Model.Resolve -- see that
+// method's doc comment for why the two differ. Deferred to its own pass
+// (resolveFeatureChains) after resolveExpressions: it depends on the
+// TypedBy relationships resolveReferences produces for every element each
+// segment steps through, the same dependency resolveExpressions itself
+// already has, and is kept as its own pass for clarity between the two
+// resolution algorithms rather than a strict ordering need beyond that.
+type pendingFeatureChain struct {
+	path  []string
+	owner ElementID
+	set   func(ElementID)
+}
+
 type translator struct {
 	model   *Model
 	pending []pendingReference
@@ -131,6 +154,10 @@ type translator struct {
 	// pendingExprRefs queues every reference found inside an expression
 	// tree (see convertExpression) for resolveExpressions.
 	pendingExprRefs []pendingExprRef
+
+	// pendingFeatureChains queues every FeatureChain found inside an
+	// expression tree for resolveFeatureChains.
+	pendingFeatureChains []pendingFeatureChain
 
 	// imports is the caller-supplied lookup an `import` member resolves
 	// against, keyed the same way as Model.Imports. Left nil by FromAST.
@@ -327,6 +354,15 @@ func (t *translator) convertExpression(expr sysml.Expression, owner ElementID) (
 		})
 		return ref, nil
 
+	case *sysml.FeatureChain:
+		fc := &FeatureChain{Path: e.Path}
+		t.pendingFeatureChains = append(t.pendingFeatureChains, pendingFeatureChain{
+			path:  e.Path,
+			owner: owner,
+			set:   func(id ElementID) { fc.Target = id },
+		})
+		return fc, nil
+
 	case *sysml.BinaryExpr:
 		left, err := t.convertExpression(e.Left, owner)
 		if err != nil {
@@ -374,6 +410,20 @@ func (t *translator) resolveExpressions() error {
 		id, ok := t.model.Resolve(p.owner, p.name)
 		if !ok {
 			return fmt.Errorf("metamodel: unresolved reference %q", p.name)
+		}
+		p.set(id)
+	}
+	return nil
+}
+
+// resolveFeatureChains resolves every queued pendingFeatureChain via
+// Model.ResolveFeatureChain, writing the result directly onto whichever
+// FeatureChain node it came from.
+func (t *translator) resolveFeatureChains() error {
+	for _, p := range t.pendingFeatureChains {
+		id, ok := t.model.ResolveFeatureChain(p.owner, p.path)
+		if !ok {
+			return fmt.Errorf("metamodel: unresolved feature chain %q", strings.Join(p.path, "."))
 		}
 		p.set(id)
 	}
