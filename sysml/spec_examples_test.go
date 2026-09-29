@@ -22,10 +22,10 @@ func TestModelParseSpecExamples(t *testing.T) {
 		file    string
 		wantErr string
 	}{
-		// short names ("part <'1'> b: B;") aren't supported -- the whole
-		// "<'1'>" gets swallowed as one identifier by the current lexer,
-		// so parseUsage's expected name/colon shape trips up on "b" next.
-		{"PartTest.sysml", `line 6: unexpected identifier "b", want ';'`},
+		// short names ("part <'1'> b: B;") aren't supported -- '<' now
+		// lexes as its own token (Phase 1's comparison operators), so a
+		// usage's name position rejects it immediately.
+		{"PartTest.sysml", `line 6: unexpected '<', want identifier`},
 	}
 
 	for _, tt := range cases {

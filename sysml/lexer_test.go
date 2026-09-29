@@ -183,9 +183,9 @@ func TestLexerBlockComment(t *testing.T) {
 	}
 }
 
-// TestLexerBareSlash checks a "/" not followed by another "/" or "*" still
-// lexes as an ordinary identifier rune rather than being swallowed as a
-// (malformed) comment opener.
+// TestLexerBareSlash checks a "/" not followed by another "/" or "*" lexes
+// as its own Slash token (division) rather than being swallowed as a
+// (malformed) comment opener, or glued onto the identifiers around it.
 func TestLexerBareSlash(t *testing.T) {
 	m := sysml.NewModel("a/b")
 
@@ -194,8 +194,16 @@ func TestLexerBareSlash(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(tokens) != 1 || tokens[0].Kind != sysml.Identifier || string(tokens[0].Value) != "a/b" {
-		t.Fatalf("got %v, want one Identifier token %q", tokens, "a/b")
+	wantKinds := []sysml.Kind{sysml.Identifier, sysml.Slash, sysml.Identifier}
+	wantValues := []string{"a", "/", "b"}
+
+	if len(tokens) != len(wantKinds) {
+		t.Fatalf("got %d tokens (%v), want %d", len(tokens), tokens, len(wantKinds))
+	}
+	for i, tok := range tokens {
+		if tok.Kind != wantKinds[i] || string(tok.Value) != wantValues[i] {
+			t.Errorf("token %d: got {%v %q}, want {%v %q}", i, tok.Kind, string(tok.Value), wantKinds[i], wantValues[i])
+		}
 	}
 }
 
@@ -270,5 +278,147 @@ func TestLexerPathSep(t *testing.T) {
 		if kinds[i] != wantKinds[i] || values[i] != wantValues[i] {
 			t.Errorf("token %d: got {%v %q}, want {%v %q}", i, kinds[i], values[i], wantKinds[i], wantValues[i])
 		}
+	}
+}
+
+// firstNonTrivia returns the first token in tokens whose Kind is neither
+// Space nor Comment -- a small helper for tests that only care about one
+// meaningful token amid the whitespace around it.
+func firstNonTrivia(tokens []sysml.Token) (sysml.Token, bool) {
+	for _, tok := range tokens {
+		if tok.Kind != sysml.Space && tok.Kind != sysml.Comment {
+			return tok, true
+		}
+	}
+	return sysml.Token{}, false
+}
+
+// TestLexerOperators checks that each new punctuation-based operator token
+// (added for Phase 1's expression subsystem) lexes correctly, including
+// each two-character form's one-character fallback ("<" without a
+// following "=", etc.).
+func TestLexerOperators(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   sysml.Kind
+	}{
+		"plus":        {"+", sysml.Plus},
+		"minus":       {"-", sysml.Minus},
+		"slash":       {"/", sysml.Slash},
+		"percent":     {"%", sysml.Percent},
+		"power":       {"**", sysml.Power},
+		"star alone":  {"*", sysml.Star},
+		"ampersand":   {"&", sysml.Ampersand},
+		"pipe":        {"|", sysml.Pipe},
+		"lt":          {"<", sysml.Lt},
+		"gt":          {">", sysml.Gt},
+		"le":          {"<=", sysml.Le},
+		"ge":          {">=", sysml.Ge},
+		"eq":          {"==", sysml.Eq},
+		"not eq":      {"!=", sysml.NotEq},
+		"bang alone":  {"!x", sysml.Identifier}, // no standalone '!' operator
+		"open paren":  {"(", sysml.OpenParen},
+		"close paren": {")", sysml.CloseParen},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			tokens, err := sysml.NewModel(tt.source).Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			tok, ok := firstNonTrivia(tokens)
+			if !ok {
+				t.Fatalf("no token in %v", tokens)
+			}
+			if tok.Kind != tt.want {
+				t.Errorf("Lex(%q) first token kind = %v, want %v", tt.source, tok.Kind, tt.want)
+			}
+		})
+	}
+}
+
+// TestLexerKeywordOperators checks the word-spelled operators/literals
+// Phase 1 adds: true/false (boolean literals), not, and xor.
+func TestLexerKeywordOperators(t *testing.T) {
+	cases := map[string]sysml.Kind{
+		"true":  sysml.TrueKw,
+		"false": sysml.FalseKw,
+		"not":   sysml.NotKw,
+		"xor":   sysml.XorKw,
+	}
+
+	for word, want := range cases {
+		t.Run(word, func(t *testing.T) {
+			tokens, err := sysml.NewModel(word).Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(tokens) != 1 || tokens[0].Kind != want {
+				t.Errorf("Lex(%q) = %v, want a single %v token", word, tokens, want)
+			}
+		})
+	}
+}
+
+// TestLexerStringLiteral checks that a double-quoted string lexes as one
+// StringLit token including both quotes, and that an unterminated string
+// runs to EOF rather than erroring (the lexer has no error path, matching
+// how an unterminated block comment is already handled).
+func TestLexerStringLiteral(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   string
+	}{
+		"simple":              {`"hello"`, `"hello"`},
+		"empty":               {`""`, `""`},
+		"with spaces":         {`"hello world"`, `"hello world"`},
+		"unterminated at EOF": {`"hello`, `"hello`},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			tokens, err := sysml.NewModel(tt.source).Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(tokens) != 1 || tokens[0].Kind != sysml.StringLit || string(tokens[0].Value) != tt.want {
+				t.Errorf("Lex(%q) = %v, want a single StringLit %q", tt.source, tokens, tt.want)
+			}
+		})
+	}
+}
+
+// TestLexerNumericLiteral checks that a run of digits lexes as one
+// Identifier-kind token (matching how "5" already worked for multiplicity
+// bounds), that a decimal point followed by more digits extends it into a
+// real literal ("3.14"), and that a '.' NOT followed by a digit is left as
+// its own separate token -- needed so a feature chain like "a.b" (Phase 2)
+// never has its '.' mistaken for part of a number.
+func TestLexerNumericLiteral(t *testing.T) {
+	cases := map[string]struct {
+		source    string
+		wantFirst string
+		wantTotal int
+	}{
+		"integer":                   {"5", "5", 1},
+		"real":                      {"3.14", "3.14", 1},
+		"dot not followed by digit": {"3.x", "3", 3}, // "3", ".", "x"
+		"trailing dot at EOF":       {"3.", "3", 2},  // "3", "."
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			tokens, err := sysml.NewModel(tt.source).Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(tokens) != tt.wantTotal {
+				t.Fatalf("Lex(%q) = %v, want %d tokens", tt.source, tokens, tt.wantTotal)
+			}
+			if string(tokens[0].Value) != tt.wantFirst {
+				t.Errorf("Lex(%q) first token = %q, want %q", tt.source, string(tokens[0].Value), tt.wantFirst)
+			}
+		})
 	}
 }

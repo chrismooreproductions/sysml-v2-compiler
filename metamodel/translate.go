@@ -70,6 +70,14 @@ func FromASTWithImports(ns *sysml.Namespace, imports map[string]*Model) (*Model,
 		return nil, err
 	}
 
+	// Expression references resolve last: an expression can reference a
+	// sibling usage (e.g. a constraint naming an attribute by its own
+	// name), so its type/subsets/redefines needs to already be resolved
+	// first, the same way pendingWildcardImports resolves before pending.
+	if err := t.resolveExpressions(); err != nil {
+		return nil, err
+	}
+
 	return t.model, nil
 }
 
@@ -96,6 +104,21 @@ type pendingWildcardImport struct {
 	visibility Visibility
 }
 
+// pendingExprRef is an unresolved reference discovered while converting an
+// expression tree: a NameRef's path, or an operator symbol (resolved via
+// stdlibOperatorPath to its standard-library qualified path -- see
+// convertExpression). owner is the namespace the containing usage was
+// declared in. set writes the resolved ElementID directly onto whichever
+// tree node this reference came from (NameRef.Target, or a Binary/
+// UnaryExpr's Function) once resolveExpressions finds it -- a closure
+// lets one queue shape handle all three node kinds without a parallel
+// kind tag the way pendingReference needs one.
+type pendingExprRef struct {
+	name  string
+	owner ElementID
+	set   func(ElementID)
+}
+
 type translator struct {
 	model   *Model
 	pending []pendingReference
@@ -104,6 +127,10 @@ type translator struct {
 	// resolveWildcardImports, the same way pending queues type references
 	// for resolveTypes.
 	pendingWildcardImports []pendingWildcardImport
+
+	// pendingExprRefs queues every reference found inside an expression
+	// tree (see convertExpression) for resolveExpressions.
+	pendingExprRefs []pendingExprRef
 
 	// imports is the caller-supplied lookup an `import` member resolves
 	// against, keyed the same way as Model.Imports. Left nil by FromAST.
@@ -174,7 +201,13 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 				Upper: Bound{Value: m.Multiplicity.Upper.Value, Name: m.Multiplicity.Upper.Name},
 			}
 		}
-		t.model.Elements[id].Value = m.Value
+		if m.Value != nil {
+			val, err := t.convertExpression(m.Value, owner)
+			if err != nil {
+				return err
+			}
+			t.model.Elements[id].Value = val
+		}
 		// An untyped usage (e.g. "port p;") has no type to resolve; a usage
 		// can independently have a type, a subsets, and/or a redefines,
 		// each queued as its own pendingReference.
@@ -262,6 +295,87 @@ func (t *translator) resolveReferences() error {
 			Source: p.usage,
 			Target: targetID,
 		})
+	}
+	return nil
+}
+
+// convertExpression translates a sysml.Expression into a metamodel one,
+// queuing every NameRef and operator (Binary/UnaryExpr) it contains onto
+// pendingExprRefs for resolveExpressions -- the tree shape carries over
+// unchanged, only reference resolution is deferred, the same as a Usage's
+// own type/subsets/redefines already is via pendingReference.
+func (t *translator) convertExpression(expr sysml.Expression, owner ElementID) (Expression, error) {
+	switch e := expr.(type) {
+	case *sysml.BoolLiteral:
+		return &BoolLiteral{Value: e.Value}, nil
+
+	case *sysml.IntLiteral:
+		return &IntLiteral{Value: e.Value}, nil
+
+	case *sysml.StringLiteral:
+		return &StringLiteral{Value: e.Value}, nil
+
+	case *sysml.RealLiteral:
+		return &RealLiteral{Value: e.Value}, nil
+
+	case *sysml.NameRef:
+		ref := &NameRef{Path: e.Path}
+		t.pendingExprRefs = append(t.pendingExprRefs, pendingExprRef{
+			name:  e.Path,
+			owner: owner,
+			set:   func(id ElementID) { ref.Target = id },
+		})
+		return ref, nil
+
+	case *sysml.BinaryExpr:
+		left, err := t.convertExpression(e.Left, owner)
+		if err != nil {
+			return nil, err
+		}
+		right, err := t.convertExpression(e.Right, owner)
+		if err != nil {
+			return nil, err
+		}
+		bin := &BinaryExpr{Op: e.Op, Left: left, Right: right}
+		if path, ok := stdlibOperatorPath(e.Op); ok {
+			t.pendingExprRefs = append(t.pendingExprRefs, pendingExprRef{
+				name:  path,
+				owner: owner,
+				set:   func(id ElementID) { bin.Function = id },
+			})
+		}
+		return bin, nil
+
+	case *sysml.UnaryExpr:
+		operand, err := t.convertExpression(e.Operand, owner)
+		if err != nil {
+			return nil, err
+		}
+		un := &UnaryExpr{Op: e.Op, Operand: operand}
+		if path, ok := stdlibOperatorPath(e.Op); ok {
+			t.pendingExprRefs = append(t.pendingExprRefs, pendingExprRef{
+				name:  path,
+				owner: owner,
+				set:   func(id ElementID) { un.Function = id },
+			})
+		}
+		return un, nil
+
+	default:
+		return nil, fmt.Errorf("metamodel: unhandled expression type %T", expr)
+	}
+}
+
+// resolveExpressions resolves every queued pendingExprRef -- a NameRef's
+// path, or an operator's standard-library path -- into an ElementID,
+// written directly onto whichever expression-tree node it came from.
+func (t *translator) resolveExpressions() error {
+	for _, p := range t.pendingExprRefs {
+		id, ok := t.model.Resolve(p.owner, p.name)
+		if !ok {
+			return fmt.Errorf("metamodel: unresolved reference %q", p.name)
+		}
+		p.set(id)
 	}
 	return nil
 }

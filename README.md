@@ -19,15 +19,26 @@ or `redefines`/`:>>` another feature, in any combination with a typing and
 a multiplicity. A deliberate subset of the full language, grown
 incrementally rather than implemented against the spec wholesale.
 
+A usage's assigned value (`= ...`) can now be a full expression, not just
+an integer literal: boolean/integer/real/string literals, a qualified-name
+reference, and binary/unary operators over them (`mass <= massLimit`,
+`-x`, `not done`), with ordinary arithmetic/logical precedence and
+parenthesized grouping. Not yet supported: conditional (`if`/`?`/`else`)
+expressions, invocation/constructor expressions, sequences, `collect`/
+`select`, metadata-access, and casts. Every name reference and operator is
+genuinely resolved during translation (an operator like `<=` resolves to
+a real `ScalarFunctions::'<='`-shaped standard-library stub), not just
+parsed and stored.
+
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):
 `ScalarValues` (`Boolean`, `String`, `Real`, `Rational`, `Integer`,
-`Natural`) and `ScalarFunctions` (the operator symbols the in-progress
-expression subsystem resolves against, e.g. `+`, `<=`), both implicitly
-available without an explicit `import`, matching real SysML. This is a
-deliberate bridge rather than the genuine article — the real library is
-written in KerML's own textual notation, which this project doesn't parse
-— see the stub's own doc comment for the full reasoning.
+`Natural`) and `ScalarFunctions` (the operator symbols the expression
+subsystem resolves against, e.g. `+`, `<=`), both implicitly available
+without an explicit `import`, matching real SysML. This is a deliberate
+bridge rather than the genuine article — the real library is written in
+KerML's own textual notation, which this project doesn't parse — see the
+stub's own doc comment for the full reasoning.
 
 ## References
 

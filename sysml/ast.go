@@ -120,13 +120,78 @@ type Usage struct {
 
 	// Value is the usage's assigned value, e.g. the 5 in
 	// `attribute n : ScalarValues::Integer = 5;`. Only SysML's plain '='
-	// FeatureValue form is supported (not ':=' or 'default'), and only
-	// integer literals, not full expressions -- nil if no value was
-	// assigned.
-	Value *int
+	// FeatureValue form is supported (not ':=' or 'default'). nil if no
+	// value was assigned.
+	Value Expression
 }
 
 func (*Usage) memberNode() {}
+
+// Expression is a value-producing expression, e.g. the "5" in
+// `attribute n : Integer = 5;` or the "mass <= massLimit" a constraint
+// body will eventually carry. This project implements a deliberate subset
+// of KerML's full expression grammar: literals, qualified-name references,
+// and binary/unary operators over them. Not supported, each being its own
+// separate chunk of grammar: conditional (`if`/`?`/`else`) expressions,
+// invocation/constructor expressions, sequence/index expressions,
+// `collect`/`select`, metadata-access, and casts (`as`/`istype`/`hastype`/
+// `@`).
+type Expression interface {
+	expressionNode()
+}
+
+// BoolLiteral is a literal `true` or `false`.
+type BoolLiteral struct{ Value bool }
+
+func (*BoolLiteral) expressionNode() {}
+
+// IntLiteral is a literal integer, e.g. the 5 in `= 5`.
+type IntLiteral struct{ Value int }
+
+func (*IntLiteral) expressionNode() {}
+
+// StringLiteral is a literal double-quoted string, e.g. `"hello"`. No
+// escape sequences are supported.
+type StringLiteral struct{ Value string }
+
+func (*StringLiteral) expressionNode() {}
+
+// RealLiteral is a literal floating-point number, e.g. `3.14`.
+type RealLiteral struct{ Value float64 }
+
+func (*RealLiteral) expressionNode() {}
+
+// NameRef is a reference to another element by qualified name, e.g. the
+// "massLimit" in `mass <= massLimit`. Resolved the same way a Usage's Type
+// is -- see metamodel.NameRef.
+type NameRef struct{ Path string }
+
+func (*NameRef) expressionNode() {}
+
+// BinaryExpr is a binary operator expression, e.g. `mass <= massLimit`.
+// The supported operator set matches this project's standard-library stub
+// (see metamodel/stdlib.go) exactly: "+ - * / % ** < > <= >= == != xor |
+// &" -- notably not "and"/"or"/"implies"/"??" (KerML's separate
+// ConditionalBinaryOperatorExpression, not BinaryOperatorExpression, and
+// unstubbed). Op resolves to a standard-library Function the same way a
+// Usage's Type resolves to a Definition -- see metamodel.BinaryExpr.
+type BinaryExpr struct {
+	Op          string
+	Left, Right Expression
+}
+
+func (*BinaryExpr) expressionNode() {}
+
+// UnaryExpr is a unary operator expression, e.g. `-x` or `not done`. Op is
+// one of "+", "-", or "not" -- reusing BinaryExpr's "+"/"-" Function stubs
+// regardless of arity, since nothing here models a Function's parameters
+// to distinguish a one-argument overload from a two-argument one anyway.
+type UnaryExpr struct {
+	Op      string
+	Operand Expression
+}
+
+func (*UnaryExpr) expressionNode() {}
 
 // Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or
 // "[1..*]".

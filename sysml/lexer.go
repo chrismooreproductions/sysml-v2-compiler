@@ -73,7 +73,8 @@ func isSpace(r rune) bool {
 
 func isPunct(r rune) bool {
 	switch r {
-	case ';', '{', '}', ':', '[', ']', '*', '.', '=':
+	case ';', '{', '}', ':', '[', ']', '*', '.', '=',
+		'+', '-', '/', '%', '&', '|', '(', ')':
 		return true
 	default:
 		return false
@@ -81,10 +82,16 @@ func isPunct(r rune) bool {
 }
 
 // doubled is the set of punctuation runes that pair with themselves to form
-// a two-character token ("..") rather than standing alone. ':' is handled
-// separately by scanColon, since its own multi-character forms ("::", ":>",
-// ":>>") don't just double the same rune.
-var doubled = map[rune]bool{'.': true}
+// a two-character token ("..", "**", "==") rather than standing alone.
+// ':' is handled separately by scanColon, since its own multi-character
+// forms ("::", ":>", ":>>") don't just double the same rune; '<', '>', and
+// '!' are handled separately too, since their two-character forms ("<=",
+// ">=", "!=") pair with a *different* rune ('=').
+var doubled = map[rune]bool{'.': true, '*': true, '=': true}
+
+func isDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
 
 func isIdentRune(r rune) bool {
 	return r != newline && !isSpace(r) && !isPunct(r)
@@ -119,6 +126,94 @@ func (l *lexer) scanColon(start Pos) Token {
 	}
 
 	return word([]rune{':'}, start)
+}
+
+// scanBang scans a leading '!' as the start of "!=" (NotEq) if followed by
+// '=', falling back to an ordinary identifier otherwise -- there's no
+// standalone '!' operator in this project's expression subset, so a lone
+// '!' is just whatever identifier-shaped text follows it, the same as any
+// other unrecognized rune would be.
+func (l *lexer) scanBang(start Pos) Token {
+	if next, size := l.peek(); size > 0 && next == '=' {
+		l.advance()
+		l.advance()
+		return word([]rune{'!', '='}, start)
+	}
+	return l.scanIdentifier(start)
+}
+
+// scanLessThan scans a leading '<' through its one two-character form,
+// "<=" (Le), falling back to a bare '<' (Lt).
+func (l *lexer) scanLessThan(start Pos) Token {
+	l.advance()
+	if next, size := l.current(); size > 0 && next == '=' {
+		l.advance()
+		return word([]rune{'<', '='}, start)
+	}
+	return word([]rune{'<'}, start)
+}
+
+// scanGreaterThan is scanLessThan's mirror for '>': "=>" isn't a thing
+// here, but ">=" (Ge) is, falling back to a bare '>' (Gt). A '>' reaching
+// this dispatch was never part of ":>"/":>>" -- scanColon already
+// consumed those greedily when the preceding ':' was seen.
+func (l *lexer) scanGreaterThan(start Pos) Token {
+	l.advance()
+	if next, size := l.current(); size > 0 && next == '=' {
+		l.advance()
+		return word([]rune{'>', '='}, start)
+	}
+	return word([]rune{'>'}, start)
+}
+
+// scanString scans a double-quoted string literal, e.g. `"hello"`. No
+// escape sequences are supported -- nothing in scope needs them yet. The
+// token's Value includes both quotes (parsePrimary strips them), matching
+// how a Comment token's Value includes its own "//"/"/*"/"*/" markers. An
+// unterminated string runs to EOF, the same as an unterminated block
+// comment does (see scanBlockComment) -- the lexer has no error path.
+func (l *lexer) scanString(start Pos) Token {
+	value := []rune{'"'}
+	l.advance()
+
+	for {
+		r, size := l.current()
+		if size == 0 || r == '"' {
+			break
+		}
+		l.advance()
+		value = append(value, r)
+	}
+
+	if r, size := l.current(); size > 0 && r == '"' {
+		l.advance()
+		value = append(value, r)
+	}
+
+	return Token{Kind: StringLit, Value: value, Pos: start}
+}
+
+// scanNumber scans a numeric literal: a run of digits, optionally followed
+// by '.' and more digits (a real literal), e.g. "5" or "3.14". Kept as an
+// ordinary Identifier-kind token, like any other bare word -- parsePrimary
+// and parseBound already disambiguate an Identifier token's shape via
+// strconv, so this doesn't need its own Kind. It exists only so a real
+// literal's '.' isn't mistaken for a feature-chain separator: '.' needs to
+// stay its own token everywhere else, so scanning "3.14" as one token
+// needs this lookahead rather than leaving '.' to the generic isPunct
+// path, which would split it into "3", '.', "14".
+func (l *lexer) scanNumber(start Pos) Token {
+	value := l.scanWhile(isDigit)
+
+	if next, size := l.current(); size > 0 && next == '.' {
+		if after, asize := l.peek(); asize > 0 && isDigit(after) {
+			r, _ := l.advance()
+			value = append(value, r)
+			value = append(value, l.scanWhile(isDigit)...)
+		}
+	}
+
+	return word(value, start)
 }
 
 // scanLineComment scans a "//"-style comment through end of line, leaving
@@ -203,6 +298,21 @@ func (l *lexer) next() (Token, bool) {
 
 		case r == ':':
 			return l.scanColon(start), true
+
+		case r == '!':
+			return l.scanBang(start), true
+
+		case r == '<':
+			return l.scanLessThan(start), true
+
+		case r == '>':
+			return l.scanGreaterThan(start), true
+
+		case r == '"':
+			return l.scanString(start), true
+
+		case isDigit(r):
+			return l.scanNumber(start), true
 
 		case isPunct(r):
 			l.advance()

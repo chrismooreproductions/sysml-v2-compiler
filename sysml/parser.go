@@ -351,9 +351,8 @@ func (p *parser) parseFeatureSpecializationPart(usage *Usage) error {
 
 // parseValuePart consumes an optional assigned value, e.g. the "= 5" in
 // `attribute n : ScalarValues::Integer = 5;`. Only SysML's plain '='
-// FeatureValue form is supported (not ':=' or 'default'), and only integer
-// literals, not full expressions. Consumes nothing if the next token isn't
-// '='.
+// FeatureValue form is supported (not ':=' or 'default'). Consumes nothing
+// if the next token isn't '='.
 func (p *parser) parseValuePart(usage *Usage) error {
 	tok, ok := p.current()
 	if !ok || tok.Kind != Equals {
@@ -361,16 +360,197 @@ func (p *parser) parseValuePart(usage *Usage) error {
 	}
 	p.pos++
 
-	valTok, err := p.expect(Identifier)
+	val, err := p.parseExpression()
 	if err != nil {
 		return err
 	}
-	n, err := strconv.Atoi(string(valTok.Value))
-	if err != nil {
-		return fmt.Errorf("line %d: unsupported value %q -- only integer literals are supported", valTok.Pos.Line, string(valTok.Value))
-	}
-	usage.Value = &n
+	usage.Value = val
 	return nil
+}
+
+// binaryOperators maps each binary-operator token to the operator symbol a
+// BinaryExpr.Op carries, and, via its presence as a map key, which tokens
+// parseBinaryExpression treats as binary operators at all.
+var binaryOperators = map[Kind]string{
+	Pipe:      "|",
+	XorKw:     "xor",
+	Ampersand: "&",
+	Eq:        "==",
+	NotEq:     "!=",
+	Lt:        "<",
+	Gt:        ">",
+	Le:        "<=",
+	Ge:        ">=",
+	Plus:      "+",
+	Minus:     "-",
+	Star:      "*",
+	Slash:     "/",
+	Percent:   "%",
+	Power:     "**",
+}
+
+// unaryOperators is binaryOperators' counterpart for parseUnaryExpression's
+// leading prefix -- "+"/"-" reuse the same operator symbols as their
+// binary forms (see UnaryExpr's doc comment on why that's fine here).
+var unaryOperators = map[Kind]string{
+	Plus:  "+",
+	Minus: "-",
+	NotKw: "not",
+}
+
+// operatorPrecedence gives each binary operator its precedence, higher
+// binding tighter; ties resolve left-to-right except "**", which is
+// right-associative (2 ** 3 ** 2 is 2 ** (3 ** 2)). The OMG grammar's own
+// BNF doesn't encode precedence (BinaryOperator lists every operator in
+// one flat alternation -- precedence is specified separately, outside the
+// grammar itself), so this table is this project's own documented,
+// best-effort choice, following ordinary arithmetic/logical convention.
+var operatorPrecedence = map[string]int{
+	"|":   1,
+	"xor": 1,
+	"&":   2,
+	"==":  3,
+	"!=":  3,
+	"<":   4,
+	">":   4,
+	"<=":  4,
+	">=":  4,
+	"+":   5,
+	"-":   5,
+	"*":   6,
+	"/":   6,
+	"%":   6,
+	"**":  7,
+}
+
+// parseExpression parses an expression: the entry point for a usage's
+// assigned value (and, later, a constraint/calculation body's result
+// expression). See the Expression doc comment for exactly which shapes of
+// expression this project supports.
+func (p *parser) parseExpression() (Expression, error) {
+	return p.parseBinaryExpression(0)
+}
+
+// parseBinaryExpression implements precedence climbing: parses a unary
+// expression for its left-hand side, then repeatedly consumes any binary
+// operator that binds at least as tightly as minPrec and a right-hand side
+// parsed at one precedence tighter (or, for "**", at the same precedence,
+// giving it right-associativity) -- so "1 + 2 * 3" parses as "1 + (2 * 3)"
+// and "2 ** 3 ** 2" as "2 ** (3 ** 2)".
+func (p *parser) parseBinaryExpression(minPrec int) (Expression, error) {
+	left, err := p.parseUnaryExpression()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		tok, ok := p.current()
+		if !ok {
+			return left, nil
+		}
+		op, ok := binaryOperators[tok.Kind]
+		if !ok {
+			return left, nil
+		}
+		prec := operatorPrecedence[op]
+		if prec < minPrec {
+			return left, nil
+		}
+		p.pos++
+
+		nextMin := prec + 1
+		if op == "**" {
+			nextMin = prec
+		}
+		right, err := p.parseBinaryExpression(nextMin)
+		if err != nil {
+			return nil, err
+		}
+		left = &BinaryExpr{Op: op, Left: left, Right: right}
+	}
+}
+
+// parseUnaryExpression parses an optional leading "+"/"-"/"not", which may
+// itself stack (e.g. "- -x" or "not not done"), then a primary expression.
+func (p *parser) parseUnaryExpression() (Expression, error) {
+	if tok, ok := p.current(); ok {
+		if op, ok := unaryOperators[tok.Kind]; ok {
+			p.pos++
+			operand, err := p.parseUnaryExpression()
+			if err != nil {
+				return nil, err
+			}
+			return &UnaryExpr{Op: op, Operand: operand}, nil
+		}
+	}
+	return p.parsePrimary()
+}
+
+// parsePrimary parses a boolean/string/numeric literal, a qualified-name
+// reference, or a parenthesized expression. An Identifier token is
+// disambiguated the same way parseBound already disambiguates a
+// multiplicity bound: try an integer, then a real number, then fall back
+// to a qualified name.
+func (p *parser) parsePrimary() (Expression, error) {
+	tok, ok := p.current()
+	if !ok {
+		return nil, fmt.Errorf("unexpected end of input, want an expression")
+	}
+
+	switch tok.Kind {
+	case TrueKw:
+		p.pos++
+		return &BoolLiteral{Value: true}, nil
+
+	case FalseKw:
+		p.pos++
+		return &BoolLiteral{Value: false}, nil
+
+	case StringLit:
+		p.pos++
+		return &StringLiteral{Value: unquoteString(tok.Value)}, nil
+
+	case OpenParen:
+		p.pos++
+		inner, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseParen); err != nil {
+			return nil, err
+		}
+		return inner, nil
+
+	case Identifier:
+		if n, err := strconv.Atoi(string(tok.Value)); err == nil {
+			p.pos++
+			return &IntLiteral{Value: n}, nil
+		}
+		if f, err := strconv.ParseFloat(string(tok.Value), 64); err == nil {
+			p.pos++
+			return &RealLiteral{Value: f}, nil
+		}
+		path, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		return &NameRef{Path: path}, nil
+
+	default:
+		return nil, fmt.Errorf("line %d: unexpected %s, want an expression", tok.Pos.Line, describeToken(tok))
+	}
+}
+
+// unquoteString strips a StringLit token's surrounding quotes. value
+// always starts with '"' (see scanString); it may be missing the closing
+// one if the source was unterminated, in which case there's nothing to
+// strip off the end.
+func unquoteString(value []rune) string {
+	s := string(value[1:])
+	if len(s) > 0 && s[len(s)-1] == '"' {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 // parseMultiplicity parses a bracketed multiplicity clause: "[*]"

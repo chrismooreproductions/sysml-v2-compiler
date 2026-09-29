@@ -25,8 +25,28 @@ const (
 	Equals
 	Subsets
 	Redefines
+	Plus
+	Minus
+	Slash
+	Percent
+	Power
+	Ampersand
+	Pipe
+	Lt
+	Gt
+	Le
+	Ge
+	Eq
+	NotEq
+	OpenParen
+	CloseParen
+	TrueKw
+	FalseKw
+	NotKw
+	XorKw
 	Space
 	Comment
+	StringLit
 	Identifier
 )
 
@@ -76,10 +96,50 @@ func (k Kind) String() string {
 		return "'subsets'"
 	case Redefines:
 		return "'redefines'"
+	case Plus:
+		return "'+'"
+	case Minus:
+		return "'-'"
+	case Slash:
+		return "'/'"
+	case Percent:
+		return "'%'"
+	case Power:
+		return "'**'"
+	case Ampersand:
+		return "'&'"
+	case Pipe:
+		return "'|'"
+	case Lt:
+		return "'<'"
+	case Gt:
+		return "'>'"
+	case Le:
+		return "'<='"
+	case Ge:
+		return "'>='"
+	case Eq:
+		return "'=='"
+	case NotEq:
+		return "'!='"
+	case OpenParen:
+		return "'('"
+	case CloseParen:
+		return "')'"
+	case TrueKw:
+		return "'true'"
+	case FalseKw:
+		return "'false'"
+	case NotKw:
+		return "'not'"
+	case XorKw:
+		return "'xor'"
 	case Space:
 		return "space"
 	case Comment:
 		return "comment"
+	case StringLit:
+		return "string literal"
 	case Identifier:
 		return "identifier"
 	default:
@@ -112,6 +172,25 @@ var kinds = map[string]Kind{
 	"redefines": Redefines,
 	":>":        Subsets,
 	":>>":       Redefines,
+	"+":         Plus,
+	"-":         Minus,
+	"/":         Slash,
+	"%":         Percent,
+	"**":        Power,
+	"&":         Ampersand,
+	"|":         Pipe,
+	"<":         Lt,
+	">":         Gt,
+	"<=":        Le,
+	">=":        Ge,
+	"==":        Eq,
+	"!=":        NotEq,
+	"(":         OpenParen,
+	")":         CloseParen,
+	"true":      TrueKw,
+	"false":     FalseKw,
+	"not":       NotKw,
+	"xor":       XorKw,
 }
 
 type Pos struct {

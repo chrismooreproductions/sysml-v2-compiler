@@ -1,6 +1,7 @@
 package sysml_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/chrismooreproductions/sysml-modeller/sysml"
@@ -305,18 +306,105 @@ func TestModelParseUsageTypeAndSubsets(t *testing.T) {
 	}
 }
 
+// TestModelParseExpression checks the expression parser's tree shapes:
+// each literal kind, a bare/qualified name reference, binary and unary
+// operators, precedence climbing (including "**"'s right-associativity),
+// left-associativity for same-precedence operators, and parentheses
+// overriding precedence.
+func TestModelParseExpression(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   sysml.Expression
+	}{
+		"bool true":  {"true", &sysml.BoolLiteral{Value: true}},
+		"bool false": {"false", &sysml.BoolLiteral{Value: false}},
+		"int":        {"5", &sysml.IntLiteral{Value: 5}},
+		"real":       {"3.14", &sysml.RealLiteral{Value: 3.14}},
+		"string":     {`"hello"`, &sysml.StringLiteral{Value: "hello"}},
+		"name ref":   {"massLimit", &sysml.NameRef{Path: "massLimit"}},
+		"qualified name ref": {
+			"Vehicle::mass", &sysml.NameRef{Path: "Vehicle::mass"},
+		},
+		"binary add": {
+			"1 + 2",
+			&sysml.BinaryExpr{Op: "+", Left: &sysml.IntLiteral{Value: 1}, Right: &sysml.IntLiteral{Value: 2}},
+		},
+		"comparison": {
+			"mass <= massLimit",
+			&sysml.BinaryExpr{Op: "<=", Left: &sysml.NameRef{Path: "mass"}, Right: &sysml.NameRef{Path: "massLimit"}},
+		},
+		"multiplication binds tighter than addition": {
+			"1 + 2 * 3",
+			&sysml.BinaryExpr{
+				Op:    "+",
+				Left:  &sysml.IntLiteral{Value: 1},
+				Right: &sysml.BinaryExpr{Op: "*", Left: &sysml.IntLiteral{Value: 2}, Right: &sysml.IntLiteral{Value: 3}},
+			},
+		},
+		"same precedence is left-associative": {
+			"1 + 2 - 3",
+			&sysml.BinaryExpr{
+				Op:    "-",
+				Left:  &sysml.BinaryExpr{Op: "+", Left: &sysml.IntLiteral{Value: 1}, Right: &sysml.IntLiteral{Value: 2}},
+				Right: &sysml.IntLiteral{Value: 3},
+			},
+		},
+		"parens override precedence": {
+			"(1 + 2) * 3",
+			&sysml.BinaryExpr{
+				Op:    "*",
+				Left:  &sysml.BinaryExpr{Op: "+", Left: &sysml.IntLiteral{Value: 1}, Right: &sysml.IntLiteral{Value: 2}},
+				Right: &sysml.IntLiteral{Value: 3},
+			},
+		},
+		"power is right-associative": {
+			"2 ** 3 ** 2",
+			&sysml.BinaryExpr{
+				Op:    "**",
+				Left:  &sysml.IntLiteral{Value: 2},
+				Right: &sysml.BinaryExpr{Op: "**", Left: &sysml.IntLiteral{Value: 3}, Right: &sysml.IntLiteral{Value: 2}},
+			},
+		},
+		"unary minus": {
+			"-x", &sysml.UnaryExpr{Op: "-", Operand: &sysml.NameRef{Path: "x"}},
+		},
+		"unary not": {
+			"not done", &sysml.UnaryExpr{Op: "not", Operand: &sysml.NameRef{Path: "done"}},
+		},
+		"stacked unary": {
+			"- -x",
+			&sysml.UnaryExpr{Op: "-", Operand: &sysml.UnaryExpr{Op: "-", Operand: &sysml.NameRef{Path: "x"}}},
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { attribute n = `+tt.source+`; }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+
+			if !reflect.DeepEqual(usage.Value, tt.want) {
+				t.Errorf("Value = %#v, want %#v", usage.Value, tt.want)
+			}
+		})
+	}
+}
+
 // TestModelParseUsageValue checks that a usage's assigned value ("= 5") is
-// parsed as an integer and attached to Usage.Value, and that a usage with
-// no assigned value leaves it nil.
+// parsed as an IntLiteral and attached to Usage.Value, and that a usage
+// with no assigned value leaves it nil.
 func TestModelParseUsageValue(t *testing.T) {
 	cases := map[string]struct {
 		source string
 		want   *int
 	}{
-		"assigned":   {`attribute n : Integer = 5;`, intPtr(5)},
+		"assigned":   {`attribute n : Integer = 5;`, ptr(5)},
 		"no value":   {`attribute n : Integer;`, nil},
-		"zero value": {`attribute n : Integer = 0;`, intPtr(0)},
-		"combined":   {`attribute n : Integer[1] = 5;`, intPtr(5)},
+		"zero value": {`attribute n : Integer = 0;`, ptr(0)},
+		"combined":   {`attribute n : Integer[1] = 5;`, ptr(5)},
 	}
 
 	for name, tt := range cases {
@@ -330,18 +418,22 @@ func TestModelParseUsageValue(t *testing.T) {
 
 			if tt.want == nil {
 				if usage.Value != nil {
-					t.Errorf("Value = %v, want nil", *usage.Value)
+					t.Errorf("Value = %+v, want nil", usage.Value)
 				}
 				return
 			}
-			if usage.Value == nil || *usage.Value != *tt.want {
-				t.Errorf("Value = %v, want %v", usage.Value, *tt.want)
+			lit, ok := usage.Value.(*sysml.IntLiteral)
+			if !ok {
+				t.Fatalf("Value is %T, want *sysml.IntLiteral", usage.Value)
+			}
+			if lit.Value != *tt.want {
+				t.Errorf("Value = %d, want %d", lit.Value, *tt.want)
 			}
 		})
 	}
 }
 
-func intPtr(n int) *int { return &n }
+func ptr[T any](v T) *T { return &v }
 
 func TestModelParseImport(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Car {
@@ -582,7 +674,9 @@ func TestModelParseErrors(t *testing.T) {
 		"multiplicity missing close":        "package Vehicle { part combatants : Combatant[*; }",
 		"multiplicity punctuation bound":    "package Vehicle { part combatants : Combatant[;]; }",
 		"multiplicity negative bound":       "package Vehicle { part combatants : Combatant[-1]; }",
-		"assigned value non-integer":        "package Vehicle { attribute n : Integer = abc; }",
+		"assigned value missing operand":    "package Vehicle { attribute n : Integer = ; }",
+		"assigned value trailing operator":  "package Vehicle { attribute n : Integer = 1 + ; }",
+		"assigned value unclosed paren":     "package Vehicle { attribute n : Integer = (1 + 2; }",
 	}
 
 	for name, source := range cases {

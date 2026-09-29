@@ -145,10 +145,10 @@ type Element struct {
 	Multiplicity *Multiplicity
 
 	// Value is this Usage's assigned value, e.g. the 5 in
-	// `attribute n : ScalarValues::Integer = 5;`. Only integer literals are
-	// supported (see sysml.Usage.Value); nil if none was assigned, and
-	// always nil for kinds other than KindUsage.
-	Value *int
+	// `attribute n : ScalarValues::Integer = 5;`, mirroring sysml.Usage.Value
+	// (see Expression). nil if none was assigned, and always nil for kinds
+	// other than KindUsage.
+	Value Expression
 }
 
 // Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or
@@ -163,6 +163,63 @@ type Bound struct {
 	Value int
 	Name  string
 }
+
+// Expression mirrors sysml.Expression, with every reference to another
+// Element genuinely resolved rather than parsed-and-stored: a NameRef's
+// Target and a Binary/UnaryExpr's Function are "" until translate.go's
+// expression-reference pass (resolveExpressions) resolves them, the same
+// deferred, two-phase way a Usage's type is.
+type Expression interface {
+	expressionNode()
+}
+
+// BoolLiteral is a literal `true` or `false`.
+type BoolLiteral struct{ Value bool }
+
+func (*BoolLiteral) expressionNode() {}
+
+// IntLiteral is a literal integer, e.g. the 5 in `= 5`.
+type IntLiteral struct{ Value int }
+
+func (*IntLiteral) expressionNode() {}
+
+// StringLiteral is a literal double-quoted string, e.g. `"hello"`.
+type StringLiteral struct{ Value string }
+
+func (*StringLiteral) expressionNode() {}
+
+// RealLiteral is a literal floating-point number, e.g. `3.14`.
+type RealLiteral struct{ Value float64 }
+
+func (*RealLiteral) expressionNode() {}
+
+// NameRef is a resolved reference to another Element by qualified name.
+type NameRef struct {
+	Path   string
+	Target ElementID
+}
+
+func (*NameRef) expressionNode() {}
+
+// BinaryExpr is a resolved binary operator expression. Function is the
+// ElementID of the standard-library Function stub Op resolves to (see
+// stdlib.go).
+type BinaryExpr struct {
+	Op          string
+	Left, Right Expression
+	Function    ElementID
+}
+
+func (*BinaryExpr) expressionNode() {}
+
+// UnaryExpr is a resolved unary operator expression.
+type UnaryExpr struct {
+	Op       string
+	Operand  Expression
+	Function ElementID
+}
+
+func (*UnaryExpr) expressionNode() {}
 
 // Multiplicity bounds how many instances a Usage Element represents.
 type Multiplicity struct {

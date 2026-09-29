@@ -281,8 +281,12 @@ func TestFromASTUsageValue(t *testing.T) {
 	if !ok {
 		t.Fatal("missing element Vehicle::n")
 	}
-	if n.Value == nil || *n.Value != 5 {
-		t.Errorf("n.Value = %v, want 5", n.Value)
+	lit, ok := n.Value.(*metamodel.IntLiteral)
+	if !ok {
+		t.Fatalf("n.Value is %T, want *metamodel.IntLiteral", n.Value)
+	}
+	if lit.Value != 5 {
+		t.Errorf("n.Value = %d, want 5", lit.Value)
 	}
 
 	m, ok := model.Elements["Vehicle::m"]
@@ -290,7 +294,107 @@ func TestFromASTUsageValue(t *testing.T) {
 		t.Fatal("missing element Vehicle::m")
 	}
 	if m.Value != nil {
-		t.Errorf("m.Value = %v, want nil", *m.Value)
+		t.Errorf("m.Value = %+v, want nil", m.Value)
+	}
+}
+
+// TestFromASTExpressionNameRef checks that a NameRef inside a usage's
+// value resolves to the sibling it names, the same way a type reference
+// does.
+func TestFromASTExpressionNameRef(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		attribute massLimit : Real;
+		attribute n : Real = massLimit;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	n, ok := model.Elements["Vehicle::n"]
+	if !ok {
+		t.Fatal("missing element Vehicle::n")
+	}
+	ref, ok := n.Value.(*metamodel.NameRef)
+	if !ok {
+		t.Fatalf("n.Value is %T, want *metamodel.NameRef", n.Value)
+	}
+	if ref.Target != "Vehicle::massLimit" {
+		t.Errorf("NameRef.Target = %q, want %q", ref.Target, "Vehicle::massLimit")
+	}
+}
+
+// TestFromASTExpressionUnresolvedNameRef checks that a NameRef with no
+// matching declaration fails translation, the same as an unresolved type
+// does.
+func TestFromASTExpressionUnresolvedNameRef(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { attribute def Real; attribute n : Real = nope; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved name reference, got nil")
+	}
+}
+
+// TestFromASTExpressionOperatorResolvesToStdlib checks that a binary and a
+// unary operator each resolve their Function field to the matching
+// standard-library stub (see metamodel/stdlib.go) -- the "real
+// library-function resolution" this project's expression subsystem is
+// built around, not an intrinsic/built-in operator.
+func TestFromASTExpressionOperatorResolvesToStdlib(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		attribute mass : Real;
+		attribute massLimit : Real;
+		attribute ok : Real = mass <= massLimit;
+		attribute negated : Real = -mass;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	ok, found := model.Elements["Vehicle::ok"]
+	if !found {
+		t.Fatal("missing element Vehicle::ok")
+	}
+	bin, isBin := ok.Value.(*metamodel.BinaryExpr)
+	if !isBin {
+		t.Fatalf("ok.Value is %T, want *metamodel.BinaryExpr", ok.Value)
+	}
+	if bin.Function != "ScalarFunctions::<=" {
+		t.Errorf("BinaryExpr.Function = %q, want %q", bin.Function, "ScalarFunctions::<=")
+	}
+	left, isRef := bin.Left.(*metamodel.NameRef)
+	if !isRef || left.Target != "Vehicle::mass" {
+		t.Errorf("BinaryExpr.Left = %+v, want a NameRef targeting Vehicle::mass", bin.Left)
+	}
+	right, isRef := bin.Right.(*metamodel.NameRef)
+	if !isRef || right.Target != "Vehicle::massLimit" {
+		t.Errorf("BinaryExpr.Right = %+v, want a NameRef targeting Vehicle::massLimit", bin.Right)
+	}
+
+	negated, found := model.Elements["Vehicle::negated"]
+	if !found {
+		t.Fatal("missing element Vehicle::negated")
+	}
+	un, isUn := negated.Value.(*metamodel.UnaryExpr)
+	if !isUn {
+		t.Fatalf("negated.Value is %T, want *metamodel.UnaryExpr", negated.Value)
+	}
+	if un.Function != "ScalarFunctions::-" {
+		t.Errorf("UnaryExpr.Function = %q, want %q", un.Function, "ScalarFunctions::-")
 	}
 }
 
