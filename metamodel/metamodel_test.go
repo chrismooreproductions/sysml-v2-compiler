@@ -1714,6 +1714,193 @@ func TestFromASTUnresolvedMetadata(t *testing.T) {
 	}
 }
 
+// findSatisfy returns the KindSatisfy Element declared directly under owner,
+// or nil if there isn't one -- a Satisfy statement is always anonymous (see
+// sysml.Satisfy), so tests can't just address it by a known ElementID the
+// way a named usage's is.
+func findSatisfy(model *metamodel.Model, owner metamodel.ElementID) *metamodel.Element {
+	for _, el := range model.Elements {
+		if el.Kind == metamodel.KindSatisfy && el.Owner == owner {
+			return el
+		}
+	}
+	return nil
+}
+
+// TestFromASTSatisfy checks that "satisfy r by p;" resolves both halves: r
+// (the requirement being satisfied) via the same Subsets machinery a usage's
+// own subsetting uses, and p (the "by" target) via Connects, the same
+// harvesting a Connection's end goes through.
+func TestFromASTSatisfy(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		requirement def R;
+		requirement r : R;
+		part p;
+		satisfy r by p;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	sat := findSatisfy(model, "Vehicle")
+	if sat == nil {
+		t.Fatal("no KindSatisfy element found under Vehicle")
+	}
+	if sat.Assert || sat.Negated {
+		t.Errorf("Assert = %v, Negated = %v, want both false", sat.Assert, sat.Negated)
+	}
+
+	target, ok := relationshipTarget(model, sat.ID, metamodel.Subsets)
+	if !ok {
+		t.Fatal("no Subsets relationship found for the satisfy statement")
+	}
+	if target != "Vehicle::r" {
+		t.Errorf("satisfy's requirement = %q, want %q", target, "Vehicle::r")
+	}
+
+	if len(sat.Connects) != 1 || sat.Connects[0] != "Vehicle::p" {
+		t.Errorf("Connects = %v, want [Vehicle::p]", sat.Connects)
+	}
+}
+
+// TestFromASTSatisfyAssertNegated checks that "assert"/"not" each carry
+// through independently, in every combination.
+func TestFromASTSatisfyAssertNegated(t *testing.T) {
+	cases := map[string]struct {
+		member      string
+		wantAssert  bool
+		wantNegated bool
+	}{
+		"bare":       {"satisfy r by p;", false, false},
+		"assert":     {"assert satisfy r by p;", true, false},
+		"not":        {"not satisfy r by p;", false, true},
+		"assert not": {"assert not satisfy r by p;", true, true},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			ns, err := sysml.NewModel(`package Vehicle {
+				requirement def R;
+				requirement r : R;
+				part p;
+				` + tt.member + `
+			}`).Parse()
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+
+			model, err := metamodel.FromAST(ns)
+			if err != nil {
+				t.Fatalf("unexpected translate error: %v", err)
+			}
+
+			sat := findSatisfy(model, "Vehicle")
+			if sat == nil {
+				t.Fatal("no KindSatisfy element found under Vehicle")
+			}
+			if sat.Assert != tt.wantAssert || sat.Negated != tt.wantNegated {
+				t.Errorf("Assert = %v, Negated = %v, want %v, %v", sat.Assert, sat.Negated, tt.wantAssert, tt.wantNegated)
+			}
+		})
+	}
+}
+
+// TestFromASTSatisfyFeatureChainBy checks that a "by" clause resolves a
+// dotted feature chain (e.g. "system.sub1") via the same
+// ResolveFeatureChain machinery an ordinary expression does, not just a
+// bare name.
+func TestFromASTSatisfyFeatureChainBy(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		requirement def R;
+		requirement r : R;
+		part def Sub;
+		part def System {
+			part sub1 : Sub;
+		}
+		part system : System;
+		satisfy r by system.sub1;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	sat := findSatisfy(model, "Vehicle")
+	if sat == nil {
+		t.Fatal("no KindSatisfy element found under Vehicle")
+	}
+	if len(sat.Connects) != 1 || sat.Connects[0] != "Vehicle::System::sub1" {
+		t.Errorf("Connects = %v, want [Vehicle::System::sub1]", sat.Connects)
+	}
+}
+
+// TestFromASTSatisfyNoBy checks that a "satisfy r;" with no "by" clause
+// leaves Connects nil, rather than erroring or harvesting a zero-value
+// target.
+func TestFromASTSatisfyNoBy(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		requirement def R;
+		requirement r : R;
+		satisfy r;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	sat := findSatisfy(model, "Vehicle")
+	if sat == nil {
+		t.Fatal("no KindSatisfy element found under Vehicle")
+	}
+	if sat.Connects != nil {
+		t.Errorf("Connects = %v, want nil", sat.Connects)
+	}
+}
+
+// TestFromASTUnresolvedSatisfyRequirement checks that an unresolvable
+// requirement reference fails translation the same strictly-required way an
+// unresolved subsets target does.
+func TestFromASTUnresolvedSatisfyRequirement(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { part p; satisfy nope by p; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved satisfy requirement, got nil")
+	}
+}
+
+// TestFromASTUnresolvedSatisfyBy checks that an unresolvable "by" target
+// fails translation too.
+func TestFromASTUnresolvedSatisfyBy(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		requirement def R;
+		requirement r : R;
+		satisfy r by nope;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved satisfy \"by\" target, got nil")
+	}
+}
+
 // TestFromASTShadowing checks that a name redeclared in a nested scope
 // doesn't collide with the outer declaration (that's legal shadowing, not
 // a duplicate declaration), and that a usage in the inner scope resolves

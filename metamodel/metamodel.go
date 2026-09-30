@@ -30,6 +30,14 @@ const (
 	// this project hasn't implemented); it only ever appears as a
 	// resolution target an expression's operator points at.
 	KindFunction
+	// KindSatisfy marks a "satisfy X by Y;" member (see sysml.Satisfy): an
+	// anonymous, standalone assertion rather than a named, declared thing,
+	// so it gets its own Kind instead of being shoehorned into KindUsage.
+	// Its Assert/Negated fields, its Subsets Relationship (X, resolved), and
+	// its Connects (Y, resolved -- see those fields' own doc comments) are
+	// its only meaningful ones; DefKind, Multiplicity, Value, and Result are
+	// always their zero value.
+	KindSatisfy
 )
 
 func (k Kind) String() string {
@@ -44,6 +52,8 @@ func (k Kind) String() string {
 		return "namespace"
 	case KindFunction:
 		return "function"
+	case KindSatisfy:
+		return "satisfy"
 	default:
 		return "unknown"
 	}
@@ -74,6 +84,15 @@ const (
 	DefConnection
 	DefInterface
 	DefMetadata
+	DefRequirement
+	DefConcern
+	DefCase
+	DefSubject
+	DefAssume
+	DefRequire
+	DefFrame
+	DefActor
+	DefStakeholder
 )
 
 func (k DefKind) String() string {
@@ -96,6 +115,24 @@ func (k DefKind) String() string {
 		return "interface"
 	case DefMetadata:
 		return "metadata"
+	case DefRequirement:
+		return "requirement"
+	case DefConcern:
+		return "concern"
+	case DefCase:
+		return "case"
+	case DefSubject:
+		return "subject"
+	case DefAssume:
+		return "assume"
+	case DefRequire:
+		return "require"
+	case DefFrame:
+		return "frame"
+	case DefActor:
+		return "actor"
+	case DefStakeholder:
+		return "stakeholder"
 	default:
 		return "unknown"
 	}
@@ -165,18 +202,27 @@ type Element struct {
 	// other than KindUsage.
 	Value Expression
 
-	// Result is a constraint/calculation's trailing result expression,
+	// Result is a constraint/calculation-shaped trailing result expression,
 	// e.g. the "totalMass <= massLimit" in `constraint def MassAnalysis {
 	// ... totalMass <= massLimit }`, mirroring sysml.Definition.Result /
 	// sysml.Usage.Result. nil for every DefKind other than DefConstraint/
-	// DefCalculation, and for a body without one.
+	// DefCalculation/DefRequire/DefAssume (see sysml.hasCalculationBody),
+	// and for a body without one.
 	Result Expression
 
 	// Connects holds the resolved ElementIDs of a connection/interface
 	// usage's ends (see sysml.Connection), in the order they were written,
-	// e.g. the [p, y] behind `connect p to y;`. nil for every DefKind
-	// other than DefConnection/DefInterface.
+	// e.g. the [p, y] behind `connect p to y;` -- or, for a KindSatisfy
+	// Element, its single resolved "by" target (see sysml.Satisfy.By), if
+	// it had one. nil for every DefKind other than DefConnection/
+	// DefInterface, and for a KindSatisfy Element with no "by" clause.
 	Connects []ElementID
+
+	// Assert and Negated mirror a KindSatisfy Element's sysml.Satisfy.Assert/
+	// Negated -- its independently optional "assert"/"not" prefixes.
+	// Meaningless (always false) for every other Kind.
+	Assert  bool
+	Negated bool
 }
 
 // Unbounded marks a Bound's Value as unlimited, e.g. the "*" in "[*]" or
@@ -277,7 +323,11 @@ const (
 	// Engine in `part engine : Engine;`.
 	TypedBy RelationshipKind = iota
 	// Subsets relates a usage to the feature it subsets, e.g. the a in
-	// `part b subsets a;`.
+	// `part b subsets a;`. Also reused, as a deliberate simplification, for
+	// a KindSatisfy Element's reference to the requirement usage it asserts
+	// satisfaction of (sysml.Satisfy.Requirement) -- the real grammar's
+	// ReferenceSubsetting is a distinct KerML relationship kind, collapsed
+	// into this one here since this project doesn't model the difference.
 	Subsets
 	// Redefines relates a usage to the feature it redefines, e.g. the
 	// B::b in `part B_b redefines B::b;`.

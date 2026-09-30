@@ -949,6 +949,262 @@ func TestModelParseMetadataDefKind(t *testing.T) {
 	}
 }
 
+// TestModelParseRequirementConcernCaseDefKeywords checks that "requirement",
+// "concern", and "case" are each accepted as a definition/usage keyword
+// family alongside every other one, dispatched through the same defKeywords
+// table -- the same shape TestModelParseDefKeywords already checks for
+// part/attribute/item/port/constraint/calc.
+func TestModelParseRequirementConcernCaseDefKeywords(t *testing.T) {
+	cases := map[string]struct {
+		keyword string
+		want    sysml.DefKind
+	}{
+		"requirement": {"requirement", sysml.DefRequirement},
+		"concern":     {"concern", sysml.DefConcern},
+		"case":        {"case", sysml.DefCase},
+	}
+
+	for name, tt := range cases {
+		t.Run(name+" definition", func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.keyword+` def X; }`)
+
+			def, ok := pkg.Members[0].(*sysml.Definition)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+			}
+			if def.Kind != tt.want || def.Name != "X" {
+				t.Errorf("member 0 = %+v, want Definition{Kind: %v, Name: X}", def, tt.want)
+			}
+		})
+
+		t.Run(name+" usage", func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.keyword+` def X; `+tt.keyword+` x : X; }`)
+
+			usage, ok := pkg.Members[1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+			}
+			if usage.Kind != tt.want || usage.Name != "x" || usage.Type != "X" {
+				t.Errorf("member 1 = %+v, want Usage{Kind: %v, Name: x, Type: X}", usage, tt.want)
+			}
+		})
+	}
+}
+
+// TestModelParseRequirementUsagePlainBody checks that a requirement (or
+// concern) usage can carry a plain member-list body (RequirementBody, see
+// hasPlainBody) -- e.g. the nested "subject :>> mass = vehicle.mass;" a
+// requirement usage typed by a requirement def carries in real examples.
+func TestModelParseRequirementUsagePlainBody(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		requirement def MassRequirement;
+		requirement vehicleMassRequirement : MassRequirement {
+			subject :>> mass = p;
+		}
+	}`)
+
+	usage, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+	}
+	if usage.Kind != sysml.DefRequirement || usage.Name != "vehicleMassRequirement" || usage.Type != "MassRequirement" {
+		t.Errorf("member 1 = %+v, want a DefRequirement usage vehicleMassRequirement : MassRequirement", usage)
+	}
+	if len(usage.Members) != 1 {
+		t.Fatalf("got %d members, want 1", len(usage.Members))
+	}
+	subject, ok := usage.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("nested member is %T, want *sysml.Usage", usage.Members[0])
+	}
+	if subject.Kind != sysml.DefSubject || subject.Name != "" || subject.Redefines != "mass" {
+		t.Errorf("nested member = %+v, want an anonymous DefSubject usage redefining mass", subject)
+	}
+	if ref, ok := subject.Value.(*sysml.NameRef); !ok || ref.Path != "p" {
+		t.Errorf("nested member Value = %+v, want NameRef{Path: p}", subject.Value)
+	}
+}
+
+// TestModelParseSubjectActorStakeholderDefKeywords checks that "subject",
+// "actor", and "stakeholder" are each accepted as a usage keyword family
+// (the same plain, always ";"-terminated shape "part"/"attribute" have).
+func TestModelParseSubjectActorStakeholderDefKeywords(t *testing.T) {
+	cases := map[string]struct {
+		keyword string
+		want    sysml.DefKind
+	}{
+		"subject":     {"subject", sysml.DefSubject},
+		"actor":       {"actor", sysml.DefActor},
+		"stakeholder": {"stakeholder", sysml.DefStakeholder},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { part def P; `+tt.keyword+` s : P; }`)
+
+			usage, ok := pkg.Members[1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+			}
+			if usage.Kind != tt.want || usage.Name != "s" || usage.Type != "P" {
+				t.Errorf("member 1 = %+v, want Usage{Kind: %v, Name: s, Type: P}", usage, tt.want)
+			}
+		})
+	}
+}
+
+// TestModelParseRequirementConstraintBareForm checks "assume"/"require"/
+// "frame"'s plain reference shorthand (no inner "constraint"/"concern"
+// keyword) -- a bare name (optionally with a multiplicity), parsed as an
+// ordinary Usage of the matching DefKind.
+func TestModelParseRequirementConstraintBareForm(t *testing.T) {
+	cases := map[string]struct {
+		member string
+		want   sysml.DefKind
+		name   string
+	}{
+		"assume":        {"assume c1;", sysml.DefAssume, "c1"},
+		"require":       {"require c2 [0..*];", sysml.DefRequire, "c2"},
+		"frame":         {"frame c3[0..*];", sysml.DefFrame, "c3"},
+		"require plain": {"require c;", sysml.DefRequire, "c"},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.member+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+			if usage.Kind != tt.want || usage.Name != tt.name {
+				t.Errorf("member 0 = %+v, want Usage{Kind: %v, Name: %s}", usage, tt.want, tt.name)
+			}
+		})
+	}
+}
+
+// TestModelParseRequirementConstraintInnerKeyword checks "assume"/"require"'s
+// optional explicit "constraint" keyword: a named usage with a redefines
+// (no body), and the bare, unnamed CalculationBody form ("require
+// constraint { mass <= massLimit }") that's only reachable this way -- the
+// bare reference shorthand above never has a body at all.
+func TestModelParseRequirementConstraintInnerKeyword(t *testing.T) {
+	t.Run("named with redefines", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			constraint c;
+			require constraint c1 :>> c;
+		}`)
+
+		usage, ok := pkg.Members[1].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+		}
+		if usage.Kind != sysml.DefRequire || usage.Name != "c1" || usage.Redefines != "c" {
+			t.Errorf("member 1 = %+v, want a DefRequire usage c1 redefining c", usage)
+		}
+	})
+
+	t.Run("anonymous with calculation body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			attribute mass : Real;
+			attribute massLimit : Real;
+			require constraint { mass <= massLimit }
+		}`)
+
+		usage, ok := pkg.Members[2].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 2 is %T, want *sysml.Usage", pkg.Members[2])
+		}
+		if usage.Kind != sysml.DefRequire || usage.Name != "" {
+			t.Errorf("member 2 = %+v, want an anonymous DefRequire usage", usage)
+		}
+		result, ok := usage.Result.(*sysml.BinaryExpr)
+		if !ok || result.Op != "<=" {
+			t.Errorf("Result = %+v, want a BinaryExpr for <=", usage.Result)
+		}
+	})
+
+	t.Run("assume with explicit constraint keyword and type", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			constraint def C;
+			assume constraint c1 : C;
+		}`)
+
+		usage, ok := pkg.Members[1].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+		}
+		if usage.Kind != sysml.DefAssume || usage.Name != "c1" || usage.Type != "C" {
+			t.Errorf("member 1 = %+v, want a DefAssume usage c1 : C", usage)
+		}
+	})
+}
+
+// TestModelParseSatisfy checks every combination of Satisfy's independently
+// optional "assert"/"not" prefixes, plus its optional "by" clause (a plain
+// name or a dotted feature chain).
+func TestModelParseSatisfy(t *testing.T) {
+	cases := map[string]struct {
+		member      string
+		wantAssert  bool
+		wantNegated bool
+		wantBy      bool
+	}{
+		"bare":             {"satisfy r by p;", false, false, true},
+		"assert":           {"assert satisfy r by p;", true, false, true},
+		"not":              {"not satisfy r by p;", false, true, true},
+		"assert not":       {"assert not satisfy r by p;", true, true, true},
+		"no by":            {"satisfy r;", false, false, false},
+		"by feature chain": {"satisfy r by p.chassis.mass;", false, false, true},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.member+` }`)
+
+			sat, ok := pkg.Members[0].(*sysml.Satisfy)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Satisfy", pkg.Members[0])
+			}
+			if sat.Assert != tt.wantAssert || sat.Negated != tt.wantNegated {
+				t.Errorf("Satisfy{Assert: %v, Negated: %v}, want {%v, %v}", sat.Assert, sat.Negated, tt.wantAssert, tt.wantNegated)
+			}
+			if sat.Requirement != "r" {
+				t.Errorf("Requirement = %q, want %q", sat.Requirement, "r")
+			}
+			if tt.wantBy && sat.By == nil {
+				t.Error("By = nil, want a non-nil expression")
+			}
+			if !tt.wantBy && sat.By != nil {
+				t.Errorf("By = %+v, want nil", sat.By)
+			}
+		})
+	}
+}
+
+// TestModelParseSatisfyNotDisambiguatesFromUnaryExpression checks that a
+// calc body's trailing "not X" result expression still parses as a unary
+// expression, not a Satisfy member -- the ambiguity startsSatisfyNot exists
+// to resolve (see its doc comment): only "not satisfy" is a member.
+func TestModelParseSatisfyNotDisambiguatesFromUnaryExpression(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		attribute done : Boolean;
+		constraint def C {
+			not done
+		}
+	}`)
+
+	def, ok := pkg.Members[1].(*sysml.Definition)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Definition", pkg.Members[1])
+	}
+	result, ok := def.Result.(*sysml.UnaryExpr)
+	if !ok || result.Op != "not" {
+		t.Errorf("Result = %+v, want UnaryExpr{Op: not}", def.Result)
+	}
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without

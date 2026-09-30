@@ -94,17 +94,30 @@ func (p *parser) parseMembers() ([]Member, error) {
 
 // defKeywords maps each definition/usage keyword token to the DefKind it
 // introduces -- the dispatch table parseMember consults after ruling out
-// package and import members.
+// package and import members. Every entry is accepted equally in both a
+// "X def Name { ... }" definition and a bare "X name : Type;" usage; this
+// project doesn't restrict which keyword families are definition-only or
+// usage-only the way real SysML does (e.g. "subject def Foo;" parses fine
+// here, even though real SysML only ever lets "subject" introduce a usage).
 var defKeywords = map[Kind]DefKind{
-	Part:         DefPart,
-	Attribute:    DefAttribute,
-	Item:         DefItem,
-	Port:         DefPort,
-	ConstraintKw: DefConstraint,
-	CalcKw:       DefCalculation,
-	ConnectionKw: DefConnection,
-	InterfaceKw:  DefInterface,
-	MetadataKw:   DefMetadata,
+	Part:          DefPart,
+	Attribute:     DefAttribute,
+	Item:          DefItem,
+	Port:          DefPort,
+	ConstraintKw:  DefConstraint,
+	CalcKw:        DefCalculation,
+	ConnectionKw:  DefConnection,
+	InterfaceKw:   DefInterface,
+	MetadataKw:    DefMetadata,
+	RequirementKw: DefRequirement,
+	ConcernKw:     DefConcern,
+	CaseKw:        DefCase,
+	SubjectKw:     DefSubject,
+	AssumeKw:      DefAssume,
+	RequireKw:     DefRequire,
+	FrameKw:       DefFrame,
+	ActorKw:       DefActor,
+	StakeholderKw: DefStakeholder,
 }
 
 // isConnectorKind reports whether kind's usage form can carry an explicit
@@ -117,18 +130,48 @@ func isConnectorKind(kind DefKind) bool {
 // hasCalculationBody reports whether kind's usages/definitions have a
 // CalculationBody (zero or more members, then an optional trailing result
 // expression) instead of the plain ";"/"{ members }" shape every other
-// DefKind uses.
+// DefKind uses. DefRequire/DefAssume only take this shape when written with
+// their optional inner "constraint" keyword (see
+// requirementConstraintInnerKeyword) -- e.g. the "{ mass <= massLimit }" in
+// `require constraint { mass <= massLimit }` -- never for the plain
+// bare-reference form ("require c;"), which is always ";"-terminated
+// regardless of this predicate, since it never sees an OpenBrace to trigger
+// on.
 func hasCalculationBody(kind DefKind) bool {
-	return kind == DefConstraint || kind == DefCalculation
+	return kind == DefConstraint || kind == DefCalculation || kind == DefRequire || kind == DefAssume
 }
 
 // hasPlainBody reports whether kind's usages have an ordinary
-// member-list body (MetadataBody: ";" or "{ members }", no trailing result
-// expression) -- distinct from hasCalculationBody's shape, and from every
-// other DefKind, whose usages are never anything but a plain
-// ";"-terminated declaration.
+// member-list body (";" or "{ members }", no trailing result expression) --
+// distinct from hasCalculationBody's shape, and from every other DefKind,
+// whose usages are never anything but a plain ";"-terminated declaration.
+// DefRequirement/DefConcern are RequirementUsage/ConcernUsage's own
+// RequirementBody (e.g. the nested "subject :>> mass = vehicle.mass;" in
+// `requirement vehicleMassRequirement : MassRequirement { ... }`);
+// DefFrame is FramedConcernUsage's, when written with its optional inner
+// "concern" keyword (see requirementConstraintInnerKeyword) -- like
+// DefRequire/DefAssume above, the plain bare-reference form ("frame c3;")
+// is always ";"-terminated regardless of this predicate.
 func hasPlainBody(kind DefKind) bool {
-	return kind == DefMetadata
+	return kind == DefMetadata || kind == DefRequirement || kind == DefConcern || kind == DefFrame
+}
+
+// requirementConstraintInnerKeyword maps a RequirementBodyItem prefix
+// keyword (require/assume/frame) to the optional inner keyword its own
+// nested usage may (but need not) spell out explicitly -- e.g. the
+// "constraint" in `require constraint c1 :>> c;`, present in
+// `require constraint { mass <= massLimit }` (the only way its
+// CalculationBody -- see hasCalculationBody -- becomes reachable at all),
+// but omittable in the plain reference shorthand ("require c;"). Consumed
+// as a no-op by parseUsage before its usual name/specialization parsing --
+// it never changes the resulting Usage.Kind, which stays DefRequire/
+// DefAssume/DefFrame regardless, the same way every other DefKind is tagged
+// by the keyword that introduced the member, not by any keyword nested
+// inside it.
+var requirementConstraintInnerKeyword = map[DefKind]Kind{
+	DefRequire: ConstraintKw,
+	DefAssume:  ConstraintKw,
+	DefFrame:   ConcernKw,
 }
 
 // visibilityKeywords maps each visibility keyword token to the Visibility
@@ -197,6 +240,15 @@ func (p *parser) parseMember() (Member, error) {
 		conn.Visibility = vis
 		conn.Metadata = metadata
 		return conn, nil
+	}
+
+	if tok.Kind == SatisfyKw || tok.Kind == AssertKw || p.startsSatisfyNot() {
+		sat, err := p.parseSatisfy()
+		if err != nil {
+			return nil, err
+		}
+		sat.Visibility = vis
+		return sat, nil
 	}
 
 	defKind, ok := defKeywords[tok.Kind]
@@ -362,6 +414,12 @@ func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
 func (p *parser) parseUsage(kind DefKind) (Member, error) {
 	usage := &Usage{Kind: kind}
 
+	if inner, ok := requirementConstraintInnerKeyword[kind]; ok {
+		if tok, ok := p.current(); ok && tok.Kind == inner {
+			p.pos++
+		}
+	}
+
 	if tok, ok := p.current(); ok && tok.Kind == Identifier {
 		p.pos++
 		usage.Name = string(tok.Value)
@@ -482,6 +540,76 @@ func (p *parser) parseConnectorEnd() (Expression, error) {
 	return p.parseFeatureChainTail(path)
 }
 
+// peekKind returns the Kind of the token offset positions ahead of the
+// current one (0 is current() itself), without consuming anything. ok is
+// false past the end of input.
+func (p *parser) peekKind(offset int) (kind Kind, ok bool) {
+	i := p.pos + offset
+	if i >= len(p.tokens) {
+		return 0, false
+	}
+	return p.tokens[i].Kind, true
+}
+
+// startsSatisfyNot reports whether the upcoming tokens are "not satisfy" --
+// a Satisfy statement's bare-"not" form, e.g. "not satisfy r1 by p;". A
+// leading "not" alone is ambiguous with a unary-"not" expression (e.g. a
+// calc body's trailing "not done" result), so this needs a one-token
+// lookahead: only a Satisfy statement is ever followed by "satisfy" here.
+func (p *parser) startsSatisfyNot() bool {
+	tok, ok := p.current()
+	if !ok || tok.Kind != NotKw {
+		return false
+	}
+	next, ok := p.peekKind(1)
+	return ok && next == SatisfyKw
+}
+
+// parseSatisfy parses a "satisfy X by Y;" member (see Satisfy's doc
+// comment): an optional leading "assert", an optional leading "not"
+// (independently of each other), the "satisfy" keyword, a bare (possibly
+// "::"-qualified) reference to an existing requirement usage, and an
+// optional "by <expression>" clause. The caller has already established
+// (via startsSatisfyNot, or seeing "satisfy"/"assert" directly) that this
+// is the right production to try.
+func (p *parser) parseSatisfy() (*Satisfy, error) {
+	sat := &Satisfy{}
+
+	if tok, ok := p.current(); ok && tok.Kind == AssertKw {
+		p.pos++
+		sat.Assert = true
+	}
+
+	if tok, ok := p.current(); ok && tok.Kind == NotKw {
+		p.pos++
+		sat.Negated = true
+	}
+
+	if _, err := p.expect(SatisfyKw); err != nil {
+		return nil, err
+	}
+
+	name, err := p.parseQualifiedName()
+	if err != nil {
+		return nil, err
+	}
+	sat.Requirement = name
+
+	if tok, ok := p.current(); ok && tok.Kind == ByKw {
+		p.pos++
+		by, err := p.parseConnectorEnd()
+		if err != nil {
+			return nil, err
+		}
+		sat.By = by
+	}
+
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return sat, nil
+}
+
 // parseCalculationBody parses a constraint/calculation body
 // (CalculationBody): zero or more ordinary members, followed optionally
 // by one trailing, unterminated result expression -- e.g. the
@@ -500,7 +628,7 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 		if tok.Kind == CloseBrace {
 			return members, result, nil
 		}
-		if startsMember(tok.Kind) {
+		if startsMember(tok.Kind) || p.startsSatisfyNot() {
 			member, err := p.parseMember()
 			if err != nil {
 				return nil, nil, err
@@ -518,9 +646,13 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 }
 
 // startsMember reports whether kind can begin a member: a visibility
-// prefix, 'package', 'import', or any definition/usage keyword.
+// prefix, 'package', 'import', any definition/usage keyword, or a Satisfy
+// statement's 'assert'/'satisfy' prefixes. Deliberately doesn't cover
+// Satisfy's third, bare-'not' prefix -- see startsSatisfyNot, which needs a
+// lookahead this single-token predicate can't do, to tell it apart from a
+// unary-'not' expression (e.g. a calc body's trailing "not done" result).
 func startsMember(kind Kind) bool {
-	if kind == Pkg || kind == ImportKw {
+	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw {
 		return true
 	}
 	if _, ok := visibilityKeywords[kind]; ok {

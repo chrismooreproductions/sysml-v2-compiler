@@ -56,6 +56,25 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// metadata-related: it's the qualified name in this fixture's
 		// own private import, on line 2.
 		{"MetadataTest.sysml", `line 2: unexpected identifier "Defined", want ';'`},
+		// recursive imports ("q::**") aren't supported -- unrelated to
+		// requirements themselves, but the first thing this fixture's own
+		// "private import q::**;" trips on, at line 4.
+		{"RequirementTest.sysml", `line 4: unexpected '**', want identifier`},
+		// a plain (non-constraint/calc/metadata/requirement/concern/frame)
+		// usage body isn't supported (see hasPlainBody) -- "part vehicle {
+		// ... }" at line 4 is an ordinary part usage with a nested body,
+		// unrelated to this fixture's requirement-derivation syntax, which
+		// (per hand-crafted tests elsewhere) parses fine on its own.
+		{"VehicleRequirementDerivation.sysml", `line 4: unexpected '{', want ';'`},
+		// short names ("<'UR1.1'>") aren't supported -- the same long-tail
+		// gap PartTest.sysml's own blocker is, at line 4.
+		{"HSUVRequirements.sysml", `line 4: unexpected '<', want ';'`},
+		// "end" as a body member introducing a connector end inside a
+		// definition isn't supported (see InterfaceTest.sysml's own
+		// blocker) -- the "#derivation connection def Req1_Derivation {
+		// end #original r1 : Req1; ... }" at line 10, well past this
+		// fixture's own requirement/satisfy syntax parsing successfully.
+		{"RequirementDerivationExample.sysml", `line 10: unexpected identifier "end", want 'package', 'import', or 'part'`},
 	}
 
 	for _, tt := range cases {

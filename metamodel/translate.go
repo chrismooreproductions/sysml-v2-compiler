@@ -366,6 +366,34 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		return nil
 
+	case *sysml.Satisfy:
+		// Always anonymous (Satisfy has no Name of its own) -- declare never
+		// fails for an anonymous name (see declare), so ok is always true
+		// here; checked anyway for the same defensive consistency every
+		// other case in this switch already has.
+		id, ok := t.declare(KindSatisfy, "", owner, sc)
+		if !ok {
+			return fmt.Errorf("metamodel: satisfy: unexpected duplicate declaration")
+		}
+		t.model.Elements[id].Assert = m.Assert
+		t.model.Elements[id].Negated = m.Negated
+		// m.Requirement (X) resolves the same reference-subsetting way a
+		// usage's own Subsets does -- see the Subsets RelationshipKind's own
+		// doc comment for why this project collapses the two.
+		t.pending = append(t.pending, pendingReference{usage: id, name: m.Requirement, owner: owner, kind: Subsets})
+		// m.By (Y), if present, is a plain expression (NameRef or
+		// FeatureChain) already -- converting and queuing it is identical to
+		// how a Connection's own ends are handled, harvested into Connects
+		// by the same resolveConnects pass.
+		if m.By != nil {
+			converted, err := t.convertExpression(m.By, owner)
+			if err != nil {
+				return err
+			}
+			t.pendingConnects = append(t.pendingConnects, pendingConnect{element: id, end: converted})
+		}
+		return nil
+
 	case *sysml.Import:
 		if m.Wildcard {
 			// Deferred to resolveWildcardImports, the same two-phase way a

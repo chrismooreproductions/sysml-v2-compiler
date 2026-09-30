@@ -75,6 +75,15 @@ const (
 	DefConnection
 	DefInterface
 	DefMetadata
+	DefRequirement
+	DefConcern
+	DefCase
+	DefSubject
+	DefAssume
+	DefRequire
+	DefFrame
+	DefActor
+	DefStakeholder
 )
 
 func (k DefKind) String() string {
@@ -97,6 +106,24 @@ func (k DefKind) String() string {
 		return "interface"
 	case DefMetadata:
 		return "metadata"
+	case DefRequirement:
+		return "requirement"
+	case DefConcern:
+		return "concern"
+	case DefCase:
+		return "case"
+	case DefSubject:
+		return "subject"
+	case DefAssume:
+		return "assume"
+	case DefRequire:
+		return "require"
+	case DefFrame:
+		return "frame"
+	case DefActor:
+		return "actor"
+	case DefStakeholder:
+		return "stakeholder"
 	default:
 		return "unknown"
 	}
@@ -164,13 +191,16 @@ type Usage struct {
 	// value was assigned.
 	Value Expression
 
-	// Members and Result are a constraint/calculation usage's body (see
-	// Definition's doc comment) -- only ever set for DefConstraint/
-	// DefCalculation, since only those keyword families give a usage a
-	// CalculationBody instead of a plain "; "-terminated declaration.
-	// Members alone (no Result) is also how a metadata usage's plain body
-	// (MetadataBody, no trailing expression) is represented, for
-	// DefMetadata.
+	// Members and Result are a constraint/calculation-shaped usage's body
+	// (see Definition's doc comment): set for DefConstraint/DefCalculation,
+	// and for DefRequire/DefAssume when written with their optional inner
+	// "constraint" keyword (e.g. the "mass <= massLimit" in
+	// `require constraint { mass <= massLimit }`) -- see
+	// requirementConstraintInnerKeyword in parser.go. Every other DefKind's
+	// usage is either always a plain ";"-terminated declaration, or (for
+	// DefMetadata/DefRequirement/DefConcern/DefFrame, see hasPlainBody) uses
+	// Members alone with no Result, for a plain member-list body with no
+	// trailing expression.
 	Members []Member
 	Result  Expression
 
@@ -338,3 +368,30 @@ type Import struct {
 }
 
 func (*Import) memberNode() {}
+
+// Satisfy is a "satisfy X by Y;" member (SatisfyRequirementUsage), asserting
+// that Y satisfies the requirement usage named X, e.g. `satisfy r by p;` or
+// `assert not satisfy r1 by q;`. Assert and Negated mirror the "assert" and
+// "not" prefixes, each independently optional (all four combinations --
+// neither, either, or both -- appear in real examples). Requirement is a
+// bare (possibly "::"-qualified) reference to an existing requirement usage
+// -- a simplified stand-in for the real grammar's OwnedReferenceSubsetting,
+// resolved the same reference-subsetting way a usage's own Subsets is (see
+// metamodel's Satisfy handling) -- not SatisfyRequirementUsage's other
+// alternative, an inline `satisfy requirement req1 : Req1 by system;`
+// declaration of a brand new requirement usage, which isn't supported. By is
+// nil if no "by" clause was written; when present, it's a plain or dotted
+// feature reference (*NameRef or *FeatureChain), reusing the same expression
+// machinery a Connection's ends do. Deliberately out of scope: a trailing
+// RequirementBody (real SysML lets a satisfy statement carry its own nested
+// members after the "by" clause; this project's satisfy is always
+// ";"-terminated).
+type Satisfy struct {
+	Visibility  Visibility
+	Assert      bool
+	Negated     bool
+	Requirement string
+	By          Expression
+}
+
+func (*Satisfy) memberNode() {}

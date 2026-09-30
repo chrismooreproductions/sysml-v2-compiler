@@ -83,6 +83,28 @@ typing a real metadata usage allows. Not yet supported: single-quoted/
 restricted names (`'User Defined Extensions'`) — unrelated to metadata
 itself, but the first thing a real metadata-heavy example file trips on.
 
+`requirement`/`concern`/`case` are three more definition/usage keyword
+families, alongside `subject`/`assume`/`require`/`frame`/`actor`/
+`stakeholder`, each introducing a specially-kinded nested member inside a
+requirement's body (e.g. the `subject mass :> ISQ::mass;` inside
+`requirement def MassRequirement { ... }`). `require`/`assume` accept an
+optional inner `constraint` keyword (`frame`'s is `concern`) that unlocks a
+trailing-result body of their own — `require constraint { mass <= massLimit
+}` — otherwise (`require c;`, `assume c1 [0..*];`) they're a plain,
+";"-terminated reference-shaped usage. A `requirement`/`concern` usage (not
+just a `def`) can itself carry a plain nested body, e.g. `requirement
+vehicleMassRequirement : MassRequirement { subject :>> mass = vehicle.mass;
+}`. `satisfy X by Y;` asserts that Y satisfies the requirement usage named
+X, with independently optional `assert`/`not` prefixes (`assert satisfy r by
+q;`, `not satisfy r1 by p;`); X resolves the same reference-subsetting way a
+usage's own `subsets` does, Y through the same expression/feature-chain
+machinery a Connection's ends use. Not yet supported: an inline `satisfy
+requirement req1 : Req1 by system;` declaration (only a bare reference to an
+existing requirement usage is), a trailing body on a `satisfy` statement,
+`doc` annotations (this project's parser drops comments entirely before
+seeing them, so there's nowhere to hang the text), and `case`'s own richer
+`CaseBody` (a bare `case`/`case def` parses, but never with a body).
+
 ## References
 
 This project follows the OMG specifications for the language it

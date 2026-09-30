@@ -15,6 +15,18 @@ const (
 	ConnectKw
 	ToKw
 	MetadataKw
+	RequirementKw
+	ConcernKw
+	CaseKw
+	SubjectKw
+	AssumeKw
+	RequireKw
+	FrameKw
+	ActorKw
+	StakeholderKw
+	SatisfyKw
+	AssertKw
+	ByKw
 	Def
 	ImportKw
 	PublicKw
@@ -86,6 +98,30 @@ func (k Kind) String() string {
 		return "'to'"
 	case MetadataKw:
 		return "'metadata'"
+	case RequirementKw:
+		return "'requirement'"
+	case ConcernKw:
+		return "'concern'"
+	case CaseKw:
+		return "'case'"
+	case SubjectKw:
+		return "'subject'"
+	case AssumeKw:
+		return "'assume'"
+	case RequireKw:
+		return "'require'"
+	case FrameKw:
+		return "'frame'"
+	case ActorKw:
+		return "'actor'"
+	case StakeholderKw:
+		return "'stakeholder'"
+	case SatisfyKw:
+		return "'satisfy'"
+	case AssertKw:
+		return "'assert'"
+	case ByKw:
+		return "'by'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -178,60 +214,72 @@ func (k Kind) String() string {
 }
 
 var kinds = map[string]Kind{
-	"package":    Pkg,
-	"part":       Part,
-	"attribute":  Attribute,
-	"item":       Item,
-	"port":       Port,
-	"constraint": ConstraintKw,
-	"calc":       CalcKw,
-	"connection": ConnectionKw,
-	"interface":  InterfaceKw,
-	"connect":    ConnectKw,
-	"to":         ToKw,
-	"metadata":   MetadataKw,
-	"@":          MetadataKw,
-	"def":        Def,
-	"import":     ImportKw,
-	"public":     PublicKw,
-	"private":    PrivateKw,
-	"protected":  ProtectedKw,
-	";":          Semicolon,
-	"{":          OpenBrace,
-	"}":          CloseBrace,
-	":":          Colon,
-	"::":         PathSep,
-	"[":          OpenBracket,
-	"]":          CloseBracket,
-	"*":          Star,
-	".":          Dot,
-	"..":         DotDot,
-	"=":          Equals,
-	"subsets":    Subsets,
-	"redefines":  Redefines,
-	":>":         Subsets,
-	":>>":        Redefines,
-	"+":          Plus,
-	"-":          Minus,
-	"/":          Slash,
-	"%":          Percent,
-	"**":         Power,
-	"&":          Ampersand,
-	"|":          Pipe,
-	"<":          Lt,
-	">":          Gt,
-	"<=":         Le,
-	">=":         Ge,
-	"==":         Eq,
-	"!=":         NotEq,
-	"(":          OpenParen,
-	",":          Comma,
-	"#":          Hash,
-	")":          CloseParen,
-	"true":       TrueKw,
-	"false":      FalseKw,
-	"not":        NotKw,
-	"xor":        XorKw,
+	"package":     Pkg,
+	"part":        Part,
+	"attribute":   Attribute,
+	"item":        Item,
+	"port":        Port,
+	"constraint":  ConstraintKw,
+	"calc":        CalcKw,
+	"connection":  ConnectionKw,
+	"interface":   InterfaceKw,
+	"connect":     ConnectKw,
+	"to":          ToKw,
+	"metadata":    MetadataKw,
+	"@":           MetadataKw,
+	"requirement": RequirementKw,
+	"concern":     ConcernKw,
+	"case":        CaseKw,
+	"subject":     SubjectKw,
+	"assume":      AssumeKw,
+	"require":     RequireKw,
+	"frame":       FrameKw,
+	"actor":       ActorKw,
+	"stakeholder": StakeholderKw,
+	"satisfy":     SatisfyKw,
+	"assert":      AssertKw,
+	"by":          ByKw,
+	"def":         Def,
+	"import":      ImportKw,
+	"public":      PublicKw,
+	"private":     PrivateKw,
+	"protected":   ProtectedKw,
+	";":           Semicolon,
+	"{":           OpenBrace,
+	"}":           CloseBrace,
+	":":           Colon,
+	"::":          PathSep,
+	"[":           OpenBracket,
+	"]":           CloseBracket,
+	"*":           Star,
+	".":           Dot,
+	"..":          DotDot,
+	"=":           Equals,
+	"subsets":     Subsets,
+	"redefines":   Redefines,
+	":>":          Subsets,
+	":>>":         Redefines,
+	"+":           Plus,
+	"-":           Minus,
+	"/":           Slash,
+	"%":           Percent,
+	"**":          Power,
+	"&":           Ampersand,
+	"|":           Pipe,
+	"<":           Lt,
+	">":           Gt,
+	"<=":          Le,
+	">=":          Ge,
+	"==":          Eq,
+	"!=":          NotEq,
+	"(":           OpenParen,
+	",":           Comma,
+	"#":           Hash,
+	")":           CloseParen,
+	"true":        TrueKw,
+	"false":       FalseKw,
+	"not":         NotKw,
+	"xor":         XorKw,
 }
 
 type Pos struct {
