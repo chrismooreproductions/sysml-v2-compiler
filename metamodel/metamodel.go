@@ -33,10 +33,10 @@ const (
 	// KindSatisfy marks a "satisfy X by Y;" member (see sysml.Satisfy): an
 	// anonymous, standalone assertion rather than a named, declared thing,
 	// so it gets its own Kind instead of being shoehorned into KindUsage.
-	// Its Assert/Negated fields, its Subsets Relationship (X, resolved), and
-	// its Connects (Y, resolved -- see those fields' own doc comments) are
-	// its only meaningful ones; DefKind, Multiplicity, Value, and Result are
-	// always their zero value.
+	// Its Assert/Negated fields, its References Relationship (X, resolved),
+	// and its Connects (Y, resolved -- see those fields' own doc comments)
+	// are its only meaningful ones; DefKind, Multiplicity, Value, and Result
+	// are always their zero value.
 	KindSatisfy
 )
 
@@ -323,11 +323,7 @@ const (
 	// Engine in `part engine : Engine;`.
 	TypedBy RelationshipKind = iota
 	// Subsets relates a usage to the feature it subsets, e.g. the a in
-	// `part b subsets a;`. Also reused, as a deliberate simplification, for
-	// a KindSatisfy Element's reference to the requirement usage it asserts
-	// satisfaction of (sysml.Satisfy.Requirement) -- the real grammar's
-	// ReferenceSubsetting is a distinct KerML relationship kind, collapsed
-	// into this one here since this project doesn't model the difference.
+	// `part b subsets a;`.
 	Subsets
 	// Redefines relates a usage to the feature it redefines, e.g. the
 	// B::b in `part B_b redefines B::b;`.
@@ -336,6 +332,14 @@ const (
 	// it, e.g. the Classified in `#Classified z1;` (see sysml.Usage.Metadata).
 	// One Relationship per tag, Source always the annotated Element.
 	AnnotatedBy
+	// References relates a usage to the feature it references, e.g. the d1
+	// in `end end2 ::> d1;` (see sysml.Usage.References) -- KerML's
+	// ReferenceSubsetting, its own relationship distinct from Subsets/
+	// Redefines. Also used for a KindSatisfy Element's reference to the
+	// requirement usage it asserts satisfaction of
+	// (sysml.Satisfy.Requirement) -- the real grammar's own
+	// ReferenceSubsetting there too, not a separate simplification.
+	References
 )
 
 func (k RelationshipKind) String() string {
@@ -348,6 +352,8 @@ func (k RelationshipKind) String() string {
 		return "redefines"
 	case AnnotatedBy:
 		return "annotatedBy"
+	case References:
+		return "references"
 	default:
 		return "unknown"
 	}

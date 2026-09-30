@@ -1611,6 +1611,47 @@ func TestFromASTUnresolvedSubsets(t *testing.T) {
 	}
 }
 
+// TestFromASTReferences is TestFromASTRedefines's counterpart for
+// "references"/"::>", including a qualified target.
+func TestFromASTReferences(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def B {
+			part b;
+		}
+		part B_b references B::b;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	target, ok := relationshipTarget(model, "Vehicle::B_b", metamodel.References)
+	if !ok {
+		t.Fatal("no References relationship found for Vehicle::B_b")
+	}
+	if target != "Vehicle::B::b" {
+		t.Errorf("B_b references %q, want %q", target, "Vehicle::B::b")
+	}
+}
+
+// TestFromASTUnresolvedReferences checks that "references" is resolved the
+// same strictly-required way a redefines is: an unresolvable target fails
+// translation.
+func TestFromASTUnresolvedReferences(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { part b references nope; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved references target, got nil")
+	}
+}
+
 // relationshipTargets returns every target of usage's Relationships of the
 // given kind, in the order they appear in model.Relationships --
 // AnnotatedBy's counterpart to relationshipTarget, which only returns the
@@ -1755,9 +1796,9 @@ func TestFromASTSatisfy(t *testing.T) {
 		t.Errorf("Assert = %v, Negated = %v, want both false", sat.Assert, sat.Negated)
 	}
 
-	target, ok := relationshipTarget(model, sat.ID, metamodel.Subsets)
+	target, ok := relationshipTarget(model, sat.ID, metamodel.References)
 	if !ok {
-		t.Fatal("no Subsets relationship found for the satisfy statement")
+		t.Fatal("no References relationship found for the satisfy statement")
 	}
 	if target != "Vehicle::r" {
 		t.Errorf("satisfy's requirement = %q, want %q", target, "Vehicle::r")

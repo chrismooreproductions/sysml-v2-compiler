@@ -325,8 +325,8 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 			t.model.Elements[id].Result = result
 		}
 		// An untyped usage (e.g. "port p;") has no type to resolve; a usage
-		// can independently have a type, a subsets, and/or a redefines,
-		// each queued as its own pendingReference.
+		// can independently have a type, a subsets, a redefines, and/or a
+		// references, each queued as its own pendingReference.
 		if m.Type != "" {
 			t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})
 		}
@@ -335,6 +335,9 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		if m.Redefines != "" {
 			t.pending = append(t.pending, pendingReference{usage: id, name: m.Redefines, owner: owner, kind: Redefines})
+		}
+		if m.References != "" {
+			t.pending = append(t.pending, pendingReference{usage: id, name: m.References, owner: owner, kind: References})
 		}
 		return nil
 
@@ -377,10 +380,11 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		t.model.Elements[id].Assert = m.Assert
 		t.model.Elements[id].Negated = m.Negated
-		// m.Requirement (X) resolves the same reference-subsetting way a
-		// usage's own Subsets does -- see the Subsets RelationshipKind's own
-		// doc comment for why this project collapses the two.
-		t.pending = append(t.pending, pendingReference{usage: id, name: m.Requirement, owner: owner, kind: Subsets})
+		// m.Requirement (X) is a reference-subsetting-shaped resolution --
+		// the real grammar's own ReferenceSubsetting -- resolved the same
+		// way a usage's own References is (see the References
+		// RelationshipKind's own doc comment).
+		t.pending = append(t.pending, pendingReference{usage: id, name: m.Requirement, owner: owner, kind: References})
 		// m.By (Y), if present, is a plain expression (NameRef or
 		// FeatureChain) already -- converting and queuing it is identical to
 		// how a Connection's own ends are handled, harvested into Connects

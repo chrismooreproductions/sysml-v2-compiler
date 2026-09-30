@@ -45,6 +45,7 @@ const (
 	Equals
 	Subsets
 	Redefines
+	References
 	Plus
 	Minus
 	Slash
@@ -158,6 +159,8 @@ func (k Kind) String() string {
 		return "'subsets'"
 	case Redefines:
 		return "'redefines'"
+	case References:
+		return "'references'"
 	case Plus:
 		return "'+'"
 	case Minus:
@@ -257,8 +260,10 @@ var kinds = map[string]Kind{
 	"=":           Equals,
 	"subsets":     Subsets,
 	"redefines":   Redefines,
+	"references":  References,
 	":>":          Subsets,
 	":>>":         Redefines,
+	"::>":         References,
 	"+":           Plus,
 	"-":           Minus,
 	"/":           Slash,

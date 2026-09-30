@@ -589,6 +589,73 @@ func TestModelParseUsageRedefines(t *testing.T) {
 	}
 }
 
+// TestModelParseUsageReferences checks that both spellings of a reference
+// ("references B::b" and "::> B::b") parse into the same Usage.References,
+// including a qualified target -- the same pair TestModelParseUsageRedefines
+// checks for redefines.
+func TestModelParseUsageReferences(t *testing.T) {
+	cases := map[string]string{
+		"keyword": `part B_b references B::b;`,
+		"symbol":  `part B_b ::> B::b;`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+source+` }`)
+
+			usage, ok := pkg.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+			if usage.References != "B::b" {
+				t.Errorf("References = %q, want %q", usage.References, "B::b")
+			}
+		})
+	}
+}
+
+// TestModelParseAnonymousReferencesWithValue checks the shape a real
+// example uses ("attribute ::> m = ms.totalMass;"): an anonymous usage
+// (no name at all) whose only specialization is a references, with an
+// assigned value.
+func TestModelParseAnonymousReferencesWithValue(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		attribute m : Real;
+		attribute x : Real;
+		attribute ::> m = x;
+	}`)
+
+	usage, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Usage", pkg.Members[2])
+	}
+	if usage.Name != "" || usage.References != "m" {
+		t.Errorf("member 2 = %+v, want an anonymous usage referencing m", usage)
+	}
+	if ref, ok := usage.Value.(*sysml.NameRef); !ok || ref.Path != "x" {
+		t.Errorf("Value = %+v, want NameRef{Path: x}", usage.Value)
+	}
+}
+
+// TestModelParseUsageRedefinesAndReferences checks that a redefines and a
+// references can appear together on the same anonymous usage, e.g. the
+// "end :>> end1 ::> d1;" shape a real connection definition body uses.
+func TestModelParseUsageRedefinesAndReferences(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		part end1;
+		part d1;
+		part x :>> end1 ::> d1;
+	}`)
+
+	usage, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Usage", pkg.Members[2])
+	}
+	if usage.Redefines != "end1" || usage.References != "d1" {
+		t.Errorf("member 2 = %+v, want Redefines: end1, References: d1", usage)
+	}
+}
+
 // TestModelParseUsageTypeAndSubsets checks that a typing and a subsetting
 // can appear together on the same usage, in either order.
 func TestModelParseUsageTypeAndSubsets(t *testing.T) {
@@ -1352,6 +1419,7 @@ func TestModelParseErrors(t *testing.T) {
 		"part usage duplicate multiplicity":           "package Vehicle { part engine : Engine[1][1]; }",
 		"part usage duplicate subsets":                "package Vehicle { part b subsets a subsets a; }",
 		"part usage duplicate redefines":              "package Vehicle { part b redefines a redefines a; }",
+		"part usage duplicate references":             "package Vehicle { part b references a references a; }",
 		"unmatched closing brace":                     "package Vehicle { } }",
 		"qualified type missing segment":              "package Vehicle { part engine : Vehicle::; }",
 		"qualified type trailing path sep":            "package Vehicle { part engine : Vehicle::Engine::; }",

@@ -642,11 +642,12 @@ func startsMember(kind Kind) bool {
 }
 
 // parseFeatureSpecializationPart consumes a typing (": Type"), a
-// multiplicity ("[...]"), a subsetting ("subsets X" or ":> X"), and a
-// redefinition ("redefines X" or ":>> X") in whichever order they appear,
-// each at most once, and all absent -- so "part b[0..2] : P;",
-// "part c : P[2..*];", "port p;", "part b subsets a;", and
-// "part B_b :>> B::b;" all parse through the same loop.
+// multiplicity ("[...]"), a subsetting ("subsets X" or ":> X"), a
+// redefinition ("redefines X" or ":>> X"), and a reference ("references X"
+// or "::> X") in whichever order they appear, each at most once, and all
+// absent -- so "part b[0..2] : P;", "part c : P[2..*];", "port p;",
+// "part b subsets a;", "part B_b :>> B::b;", and "attribute ::> m = x;"
+// all parse through the same loop.
 func (p *parser) parseFeatureSpecializationPart(usage *Usage) error {
 	for {
 		tok, ok := p.current()
@@ -697,6 +698,17 @@ func (p *parser) parseFeatureSpecializationPart(usage *Usage) error {
 				return err
 			}
 			usage.Redefines = target
+
+		case References:
+			if usage.References != "" {
+				return fmt.Errorf("line %d: unexpected %s, a referenced feature was already given", tok.Pos.Line, References)
+			}
+			p.pos++
+			target, err := p.parseQualifiedName()
+			if err != nil {
+				return err
+			}
+			usage.References = target
 
 		default:
 			return nil

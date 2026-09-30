@@ -104,15 +104,20 @@ func (l *lexer) scanIdentifier(start Pos) Token {
 }
 
 // scanColon scans a leading ':' through however many of its multi-character
-// forms follow: "::" (PathSep), ":>" (Subsets), or ":>>" (Redefines) --
-// falling back to a bare ':' (Colon) if none do. '>' is deliberately not
-// punctuation in its own right (isPunct), so this is the only place it's
-// ever meaningful; elsewhere it's just an ordinary identifier rune.
+// forms follow: "::" (PathSep), "::>" (References), ":>" (Subsets), or
+// ":>>" (Redefines) -- falling back to a bare ':' (Colon) if none do. '>' is
+// deliberately not punctuation in its own right (isPunct), so this is the
+// only place it's ever meaningful; elsewhere it's just an ordinary
+// identifier rune.
 func (l *lexer) scanColon(start Pos) Token {
 	l.advance()
 
 	if next, size := l.current(); size > 0 && next == ':' {
 		l.advance()
+		if next2, size2 := l.current(); size2 > 0 && next2 == '>' {
+			l.advance()
+			return word([]rune{':', ':', '>'}, start)
+		}
 		return word([]rune{':', ':'}, start)
 	}
 

@@ -15,10 +15,11 @@ against both an externally supplied `Model` (`import Vehicle;`) and a
 sibling namespace within the same model (`import P1::*;`, making every
 member of `P1` resolvable as if declared in the importing namespace) —
 where a `private import` isn't re-exported to whoever, in turn,
-wildcard-imports the importing namespace. Usages can also `subsets`/`:>`
-or `redefines`/`:>>` another feature, in any combination with a typing and
-a multiplicity. A deliberate subset of the full language, grown
-incrementally rather than implemented against the spec wholesale.
+wildcard-imports the importing namespace. Usages can also `subsets`/`:>`,
+`redefines`/`:>>`, or `references`/`::>` another feature, in any
+combination with a typing and a multiplicity. A deliberate subset of the
+full language, grown incrementally rather than implemented against the
+spec wholesale.
 
 A usage's assigned value (`= ...`) can now be a full expression, not just
 an integer literal: boolean/integer/real/string literals, a qualified-name

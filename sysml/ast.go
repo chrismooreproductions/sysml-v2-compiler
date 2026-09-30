@@ -185,6 +185,13 @@ type Usage struct {
 	// `part B_b redefines B::b;` or `part B_b :>> B::b;`. "" if none.
 	Redefines string
 
+	// References is the feature this usage references, e.g. the "d1" in
+	// `end end2 ::> d1;` or `attribute ::> m = ms.totalMass;` (both spellings
+	// -- "references"/"::>" -- parse the same way). "" if none. Distinct
+	// from Subsets/Redefines the same way real KerML's ReferenceSubsetting
+	// is its own relationship, not a synonym for either.
+	References string
+
 	// Value is the usage's assigned value, e.g. the 5 in
 	// `attribute n : ScalarValues::Integer = 5;`. Only SysML's plain '='
 	// FeatureValue form is supported (not ':=' or 'default'). nil if no
@@ -373,9 +380,9 @@ func (*Import) memberNode() {}
 // "not" prefixes, each independently optional (all four combinations --
 // neither, either, or both -- appear in real examples). Requirement is a
 // bare (possibly "::"-qualified) reference to an existing requirement usage
-// -- a simplified stand-in for the real grammar's OwnedReferenceSubsetting,
-// resolved the same reference-subsetting way a usage's own Subsets is (see
-// metamodel's Satisfy handling) -- not SatisfyRequirementUsage's other
+// -- the real grammar's own OwnedReferenceSubsetting,
+// resolved the same way a usage's own References is (see metamodel's
+// Satisfy handling) -- not SatisfyRequirementUsage's other
 // alternative, an inline `satisfy requirement req1 : Req1 by system;`
 // declaration of a brand new requirement usage, which isn't supported. By is
 // nil if no "by" clause was written; when present, it's a plain or dotted
