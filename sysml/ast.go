@@ -191,16 +191,14 @@ type Usage struct {
 	// value was assigned.
 	Value Expression
 
-	// Members and Result are a constraint/calculation-shaped usage's body
-	// (see Definition's doc comment): set for DefConstraint/DefCalculation,
-	// and for DefRequire/DefAssume when written with their optional inner
-	// "constraint" keyword (e.g. the "mass <= massLimit" in
-	// `require constraint { mass <= massLimit }`) -- see
-	// requirementConstraintInnerKeyword in parser.go. Every other DefKind's
-	// usage is either always a plain ";"-terminated declaration, or (for
-	// DefMetadata/DefRequirement/DefConcern/DefFrame, see hasPlainBody) uses
-	// Members alone with no Result, for a plain member-list body with no
-	// trailing expression.
+	// Members and Result are this usage's optional body: any usage may have
+	// one ("; " or "{ members }"), populating Members alone. Result is also
+	// populated when the body is a CalculationBody (see hasCalculationBody
+	// in parser.go) instead of a plain member-list one -- DefConstraint/
+	// DefCalculation always, DefRequire/DefAssume only when written with
+	// their optional inner "constraint" keyword (e.g. the
+	// "mass <= massLimit" in `require constraint { mass <= massLimit }`,
+	// see requirementConstraintInnerKeyword in parser.go).
 	Members []Member
 	Result  Expression
 

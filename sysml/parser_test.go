@@ -259,6 +259,55 @@ func TestModelParseUsageWithBody(t *testing.T) {
 	}
 }
 
+// TestModelParseUsageGeneralBody checks that a usage of any DefKind --
+// not just constraint/calc-shaped ones -- can carry a plain "{ members }"
+// body with no trailing result expression, e.g. "part p { part x; }". This
+// used to be a hasCalculationBody/hasPlainBody-gated capability; parseUsage
+// now accepts a body for every kind uniformly, deciding only its *shape*
+// (calc vs. plain) once an OpenBrace is actually seen.
+func TestModelParseUsageGeneralBody(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		part p {
+			part x {
+				part x1;
+			}
+		}
+	}`)
+
+	p, ok := pkg.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+	}
+	if p.Name != "p" || len(p.Members) != 1 {
+		t.Fatalf("p = %+v, want Usage{Name: p, 1 member}", p)
+	}
+	if p.Result != nil {
+		t.Errorf("p.Result = %+v, want nil (plain body, not a CalculationBody)", p.Result)
+	}
+
+	x, ok := p.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("p's member 0 is %T, want *sysml.Usage", p.Members[0])
+	}
+	if x.Name != "x" || len(x.Members) != 1 {
+		t.Errorf("x = %+v, want Usage{Name: x, 1 member}", x)
+	}
+}
+
+// TestModelParseUsageEmptyGeneralBody checks that a plain (non-calc) body
+// can be empty ("part p { }"), distinct from the ";"-terminated form.
+func TestModelParseUsageEmptyGeneralBody(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle { part p { } }`)
+
+	p, ok := pkg.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+	}
+	if p.Name != "p" || p.Members != nil {
+		t.Errorf("p = %+v, want Usage{Name: p, no members}", p)
+	}
+}
+
 // TestModelParseConnectionBareShorthand checks the bare
 // "'connect' ConnectorPart" form -- no "connection" keyword, no name, no
 // type at all -- for both the binary ("a to b") and n-ary ("(a, b, ...)")
@@ -992,9 +1041,9 @@ func TestModelParseRequirementConcernCaseDefKeywords(t *testing.T) {
 }
 
 // TestModelParseRequirementUsagePlainBody checks that a requirement (or
-// concern) usage can carry a plain member-list body (RequirementBody, see
-// hasPlainBody) -- e.g. the nested "subject :>> mass = vehicle.mass;" a
-// requirement usage typed by a requirement def carries in real examples.
+// concern) usage can carry a plain member-list body (RequirementBody) with
+// no trailing result -- e.g. the nested "subject :>> mass = vehicle.mass;"
+// a requirement usage typed by a requirement def carries in real examples.
 func TestModelParseRequirementUsagePlainBody(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Vehicle {
 		requirement def MassRequirement;

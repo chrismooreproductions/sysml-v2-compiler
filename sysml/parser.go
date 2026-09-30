@@ -127,33 +127,18 @@ func isConnectorKind(kind DefKind) bool {
 	return kind == DefConnection || kind == DefInterface
 }
 
-// hasCalculationBody reports whether kind's usages/definitions have a
-// CalculationBody (zero or more members, then an optional trailing result
-// expression) instead of the plain ";"/"{ members }" shape every other
-// DefKind uses. DefRequire/DefAssume only take this shape when written with
-// their optional inner "constraint" keyword (see
-// requirementConstraintInnerKeyword) -- e.g. the "{ mass <= massLimit }" in
-// `require constraint { mass <= massLimit }` -- never for the plain
-// bare-reference form ("require c;"), which is always ";"-terminated
-// regardless of this predicate, since it never sees an OpenBrace to trigger
-// on.
+// hasCalculationBody reports whether kind's usage/definition body, once an
+// OpenBrace is seen, is a CalculationBody (zero or more members, then an
+// optional trailing result expression) rather than an ordinary member-list
+// body (every usage/definition can have a body at all now -- see
+// parseUsage/parseDefinition's shared OpenBrace handling; this predicate
+// only decides its shape once one is present). DefRequire/DefAssume only
+// take this shape when written with their optional inner "constraint"
+// keyword (see requirementConstraintInnerKeyword) -- e.g. the
+// "{ mass <= massLimit }" in `require constraint { mass <= massLimit }` --
+// the plain bare-reference form ("require c;") never has a body at all.
 func hasCalculationBody(kind DefKind) bool {
 	return kind == DefConstraint || kind == DefCalculation || kind == DefRequire || kind == DefAssume
-}
-
-// hasPlainBody reports whether kind's usages have an ordinary
-// member-list body (";" or "{ members }", no trailing result expression) --
-// distinct from hasCalculationBody's shape, and from every other DefKind,
-// whose usages are never anything but a plain ";"-terminated declaration.
-// DefRequirement/DefConcern are RequirementUsage/ConcernUsage's own
-// RequirementBody (e.g. the nested "subject :>> mass = vehicle.mass;" in
-// `requirement vehicleMassRequirement : MassRequirement { ... }`);
-// DefFrame is FramedConcernUsage's, when written with its optional inner
-// "concern" keyword (see requirementConstraintInnerKeyword) -- like
-// DefRequire/DefAssume above, the plain bare-reference form ("frame c3;")
-// is always ";"-terminated regardless of this predicate.
-func hasPlainBody(kind DefKind) bool {
-	return kind == DefMetadata || kind == DefRequirement || kind == DefConcern || kind == DefFrame
 }
 
 // requirementConstraintInnerKeyword maps a RequirementBodyItem prefix
@@ -440,9 +425,9 @@ func (p *parser) parseUsage(kind DefKind) (Member, error) {
 		}
 	}
 
-	if hasCalculationBody(kind) {
-		if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
-			p.pos++
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		if hasCalculationBody(kind) {
 			members, result, err := p.parseCalculationBody()
 			if err != nil {
 				return nil, err
@@ -454,21 +439,15 @@ func (p *parser) parseUsage(kind DefKind) (Member, error) {
 			usage.Result = result
 			return usage, nil
 		}
-	}
-
-	if hasPlainBody(kind) {
-		if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
-			p.pos++
-			members, err := p.parseMembers()
-			if err != nil {
-				return nil, err
-			}
-			if _, err := p.expect(CloseBrace); err != nil {
-				return nil, err
-			}
-			usage.Members = members
-			return usage, nil
+		members, err := p.parseMembers()
+		if err != nil {
+			return nil, err
 		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		usage.Members = members
+		return usage, nil
 	}
 
 	if _, err := p.expect(Semicolon); err != nil {

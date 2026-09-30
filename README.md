@@ -39,15 +39,15 @@ its typing relationship to a definition and finding a member there),
 matching how a feature chain actually navigates through typed values
 rather than through nested namespaces.
 
-A `constraint`/`calc` definition or usage can have a body ending in a
-trailing, unterminated result expression (`constraint def MassAnalysis {
-attribute totalMass : Real; attribute massLimit : Real; totalMass <=
-massLimit }`) — the one place a usage, not just a definition, carries its
-own nested members. A usage's name is also independently optional
-throughout (not just for constraint/calc), since nothing that can start a
-usage's specialization part is ever spelled as a bare identifier: an
-anonymous usage like `constraint { mass <= massLimit }` is unambiguous
-with no lookahead needed.
+Any usage, not just a definition, can carry its own nested body (`part p {
+part x; }`), and a `constraint`/`calc` definition or usage's body can
+additionally end in a trailing, unterminated result expression
+(`constraint def MassAnalysis { attribute totalMass : Real; attribute
+massLimit : Real; totalMass <= massLimit }`) — the one shape a plain
+member-list body doesn't have. A usage's name is also independently
+optional throughout, since nothing that can start a usage's specialization
+part is ever spelled as a bare identifier: an anonymous usage like
+`constraint { mass <= massLimit }` is unambiguous with no lookahead needed.
 
 A `connection`/`interface` usage can carry an explicit connector part:
 `connect p to y;` (binary, no name or type at all — the bare shorthand

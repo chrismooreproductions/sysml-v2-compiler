@@ -37,11 +37,10 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// this project's ":>"/"subsets" only cover usage-level feature
 		// subsetting, not classifier specialization on a definition.
 		{"CalculationTest.sysml", `line 9: unexpected 'subsets', want ';' or '{'`},
-		// a plain (non-constraint/calc) usage body isn't supported -- only
-		// constraint/calc usages can carry a body (see hasCalculationBody).
-		// General usage bodies for every kind are a bigger, separate piece
-		// of work than this phase covers.
-		{"ConnectionTest.sysml", `line 3: unexpected '{', want ';'`},
+		// "bind"/BindingConnectorAsUsage isn't supported -- a structurally
+		// unrelated shorthand form, not a ConnectorPart variant (see
+		// Connection's own doc comment).
+		{"ConnectionTest.sysml", `line 22: unexpected identifier "bind", want 'package', 'import', or 'part'`},
 		// "end" as a body member introducing a connector end inside a
 		// definition (InterfaceBodyItem's DefaultInterfaceEnd) isn't
 		// supported -- this phase only covers the usage-level "connect a
@@ -60,12 +59,12 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// requirements themselves, but the first thing this fixture's own
 		// "private import q::**;" trips on, at line 4.
 		{"RequirementTest.sysml", `line 4: unexpected '**', want identifier`},
-		// a plain (non-constraint/calc/metadata/requirement/concern/frame)
-		// usage body isn't supported (see hasPlainBody) -- "part vehicle {
-		// ... }" at line 4 is an ordinary part usage with a nested body,
-		// unrelated to this fixture's requirement-derivation syntax, which
-		// (per hand-crafted tests elsewhere) parses fine on its own.
-		{"VehicleRequirementDerivation.sysml", `line 4: unexpected '{', want ';'`},
+		// "end" as a body member introducing a connector end inside a
+		// definition isn't supported (see InterfaceTest.sysml's own
+		// blocker) -- the "#derivation connection { end #original ::>
+		// vehicleMassRequirement; ... }" at line 35, well past this
+		// fixture's own requirement-derivation syntax parsing successfully.
+		{"VehicleRequirementDerivation.sysml", `line 35: unexpected identifier "end", want 'package', 'import', or 'part'`},
 		// short names ("<'UR1.1'>") aren't supported -- the same long-tail
 		// gap PartTest.sysml's own blocker is, at line 4.
 		{"HSUVRequirements.sysml", `line 4: unexpected '<', want ';'`},
