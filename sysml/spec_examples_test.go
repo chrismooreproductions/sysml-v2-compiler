@@ -41,12 +41,8 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment).
 		{"ConnectionTest.sysml", `line 22: unexpected identifier "bind", want 'package', 'import', or 'part'`},
-		// "end" as a body member introducing a connector end inside a
-		// definition (InterfaceBodyItem's DefaultInterfaceEnd) isn't
-		// supported -- this phase only covers the usage-level "connect a
-		// to b" / "connect (a, b, ...)" syntax, not this def-body member
-		// form.
-		{"InterfaceTest.sysml", `line 7: unexpected identifier "end", want 'package', 'import', or 'part'`},
+		// "abstract" as a prefix modifier isn't supported.
+		{"InterfaceTest.sysml", `line 24: unexpected identifier "abstract", want 'package', 'import', or 'part'`},
 		// single-quoted/restricted names ("'User Defined Extensions'")
 		// aren't supported -- the lexer has no handling for '\'' at all,
 		// so it gets swept into the identifier it's touching ("'User"),
@@ -59,21 +55,12 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// requirements themselves, but the first thing this fixture's own
 		// "private import q::**;" trips on, at line 4.
 		{"RequirementTest.sysml", `line 4: unexpected '**', want identifier`},
-		// "end" as a body member introducing a connector end inside a
-		// definition isn't supported (see InterfaceTest.sysml's own
-		// blocker) -- the "#derivation connection { end #original ::>
-		// vehicleMassRequirement; ... }" at line 35, well past this
-		// fixture's own requirement-derivation syntax parsing successfully.
-		{"VehicleRequirementDerivation.sysml", `line 35: unexpected identifier "end", want 'package', 'import', or 'part'`},
 		// short names ("<'UR1.1'>") aren't supported -- the same long-tail
 		// gap PartTest.sysml's own blocker is, at line 4.
 		{"HSUVRequirements.sysml", `line 4: unexpected '<', want ';'`},
-		// "end" as a body member introducing a connector end inside a
-		// definition isn't supported (see InterfaceTest.sysml's own
-		// blocker) -- the "#derivation connection def Req1_Derivation {
-		// end #original r1 : Req1; ... }" at line 10, well past this
-		// fixture's own requirement/satisfy syntax parsing successfully.
-		{"RequirementDerivationExample.sysml", `line 10: unexpected identifier "end", want 'package', 'import', or 'part'`},
+		// "ref" (ReferenceUsage's own keyword) isn't a recognized
+		// defKeywords entry.
+		{"RequirementDerivationExample.sysml", `line 25: unexpected identifier "ref", want 'package', 'import', or 'part'`},
 	}
 
 	for _, tt := range cases {
@@ -110,6 +97,11 @@ func TestModelParseSpecExamplesSuccess(t *testing.T) {
 		// Exercises increment-8's subsetting keyword ("subsets"), the last
 		// of this plan's three target fixtures to go green.
 		"RootPackageTest.sysml",
+		// Exercises Phase 7's general usage bodies (increment A),
+		// references/"::>" (increment B), and "end" body members
+		// (increment C) all at once -- the first Requirements Examples
+		// fixture (not from "Simple Tests") to fully parse.
+		"VehicleRequirementDerivation.sysml",
 	}
 
 	for _, file := range files {

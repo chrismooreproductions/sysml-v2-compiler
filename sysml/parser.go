@@ -236,6 +236,17 @@ func (p *parser) parseMember() (Member, error) {
 		return sat, nil
 	}
 
+	if tok.Kind == EndKw {
+		member, err := p.parseEndMember()
+		if err != nil {
+			return nil, err
+		}
+		if usage, ok := member.(*Usage); ok {
+			usage.Visibility = vis
+		}
+		return member, nil
+	}
+
 	defKind, ok := defKeywords[tok.Kind]
 	if !ok {
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s, %s, or %s", tok.Pos.Line, describeToken(tok), Pkg, ImportKw, Part)
@@ -587,6 +598,48 @@ func (p *parser) parseSatisfy() (*Satisfy, error) {
 		return nil, err
 	}
 	return sat, nil
+}
+
+// parseEndMember parses an "end" body member (DefaultInterfaceEnd/
+// ConnectorEnd's def-body form), e.g. "end port p1: P1;", "end p1: P1;",
+// "end end1;", or "end #original ::> vehicleMassRequirement;" -- "end" is a
+// bare prefix in front of an otherwise ordinary Usage, optionally itself
+// starting with a recognized keyword (consumed and used as that keyword's
+// own DefKind, e.g. "port" -> DefPort) or with none at all (DefEnd).
+// Reuses parseUsage for everything else (name/type/multiplicity/subsets/
+// redefines/references/value/body), so an "end" gets the exact same
+// specialization machinery any other usage does.
+func (p *parser) parseEndMember() (Member, error) {
+	if _, err := p.expect(EndKw); err != nil {
+		return nil, err
+	}
+
+	// Metadata comes after "end" here (e.g. "end #original ::> x;"), unlike
+	// everywhere else it's parsed ahead of the introducing keyword -- see
+	// parseMember's own leading parseMetadataPrefixes call, which is a
+	// harmless no-op for "end" members since none of this project's real
+	// fixtures put a "#tag" before "end" itself.
+	metadata, err := p.parseMetadataPrefixes()
+	if err != nil {
+		return nil, err
+	}
+
+	kind := DefEnd
+	if tok, ok := p.current(); ok {
+		if inner, ok := defKeywords[tok.Kind]; ok {
+			kind = inner
+			p.pos++
+		}
+	}
+
+	member, err := p.parseUsage(kind)
+	if err != nil {
+		return nil, err
+	}
+	if usage, ok := member.(*Usage); ok {
+		usage.Metadata = metadata
+	}
+	return member, nil
 }
 
 // parseCalculationBody parses a constraint/calculation body

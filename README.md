@@ -55,10 +55,12 @@ A `connection`/`interface` usage can carry an explicit connector part:
 form) or `connection bus : C connect (d1, d2, d3, d4);` (n-ary, named and
 typed). Each end is a plain or dotted feature reference (`y`, `p1.x`),
 resolved through the same feature-chain machinery as any other expression.
-Not yet supported: `bind`/`succession` (structurally unrelated shorthand
-forms), `abstract` as a prefix modifier, and `end` as a body member
-introducing a connector end inside a *definition* (only the usage-level
-`connect` syntax is covered).
+`end` can also introduce a body member inside a *definition* (`end port
+p1: P1;`, `end end1;`, `end #original ::> vehicleMassRequirement;`) — a
+bare prefix in front of an otherwise ordinary usage, optionally itself
+starting with a recognized keyword (used as that usage's own kind) or with
+none at all. Not yet supported: `bind`/`succession` (structurally
+unrelated shorthand forms) and `abstract` as a prefix modifier.
 
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):

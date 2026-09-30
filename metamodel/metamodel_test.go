@@ -851,6 +851,44 @@ func TestFromASTDefKeywords(t *testing.T) {
 	}
 }
 
+// TestFromASTEndMember checks that an "end" body member translates as an
+// ordinary Element, no different from any other usage of the same DefKind
+// -- "end" itself carries no metamodel-level meaning beyond which DefKind
+// it (or its inner keyword) tags the resulting usage with.
+func TestFromASTEndMember(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		port def P1;
+		interface def I1 {
+			end port p1 : P1;
+			end p2 : P1;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	p1, ok := model.Elements["Vehicle::I1::p1"]
+	if !ok || p1.DefKind != metamodel.DefPort {
+		t.Errorf("Vehicle::I1::p1 = %+v, want a DefPort element", p1)
+	}
+	if target, ok := typeOf(model, "Vehicle::I1::p1"); !ok || target != "Vehicle::P1" {
+		t.Errorf("p1 typed by %q, want Vehicle::P1", target)
+	}
+
+	p2, ok := model.Elements["Vehicle::I1::p2"]
+	if !ok || p2.DefKind != metamodel.DefEnd {
+		t.Errorf("Vehicle::I1::p2 = %+v, want a DefEnd element", p2)
+	}
+	if target, ok := typeOf(model, "Vehicle::I1::p2"); !ok || target != "Vehicle::P1" {
+		t.Errorf("p2 typed by %q, want Vehicle::P1", target)
+	}
+}
+
 // TestFromASTNestedPackage checks that a package nested inside another
 // package (rather than only inside a Definition) is declared as its own
 // namespace, containment-linked to its enclosing package via Owner just

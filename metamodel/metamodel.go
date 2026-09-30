@@ -93,6 +93,9 @@ const (
 	DefFrame
 	DefActor
 	DefStakeholder
+	// DefEnd mirrors sysml.DefEnd: an "end" body member with no recognized
+	// inner keyword.
+	DefEnd
 )
 
 func (k DefKind) String() string {
@@ -133,6 +136,8 @@ func (k DefKind) String() string {
 		return "actor"
 	case DefStakeholder:
 		return "stakeholder"
+	case DefEnd:
+		return "end"
 	default:
 		return "unknown"
 	}

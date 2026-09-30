@@ -420,6 +420,78 @@ func TestModelParseConnectionUsageWithoutConnect(t *testing.T) {
 	}
 }
 
+// TestModelParseEndMember checks "end" as a definition-body member in each
+// of its shapes: with a recognized inner keyword (using that keyword's own
+// DefKind), with none at all (DefEnd), typed or untyped, and with a
+// metadata prefix that comes *after* "end" rather than before it.
+func TestModelParseEndMember(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		port def P1;
+		part def D1;
+
+		interface def I1 {
+			end port p1: P1;
+			end p1: P1;
+		}
+
+		connection def C {
+			end end1;
+			end #original ::> end1;
+		}
+	}`)
+
+	iface, ok := pkg.Members[2].(*sysml.Definition)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Definition", pkg.Members[2])
+	}
+	if len(iface.Members) != 2 {
+		t.Fatalf("got %d interface members, want 2", len(iface.Members))
+	}
+
+	withPort, ok := iface.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("interface member 0 is %T, want *sysml.Usage", iface.Members[0])
+	}
+	if withPort.Kind != sysml.DefPort || withPort.Name != "p1" || withPort.Type != "P1" {
+		t.Errorf("member 0 = %+v, want a DefPort usage p1 : P1", withPort)
+	}
+
+	bare, ok := iface.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("interface member 1 is %T, want *sysml.Usage", iface.Members[1])
+	}
+	if bare.Kind != sysml.DefEnd || bare.Name != "p1" || bare.Type != "P1" {
+		t.Errorf("member 1 = %+v, want a DefEnd usage p1 : P1", bare)
+	}
+
+	conn, ok := pkg.Members[3].(*sysml.Definition)
+	if !ok {
+		t.Fatalf("member 3 is %T, want *sysml.Definition", pkg.Members[3])
+	}
+	if len(conn.Members) != 2 {
+		t.Fatalf("got %d connection members, want 2", len(conn.Members))
+	}
+
+	end1, ok := conn.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("connection member 0 is %T, want *sysml.Usage", conn.Members[0])
+	}
+	if end1.Kind != sysml.DefEnd || end1.Name != "end1" {
+		t.Errorf("member 0 = %+v, want a DefEnd usage named end1", end1)
+	}
+
+	tagged, ok := conn.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("connection member 1 is %T, want *sysml.Usage", conn.Members[1])
+	}
+	if tagged.Kind != sysml.DefEnd || tagged.Name != "" || tagged.References != "end1" {
+		t.Errorf("member 1 = %+v, want an anonymous DefEnd usage referencing end1", tagged)
+	}
+	if !reflect.DeepEqual(tagged.Metadata, []string{"original"}) {
+		t.Errorf("member 1 Metadata = %#v, want [original]", tagged.Metadata)
+	}
+}
+
 func TestModelParseQualifiedType(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Vehicle {
 		part def Car {

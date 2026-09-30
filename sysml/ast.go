@@ -84,6 +84,11 @@ const (
 	DefFrame
 	DefActor
 	DefStakeholder
+	// DefEnd tags an "end" body member with no recognized inner keyword
+	// (e.g. "end p1: P1;", "end end1;") -- see parseEndMember. An "end"
+	// with a recognized inner keyword (e.g. "end port p1: P1;") is tagged
+	// with that keyword's own DefKind instead (DefPort here), not DefEnd.
+	DefEnd
 )
 
 func (k DefKind) String() string {
@@ -124,6 +129,8 @@ func (k DefKind) String() string {
 		return "actor"
 	case DefStakeholder:
 		return "stakeholder"
+	case DefEnd:
+		return "end"
 	default:
 		return "unknown"
 	}
