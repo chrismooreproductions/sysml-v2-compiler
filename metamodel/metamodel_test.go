@@ -399,6 +399,63 @@ func TestFromASTExpressionOperatorResolvesToStdlib(t *testing.T) {
 	}
 }
 
+// TestFromASTInvocationExpr checks that an invocation expression's callee
+// resolves via the same pendingExprRef mechanism an operator symbol does,
+// and that each argument is independently converted/resolved.
+func TestFromASTInvocationExpr(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		part def Sum;
+		part sum : Sum;
+		attribute componentMasses : Real;
+		attribute totalMass : Real = sum(componentMasses);
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	totalMass, ok := model.Elements["Vehicle::totalMass"]
+	if !ok {
+		t.Fatal("missing element Vehicle::totalMass")
+	}
+	inv, ok := totalMass.Value.(*metamodel.InvocationExpr)
+	if !ok {
+		t.Fatalf("totalMass.Value is %T, want *metamodel.InvocationExpr", totalMass.Value)
+	}
+	if inv.Function != "Vehicle::sum" {
+		t.Errorf("InvocationExpr.Function = %q, want %q", inv.Function, "Vehicle::sum")
+	}
+	if len(inv.Args) != 1 {
+		t.Fatalf("got %d args, want 1", len(inv.Args))
+	}
+	arg, ok := inv.Args[0].(*metamodel.NameRef)
+	if !ok || arg.Target != "Vehicle::componentMasses" {
+		t.Errorf("Args[0] = %+v, want a NameRef targeting Vehicle::componentMasses", inv.Args[0])
+	}
+}
+
+// TestFromASTUnresolvedInvocationCallee checks that an invocation whose
+// callee doesn't resolve fails translation, the same as an unresolved
+// NameRef does.
+func TestFromASTUnresolvedInvocationCallee(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		attribute n : Real = nope(1);
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved invocation callee, got nil")
+	}
+}
+
 // TestFromASTFeatureChain checks the VehicleRequirementDerivation.sysml
 // shape -- a multi-segment feature chain ("vehicle.chassis.mass") --
 // resolving each segment after the first by walking the previous

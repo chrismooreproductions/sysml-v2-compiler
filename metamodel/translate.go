@@ -485,10 +485,11 @@ func (t *translator) resolveReferences() error {
 }
 
 // convertExpression translates a sysml.Expression into a metamodel one,
-// queuing every NameRef and operator (Binary/UnaryExpr) it contains onto
-// pendingExprRefs for resolveExpressions -- the tree shape carries over
-// unchanged, only reference resolution is deferred, the same as a Usage's
-// own type/subsets/redefines already is via pendingReference.
+// queuing every NameRef, operator (Binary/UnaryExpr), and InvocationExpr
+// callee it contains onto pendingExprRefs for resolveExpressions -- the
+// tree shape carries over unchanged, only reference resolution is
+// deferred, the same as a Usage's own type/subsets/redefines already is
+// via pendingReference.
 func (t *translator) convertExpression(expr sysml.Expression, owner ElementID) (Expression, error) {
 	switch e := expr.(type) {
 	case *sysml.BoolLiteral:
@@ -520,6 +521,23 @@ func (t *translator) convertExpression(expr sysml.Expression, owner ElementID) (
 			set:   func(id ElementID) { fc.Target = id },
 		})
 		return fc, nil
+
+	case *sysml.InvocationExpr:
+		args := make([]Expression, len(e.Args))
+		for i, a := range e.Args {
+			converted, err := t.convertExpression(a, owner)
+			if err != nil {
+				return nil, err
+			}
+			args[i] = converted
+		}
+		inv := &InvocationExpr{Callee: e.Callee, Args: args}
+		t.pendingExprRefs = append(t.pendingExprRefs, pendingExprRef{
+			name:  e.Callee,
+			owner: owner,
+			set:   func(id ElementID) { inv.Function = id },
+		})
+		return inv, nil
 
 	case *sysml.BinaryExpr:
 		left, err := t.convertExpression(e.Left, owner)

@@ -268,11 +268,11 @@ func (*Connection) memberNode() {}
 // `attribute n : Integer = 5;` or the "mass <= massLimit" a constraint
 // body will eventually carry. This project implements a deliberate subset
 // of KerML's full expression grammar: literals, qualified-name references,
-// and binary/unary operators over them. Not supported, each being its own
-// separate chunk of grammar: conditional (`if`/`?`/`else`) expressions,
-// invocation/constructor expressions, sequence/index expressions,
-// `collect`/`select`, metadata-access, and casts (`as`/`istype`/`hastype`/
-// `@`).
+// binary/unary operators, and (narrowly, see InvocationExpr) invocation
+// expressions. Not supported, each being its own separate chunk of
+// grammar: conditional (`if`/`?`/`else`) expressions, constructor
+// expressions, sequence/index expressions, `collect`/`select`,
+// metadata-access, and casts (`as`/`istype`/`hastype`/`@`).
 type Expression interface {
 	expressionNode()
 }
@@ -315,6 +315,21 @@ func (*NameRef) expressionNode() {}
 type FeatureChain struct{ Path []string }
 
 func (*FeatureChain) expressionNode() {}
+
+// InvocationExpr is a function/operation invocation, e.g.
+// "sum(componentMasses)" in `totalMass == sum(componentMasses)`. Callee is
+// a bare (possibly "::"-qualified) name -- resolved the same way a NameRef
+// is -- not itself a feature chain or another invocation, and nothing
+// chains after the call (no "foo().bar" or "foo()()"): each is its own
+// separate chunk of grammar, deliberately out of scope here the same way
+// Expression's own doc comment excludes conditional/cast/sequence
+// expressions.
+type InvocationExpr struct {
+	Callee string
+	Args   []Expression
+}
+
+func (*InvocationExpr) expressionNode() {}
 
 // BinaryExpr is a binary operator expression, e.g. `mass <= massLimit`.
 // The supported operator set matches this project's standard-library stub

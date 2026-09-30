@@ -954,6 +954,9 @@ func (p *parser) parsePrimary() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
+		if tok, ok := p.current(); ok && tok.Kind == OpenParen {
+			return p.parseInvocationArgs(path)
+		}
 		return p.parseFeatureChainTail(path)
 
 	default:
@@ -984,6 +987,43 @@ func (p *parser) parseFeatureChainTail(first string) (Expression, error) {
 		path = append(path, string(seg.Value))
 	}
 	return &FeatureChain{Path: path}, nil
+}
+
+// parseInvocationArgs parses an InvocationExpr's parenthesized,
+// comma-separated argument list, e.g. the "(componentMasses)" in
+// "sum(componentMasses)" -- callee is the qualified name already parsed
+// ahead of the OpenParen the caller has confirmed is next. An empty
+// argument list ("()") is fine, matching zero-argument invocations.
+func (p *parser) parseInvocationArgs(callee string) (Expression, error) {
+	if _, err := p.expect(OpenParen); err != nil {
+		return nil, err
+	}
+
+	inv := &InvocationExpr{Callee: callee}
+	if tok, ok := p.current(); ok && tok.Kind == CloseParen {
+		p.pos++
+		return inv, nil
+	}
+
+	for {
+		arg, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		inv.Args = append(inv.Args, arg)
+
+		tok, ok := p.current()
+		if !ok {
+			return nil, fmt.Errorf("unexpected end of input, want %s or %s", Comma, CloseParen)
+		}
+		if tok.Kind == CloseParen {
+			p.pos++
+			return inv, nil
+		}
+		if _, err := p.expect(Comma); err != nil {
+			return nil, err
+		}
+	}
 }
 
 // unquoteString strips a StringLit token's surrounding quotes. value

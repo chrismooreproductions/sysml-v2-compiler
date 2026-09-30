@@ -28,10 +28,11 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// now gets one token further before rejecting '<' as neither a
 		// specialization part nor a value nor ';'.
 		{"PartTest.sysml", `line 6: unexpected '<', want ';'`},
-		// invocation expressions ("sum(componentMasses)") aren't
-		// supported -- deliberately out of scope for this project's
-		// expression subsystem (see sysml.Expression's doc comment).
-		{"ConstraintTest.sysml", `line 10: unexpected '(', want '}'`},
+		// AssertConstraintUsage's non-"satisfy" form ("assert constraint
+		// massAnalysis : MassAnalysis { ... }") isn't supported -- parseSatisfy
+		// only ever accepts "assert"/"not"/"satisfy", not "assert" followed
+		// directly by "constraint".
+		{"ConstraintTest.sysml", `line 24: unexpected 'constraint', want 'satisfy'`},
 		// definition-level specialization ("part def Vehicle :>
 		// VehiclePart;", KerML's SubclassificationPart) isn't supported --
 		// this project's ":>"/"subsets" only cover usage-level feature

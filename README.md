@@ -23,14 +23,17 @@ spec wholesale.
 
 A usage's assigned value (`= ...`) can now be a full expression, not just
 an integer literal: boolean/integer/real/string literals, a qualified-name
-reference, and binary/unary operators over them (`mass <= massLimit`,
-`-x`, `not done`), with ordinary arithmetic/logical precedence and
-parenthesized grouping. Not yet supported: conditional (`if`/`?`/`else`)
-expressions, invocation/constructor expressions, sequences, `collect`/
-`select`, metadata-access, and casts. Every name reference and operator is
-genuinely resolved during translation (an operator like `<=` resolves to
-a real `ScalarFunctions::'<='`-shaped standard-library stub), not just
-parsed and stored.
+reference, binary/unary operators over them (`mass <= massLimit`, `-x`,
+`not done`), and invocation expressions (`sum(componentMasses)`, zero or
+more comma-separated arguments) — narrowly: the callee must be a bare/
+qualified name, not itself a feature chain or another call, and nothing
+chains after the call. Ordinary arithmetic/logical precedence and
+parenthesized grouping apply throughout. Not yet supported: conditional
+(`if`/`?`/`else`) expressions, constructor expressions, sequences,
+`collect`/`select`, metadata-access, and casts. Every name reference,
+operator, and invocation callee is genuinely resolved during translation
+(an operator like `<=` resolves to a real `ScalarFunctions::'<='`-shaped
+standard-library stub), not just parsed and stored.
 
 An expression can also be a dot-separated feature chain
 (`vehicle.chassis.mass`), resolved differently from a `::`-qualified name:

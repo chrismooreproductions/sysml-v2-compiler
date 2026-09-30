@@ -757,8 +757,10 @@ func TestModelParseUsageTypeAndSubsets(t *testing.T) {
 // TestModelParseExpression checks the expression parser's tree shapes:
 // each literal kind, a bare/qualified name reference, binary and unary
 // operators, precedence climbing (including "**"'s right-associativity),
-// left-associativity for same-precedence operators, and parentheses
-// overriding precedence.
+// left-associativity for same-precedence operators, parentheses
+// overriding precedence, and invocation expressions (zero, one, and
+// multiple arguments; a qualified callee; nested inside a binary
+// expression).
 func TestModelParseExpression(t *testing.T) {
 	cases := map[string]struct {
 		source string
@@ -838,6 +840,32 @@ func TestModelParseExpression(t *testing.T) {
 		"stacked unary": {
 			"- -x",
 			&sysml.UnaryExpr{Op: "-", Operand: &sysml.UnaryExpr{Op: "-", Operand: &sysml.NameRef{Path: "x"}}},
+		},
+		"invocation, one arg": {
+			"sum(componentMasses)",
+			&sysml.InvocationExpr{Callee: "sum", Args: []sysml.Expression{&sysml.NameRef{Path: "componentMasses"}}},
+		},
+		"invocation, no args": {
+			"now()", &sysml.InvocationExpr{Callee: "now"},
+		},
+		"invocation, multiple args": {
+			"sum(a, b)",
+			&sysml.InvocationExpr{Callee: "sum", Args: []sysml.Expression{&sysml.NameRef{Path: "a"}, &sysml.NameRef{Path: "b"}}},
+		},
+		"invocation, qualified callee": {
+			"NumericalFunctions::sum(a)",
+			&sysml.InvocationExpr{Callee: "NumericalFunctions::sum", Args: []sysml.Expression{&sysml.NameRef{Path: "a"}}},
+		},
+		"invocation in binary expression": {
+			"totalMass == sum(componentMasses)",
+			&sysml.BinaryExpr{
+				Op:   "==",
+				Left: &sysml.NameRef{Path: "totalMass"},
+				Right: &sysml.InvocationExpr{
+					Callee: "sum",
+					Args:   []sysml.Expression{&sysml.NameRef{Path: "componentMasses"}},
+				},
+			},
 		},
 	}
 
@@ -1508,6 +1536,9 @@ func TestModelParseErrors(t *testing.T) {
 		"assigned value missing operand":              "package Vehicle { attribute n : Integer = ; }",
 		"assigned value trailing operator":            "package Vehicle { attribute n : Integer = 1 + ; }",
 		"assigned value unclosed paren":               "package Vehicle { attribute n : Integer = (1 + 2; }",
+		"invocation missing close paren":              "package Vehicle { attribute n = sum(a, b; }",
+		"invocation trailing comma":                   "package Vehicle { attribute n = sum(a,); }",
+		"invocation chained call not supported":       "package Vehicle { attribute n = sum(a)(b); }",
 		"metadata prefix missing tag":                 "package Vehicle { # part engine : Engine; }",
 		"metadata prefix qualified trailing path sep": "package Vehicle { #Meta:: part engine : Engine; }",
 	}

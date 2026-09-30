@@ -293,6 +293,19 @@ type FeatureChain struct {
 
 func (*FeatureChain) expressionNode() {}
 
+// InvocationExpr is a resolved function/operation invocation, e.g.
+// "sum(componentMasses)". Function is the ElementID Callee resolves to,
+// via the same pendingExprRef queue an operator symbol already uses --
+// resolving an ordinary name instead of a stdlib operator-table lookup.
+// "" until translate.go's resolveExpressions resolves it.
+type InvocationExpr struct {
+	Callee   string
+	Args     []Expression
+	Function ElementID
+}
+
+func (*InvocationExpr) expressionNode() {}
+
 // BinaryExpr is a resolved binary operator expression. Function is the
 // ElementID of the standard-library Function stub Op resolves to (see
 // stdlib.go).
