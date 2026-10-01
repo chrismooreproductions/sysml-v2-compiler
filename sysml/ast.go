@@ -89,6 +89,17 @@ const (
 	// with a recognized inner keyword (e.g. "end port p1: P1;") is tagged
 	// with that keyword's own DefKind instead (DefPort here), not DefEnd.
 	DefEnd
+	// DefIn, DefOut, and DefInOut tag a parameter's direction (e.g. the
+	// "in" in `in partMasses : MassValue[0..*];`), and DefReturn tags a
+	// calc's result parameter (`return totalMass : MassValue = ...;`).
+	// DefRef tags a plain reference-usage keyword (`ref :>> system;`).
+	// Each is an ordinary defKeywords entry like any other -- no dedicated
+	// parsing beyond the keyword itself.
+	DefIn
+	DefOut
+	DefInOut
+	DefReturn
+	DefRef
 )
 
 func (k DefKind) String() string {
@@ -131,6 +142,16 @@ func (k DefKind) String() string {
 		return "stakeholder"
 	case DefEnd:
 		return "end"
+	case DefIn:
+		return "in"
+	case DefOut:
+		return "out"
+	case DefInOut:
+		return "inout"
+	case DefReturn:
+		return "return"
+	case DefRef:
+		return "ref"
 	default:
 		return "unknown"
 	}

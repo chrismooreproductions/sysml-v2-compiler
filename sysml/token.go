@@ -28,6 +28,11 @@ const (
 	AssertKw
 	ByKw
 	EndKw
+	InKw
+	OutKw
+	InOutKw
+	ReturnKw
+	RefKw
 	Def
 	ImportKw
 	PublicKw
@@ -126,6 +131,16 @@ func (k Kind) String() string {
 		return "'by'"
 	case EndKw:
 		return "'end'"
+	case InKw:
+		return "'in'"
+	case OutKw:
+		return "'out'"
+	case InOutKw:
+		return "'inout'"
+	case ReturnKw:
+		return "'return'"
+	case RefKw:
+		return "'ref'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -246,6 +261,11 @@ var kinds = map[string]Kind{
 	"assert":      AssertKw,
 	"by":          ByKw,
 	"end":         EndKw,
+	"in":          InKw,
+	"out":         OutKw,
+	"inout":       InOutKw,
+	"return":      ReturnKw,
+	"ref":         RefKw,
 	"def":         Def,
 	"import":      ImportKw,
 	"public":      PublicKw,

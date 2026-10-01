@@ -96,6 +96,14 @@ const (
 	// DefEnd mirrors sysml.DefEnd: an "end" body member with no recognized
 	// inner keyword.
 	DefEnd
+	// DefIn, DefOut, DefInOut, DefReturn, and DefRef mirror their sysml
+	// counterparts: parameter-direction keywords and the plain
+	// reference-usage keyword.
+	DefIn
+	DefOut
+	DefInOut
+	DefReturn
+	DefRef
 )
 
 func (k DefKind) String() string {
@@ -138,6 +146,16 @@ func (k DefKind) String() string {
 		return "stakeholder"
 	case DefEnd:
 		return "end"
+	case DefIn:
+		return "in"
+	case DefOut:
+		return "out"
+	case DefInOut:
+		return "inout"
+	case DefReturn:
+		return "return"
+	case DefRef:
+		return "ref"
 	default:
 		return "unknown"
 	}

@@ -33,11 +33,12 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// only ever accepts "assert"/"not"/"satisfy", not "assert" followed
 		// directly by "constraint".
 		{"ConstraintTest.sysml", `line 24: unexpected 'constraint', want 'satisfy'`},
-		// "in" (a parameter-direction keyword) isn't a recognized
-		// defKeywords entry -- it's swept into the calc body's trailing
-		// result-expression attempt as a bare NameRef, then the next
-		// identifier ("partMasses") isn't valid where '}' was expected.
-		{"CalculationTest.sysml", `line 18: unexpected identifier "partMasses", want '}'`},
+		// sequence expressions ("(vehicle.eng.m, vehicle.trans.m)") aren't
+		// supported -- deliberately out of scope for this project's
+		// expression subsystem (see sysml.Expression's doc comment);
+		// parsePrimary's OpenParen case only ever parses one inner
+		// expression for grouping, not a comma-separated sequence.
+		{"CalculationTest.sysml", `line 23: unexpected ',', want ')'`},
 		// "bind"/BindingConnectorAsUsage isn't supported -- a structurally
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment).
@@ -59,9 +60,12 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// short names ("<'UR1.1'>") aren't supported -- the same long-tail
 		// gap PartTest.sysml's own blocker is, at line 4.
 		{"HSUVRequirements.sysml", `line 4: unexpected '<', want ';'`},
-		// "ref" (ReferenceUsage's own keyword) isn't a recognized
-		// defKeywords entry.
-		{"RequirementDerivationExample.sysml", `line 25: unexpected identifier "ref", want 'package', 'import', or 'part'`},
+		// an inline "satisfy requirement req1 : Req1 by system;"
+		// declaration (SatisfyRequirementUsage's other alternative, a brand
+		// new nested requirement usage) isn't supported -- only a bare
+		// reference to an existing requirement usage is (see sysml.Satisfy's
+		// own doc comment).
+		{"RequirementDerivationExample.sysml", `line 27: unexpected 'requirement', want identifier`},
 	}
 
 	for _, tt := range cases {

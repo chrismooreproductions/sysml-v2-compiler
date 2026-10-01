@@ -1307,6 +1307,65 @@ func TestModelParseSubjectActorStakeholderDefKeywords(t *testing.T) {
 	}
 }
 
+// TestModelParseParameterAndRefDefKeywords checks that "in"/"out"/"inout"/
+// "return" (parameter-direction keywords) and "ref" (ReferenceUsage's own
+// keyword) are each accepted as a usage keyword family, the same plain
+// shape "subject"/"actor"/"stakeholder" have -- no dedicated parsing beyond
+// the keyword itself.
+func TestModelParseParameterAndRefDefKeywords(t *testing.T) {
+	cases := map[string]struct {
+		keyword string
+		want    sysml.DefKind
+	}{
+		"in":     {"in", sysml.DefIn},
+		"out":    {"out", sysml.DefOut},
+		"inout":  {"inout", sysml.DefInOut},
+		"return": {"return", sysml.DefReturn},
+		"ref":    {"ref", sysml.DefRef},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { part def P; `+tt.keyword+` s : P; }`)
+
+			usage, ok := pkg.Members[1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+			}
+			if usage.Kind != tt.want || usage.Name != "s" || usage.Type != "P" {
+				t.Errorf("member 1 = %+v, want Usage{Kind: %v, Name: s, Type: P}", usage, tt.want)
+			}
+		})
+	}
+}
+
+// TestModelParseRefWithRedefinesNoType checks the real-example shape
+// "ref :>> system;" -- an anonymous DefRef usage redefining an existing
+// feature, with no type at all.
+func TestModelParseRefWithRedefinesNoType(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		part system;
+		part satisfactionContext {
+			ref :>> system;
+		}
+	}`)
+
+	ctx, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+	}
+	if len(ctx.Members) != 1 {
+		t.Fatalf("got %d members, want 1", len(ctx.Members))
+	}
+	ref, ok := ctx.Members[0].(*sysml.Usage)
+	if !ok {
+		t.Fatalf("nested member is %T, want *sysml.Usage", ctx.Members[0])
+	}
+	if ref.Kind != sysml.DefRef || ref.Name != "" || ref.Redefines != "system" || ref.Type != "" {
+		t.Errorf("nested member = %+v, want an anonymous, untyped DefRef usage redefining system", ref)
+	}
+}
+
 // TestModelParseRequirementConstraintBareForm checks "assume"/"require"/
 // "frame"'s plain reference shorthand (no inner "constraint"/"concern"
 // keyword) -- a bare name (optionally with a multiplicity), parsed as an

@@ -118,6 +118,11 @@ var defKeywords = map[Kind]DefKind{
 	FrameKw:       DefFrame,
 	ActorKw:       DefActor,
 	StakeholderKw: DefStakeholder,
+	InKw:          DefIn,
+	OutKw:         DefOut,
+	InOutKw:       DefInOut,
+	ReturnKw:      DefReturn,
+	RefKw:         DefRef,
 }
 
 // isConnectorKind reports whether kind's usage form can carry an explicit

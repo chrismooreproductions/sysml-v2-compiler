@@ -107,13 +107,25 @@ vehicleMassRequirement : MassRequirement { subject :>> mass = vehicle.mass;
 }`. `satisfy X by Y;` asserts that Y satisfies the requirement usage named
 X, with independently optional `assert`/`not` prefixes (`assert satisfy r by
 q;`, `not satisfy r1 by p;`); X resolves the same reference-subsetting way a
-usage's own `subsets` does, Y through the same expression/feature-chain
+usage's own `references` does, Y through the same expression/feature-chain
 machinery a Connection's ends use. Not yet supported: an inline `satisfy
 requirement req1 : Req1 by system;` declaration (only a bare reference to an
 existing requirement usage is), a trailing body on a `satisfy` statement,
 `doc` annotations (this project's parser drops comments entirely before
 seeing them, so there's nowhere to hang the text), and `case`'s own richer
 `CaseBody` (a bare `case`/`case def` parses, but never with a body).
+
+A handful of recurring gaps that blocked real examples well before their
+own subject matter have since closed: every usage kind (not just
+constraint/calc-shaped ones) can carry a general body; `end` introduces a
+body member inside a connection/interface *definition* (see above); and
+`in`/`out`/`inout`/`return` (parameter-direction keywords) and `ref`
+(the plain reference-usage keyword) are five more keyword families, each
+the exact same plain usage shape `subject`/`actor`/`stakeholder` already
+have. Still open, each its own fixture's current blocker: `bind`/
+`succession`, `abstract`, `AssertConstraintUsage`'s non-`satisfy` form,
+sequence expressions, the inline `satisfy` declaration above, short names,
+single-quoted/restricted names, and recursive imports.
 
 ## References
 

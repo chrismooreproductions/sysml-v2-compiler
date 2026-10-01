@@ -946,6 +946,52 @@ func TestFromASTEndMember(t *testing.T) {
 	}
 }
 
+// TestFromASTParameterAndRefDefKeywords checks that "in"/"out"/"inout"/
+// "return"/"ref" each carry their sysml.DefKind over onto Element.DefKind
+// correctly, the same enum-order conversion TestFromASTDefKeywords checks
+// for attribute/item/port -- these five have no dedicated translate.go
+// logic at all, so this is really a check that both packages' DefKind
+// consts still agree on order.
+func TestFromASTParameterAndRefDefKeywords(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def P;
+		in a : P;
+		out b : P;
+		inout c : P;
+		return d : P;
+		ref e : P;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	tests := []struct {
+		id   metamodel.ElementID
+		want metamodel.DefKind
+	}{
+		{"Vehicle::a", metamodel.DefIn},
+		{"Vehicle::b", metamodel.DefOut},
+		{"Vehicle::c", metamodel.DefInOut},
+		{"Vehicle::d", metamodel.DefReturn},
+		{"Vehicle::e", metamodel.DefRef},
+	}
+
+	for _, tt := range tests {
+		el, ok := model.Elements[tt.id]
+		if !ok {
+			t.Fatalf("missing element %q", tt.id)
+		}
+		if el.DefKind != tt.want {
+			t.Errorf("%s: DefKind = %v, want %v", tt.id, el.DefKind, tt.want)
+		}
+	}
+}
+
 // TestFromASTNestedPackage checks that a package nested inside another
 // package (rather than only inside a Definition) is declared as its own
 // namespace, containment-linked to its enclosing package via Owner just
