@@ -528,6 +528,94 @@ func TestFromASTFeatureChainErrors(t *testing.T) {
 	}
 }
 
+// TestFromASTInheritedFeatureResolution checks that a name only declared
+// inside a usage's own *type* -- not reachable via ordinary containment
+// climbing -- is still visible from inside that usage's own nested body,
+// the same way real KerML feature inheritance works. This is the central
+// mechanism requirement derivation depends on ("subject :>> mass = ...;"
+// inside a requirement usage redefines the "mass" its own requirement def
+// declares), found missing by an audit before this test existed: lookupChild
+// used to climb containment only, never typing, so every one of these cases
+// failed with "unresolved ..." even though they parsed fine.
+func TestFromASTInheritedFeatureResolution(t *testing.T) {
+	cases := map[string]string{
+		"redefines": `package Vehicle {
+			attribute def Mass;
+			part def VehicleKind { attribute mass : Mass; }
+			part vehicle : VehicleKind;
+			requirement def R { subject mass : Mass; }
+			requirement r : R { subject :>> mass = vehicle.mass; }
+		}`,
+		"subsets": `package Vehicle {
+			part def P { part x; }
+			part q : P { part y subsets x; }
+		}`,
+		"references": `package Vehicle {
+			part def P { part x; }
+			part q : P { part y references x; }
+		}`,
+		"value expression (NameRef)": `package Vehicle {
+			attribute def Mass;
+			part def R { attribute massLimit : Mass; }
+			part r : R { attribute check : Mass = massLimit; }
+		}`,
+	}
+
+	for name, source := range cases {
+		t.Run(name, func(t *testing.T) {
+			ns, err := sysml.NewModel(source).Parse()
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+			if _, err := metamodel.FromAST(ns); err != nil {
+				t.Errorf("unexpected translate error: %v", err)
+			}
+		})
+	}
+}
+
+// TestFromASTFeatureChainThroughUntypedInlineBody checks that a feature
+// chain's non-first segment can also step through an untyped usage's own
+// inline body (general usage bodies, Phase 7) when there's no TypedBy
+// relationship to walk instead -- e.g. "vehicle.mass" where "vehicle" is
+// declared as "part vehicle { attribute mass : Mass; }", not
+// "part vehicle : SomeType;". This is the shape the real
+// VehicleRequirementDerivation.sysml fixture itself uses throughout
+// ("vehicle.chassis.mass"), found missing by the same audit as
+// TestFromASTInheritedFeatureResolution.
+func TestFromASTFeatureChainThroughUntypedInlineBody(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Mass;
+		part vehicle {
+			attribute mass : Mass;
+			part chassis {
+				attribute mass : Mass;
+			}
+		}
+		attribute check : Mass = vehicle.chassis.mass;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	check, ok := model.Elements["Vehicle::check"]
+	if !ok {
+		t.Fatal("missing element Vehicle::check")
+	}
+	fc, ok := check.Value.(*metamodel.FeatureChain)
+	if !ok {
+		t.Fatalf("check.Value is %T, want *metamodel.FeatureChain", check.Value)
+	}
+	if fc.Target != "Vehicle::vehicle::chassis::mass" {
+		t.Errorf("FeatureChain.Target = %q, want %q", fc.Target, "Vehicle::vehicle::chassis::mass")
+	}
+}
+
 // TestFromASTConstraintDefinitionResult checks that a constraint
 // definition's trailing result expression resolves its names against the
 // definition's own body -- "totalMass <= massLimit" needs to see
@@ -1875,6 +1963,22 @@ func relationshipTargets(model *metamodel.Model, usage metamodel.ElementID, kind
 	return targets
 }
 
+// childrenOf returns the ElementIDs of every Element directly owned by
+// owner (Element.Owner == owner), in no particular order -- Element has no
+// Members field of its own (containment is tracked one-directionally, via
+// each child's own Owner), so tests that need a parent's children scan
+// model.Elements for it, the same way production code's children() cache
+// does.
+func childrenOf(model *metamodel.Model, owner metamodel.ElementID) []metamodel.ElementID {
+	var children []metamodel.ElementID
+	for id, el := range model.Elements {
+		if el.Owner == owner {
+			children = append(children, id)
+		}
+	}
+	return children
+}
+
 // TestFromASTMetadata checks that a single "#Tag" prefix resolves to an
 // AnnotatedBy Relationship pointing at the tag's declaration.
 func TestFromASTMetadata(t *testing.T) {
@@ -2312,5 +2416,398 @@ func TestFromASTVehicleMultiPackage(t *testing.T) {
 		if el.Multiplicity == nil || *el.Multiplicity != want {
 			t.Errorf("%s Multiplicity = %+v, want %+v", id, el.Multiplicity, want)
 		}
+	}
+}
+
+// TestFromASTVehicleMassRequirementDerivation is a self-contained
+// end-to-end simulation of the real OMG VehicleRequirementDerivation.sysml
+// fixture's whole scenario -- requirement derivation across a mass budget
+// allocated down a part hierarchy -- but fully resolvable (that fixture
+// itself never reaches FromAST: it wildcard-imports an external
+// "RequirementDerivation" package and references "ISQ::mass", neither of
+// which this project supplies). Exercises, together, in one realistic
+// model: nested attributes reached through an untyped usage's own inline
+// body (vehicle.chassis.mass, vehicle.engine.mass -- see
+// TestFromASTFeatureChainThroughUntypedInlineBody), a requirement def with
+// a subject and a require-constraint body, three requirement usages each
+// redefining that inherited subject with a different feature-chain value
+// (see TestFromASTInheritedFeatureResolution), satisfy statements (bare
+// and feature-chain "by" targets), and a metadata-tagged derivation
+// connection with "end"/"::>" body members. This is the proof that Phase
+// 6/7's machinery holds up on a coherent scenario, not just isolated
+// constructs.
+func TestFromASTVehicleMassRequirementDerivation(t *testing.T) {
+	source := `package VehicleMassRequirements {
+		attribute def Mass;
+		metadata def derivation;
+		metadata def original;
+		metadata def derive;
+
+		part vehicle {
+			attribute mass : Mass;
+			part chassis {
+				attribute mass : Mass;
+			}
+			part engine {
+				attribute mass : Mass;
+			}
+		}
+
+		requirement def MassRequirement {
+			subject mass : Mass;
+			attribute massLimit : Mass;
+			require constraint { mass <= massLimit }
+		}
+
+		requirement vehicleMassRequirement : MassRequirement {
+			subject :>> mass = vehicle.mass;
+		}
+		requirement chassisMassRequirement : MassRequirement {
+			subject :>> mass = vehicle.chassis.mass;
+		}
+		requirement engineMassRequirement : MassRequirement {
+			subject :>> mass = vehicle.engine.mass;
+		}
+
+		satisfy vehicleMassRequirement by vehicle;
+		satisfy chassisMassRequirement by vehicle.chassis;
+		satisfy engineMassRequirement by vehicle.engine;
+
+		#derivation connection {
+			end #original ::> vehicleMassRequirement;
+			end #derive ::> chassisMassRequirement;
+			end #derive ::> engineMassRequirement;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	// Each requirement usage's "subject :>> mass = vehicle...;" redefines
+	// MassRequirement's own inherited "mass" feature, with a value that's
+	// a feature chain into the part hierarchy.
+	wantSubjectChain := map[metamodel.ElementID][]string{
+		"VehicleMassRequirements::vehicleMassRequirement": {"vehicle", "mass"},
+		"VehicleMassRequirements::chassisMassRequirement": {"vehicle", "chassis", "mass"},
+		"VehicleMassRequirements::engineMassRequirement":  {"vehicle", "engine", "mass"},
+	}
+	wantSubjectTarget := map[metamodel.ElementID]metamodel.ElementID{
+		"VehicleMassRequirements::vehicleMassRequirement": "VehicleMassRequirements::vehicle::mass",
+		"VehicleMassRequirements::chassisMassRequirement": "VehicleMassRequirements::vehicle::chassis::mass",
+		"VehicleMassRequirements::engineMassRequirement":  "VehicleMassRequirements::vehicle::engine::mass",
+	}
+	for reqID, wantPath := range wantSubjectChain {
+		if _, ok := model.Elements[reqID]; !ok {
+			t.Fatalf("missing element %s", reqID)
+		}
+		children := childrenOf(model, reqID)
+		if len(children) != 1 {
+			t.Fatalf("%s: got %d members, want 1 (the anonymous subject redefinition)", reqID, len(children))
+		}
+		subjectID := children[0]
+		subject, ok := model.Elements[subjectID]
+		if !ok {
+			t.Fatalf("missing element %s", subjectID)
+		}
+		if subject.DefKind != metamodel.DefSubject {
+			t.Errorf("%s: subject DefKind = %v, want DefSubject", reqID, subject.DefKind)
+		}
+		redefTarget, ok := relationshipTarget(model, subjectID, metamodel.Redefines)
+		if !ok || redefTarget != "VehicleMassRequirements::MassRequirement::mass" {
+			t.Errorf("%s: subject redefines %q, want %q", reqID, redefTarget, "VehicleMassRequirements::MassRequirement::mass")
+		}
+		fc, ok := subject.Value.(*metamodel.FeatureChain)
+		if !ok {
+			t.Fatalf("%s: subject.Value is %T, want *metamodel.FeatureChain", reqID, subject.Value)
+		}
+		if !reflect.DeepEqual(fc.Path, wantPath) {
+			t.Errorf("%s: FeatureChain.Path = %v, want %v", reqID, fc.Path, wantPath)
+		}
+		if fc.Target != wantSubjectTarget[reqID] {
+			t.Errorf("%s: FeatureChain.Target = %q, want %q", reqID, fc.Target, wantSubjectTarget[reqID])
+		}
+	}
+
+	// MassRequirement's own "require constraint { mass <= massLimit }" --
+	// an anonymous DefRequire usage whose Result resolves both names as
+	// siblings declared directly in MassRequirement's own body.
+	if _, ok := model.Elements["VehicleMassRequirements::MassRequirement"]; !ok {
+		t.Fatal("missing element VehicleMassRequirements::MassRequirement")
+	}
+	var requireUsage *metamodel.Element
+	for _, memberID := range childrenOf(model, "VehicleMassRequirements::MassRequirement") {
+		if el := model.Elements[memberID]; el.DefKind == metamodel.DefRequire {
+			requireUsage = el
+		}
+	}
+	if requireUsage == nil {
+		t.Fatal("no DefRequire member found under MassRequirement")
+	}
+	result, ok := requireUsage.Result.(*metamodel.BinaryExpr)
+	if !ok {
+		t.Fatalf("require usage's Result is %T, want *metamodel.BinaryExpr", requireUsage.Result)
+	}
+	if result.Op != "<=" {
+		t.Errorf("Result.Op = %q, want %q", result.Op, "<=")
+	}
+	left, ok := result.Left.(*metamodel.NameRef)
+	if !ok || left.Target != "VehicleMassRequirements::MassRequirement::mass" {
+		t.Errorf("Result.Left = %+v, want a NameRef targeting MassRequirement::mass", result.Left)
+	}
+	right, ok := result.Right.(*metamodel.NameRef)
+	if !ok || right.Target != "VehicleMassRequirements::MassRequirement::massLimit" {
+		t.Errorf("Result.Right = %+v, want a NameRef targeting MassRequirement::massLimit", result.Right)
+	}
+
+	// Each satisfy statement references its requirement (via References)
+	// and its "by" target (via Connects) -- a bare name for the vehicle
+	// itself, feature chains for the nested parts.
+	wantSatisfy := map[metamodel.ElementID]metamodel.ElementID{
+		"VehicleMassRequirements::vehicleMassRequirement": "VehicleMassRequirements::vehicle",
+		"VehicleMassRequirements::chassisMassRequirement": "VehicleMassRequirements::vehicle::chassis",
+		"VehicleMassRequirements::engineMassRequirement":  "VehicleMassRequirements::vehicle::engine",
+	}
+	var satisfyCount int
+	for _, el := range model.Elements {
+		if el.Kind != metamodel.KindSatisfy {
+			continue
+		}
+		satisfyCount++
+		reqTarget, ok := relationshipTarget(model, el.ID, metamodel.References)
+		if !ok {
+			t.Errorf("satisfy element %s: no References relationship", el.ID)
+			continue
+		}
+		wantBy, ok := wantSatisfy[reqTarget]
+		if !ok {
+			t.Errorf("satisfy element %s: unexpected requirement target %q", el.ID, reqTarget)
+			continue
+		}
+		if len(el.Connects) != 1 || el.Connects[0] != wantBy {
+			t.Errorf("satisfy of %s: Connects = %v, want [%s]", reqTarget, el.Connects, wantBy)
+		}
+	}
+	if satisfyCount != 3 {
+		t.Errorf("got %d KindSatisfy elements, want 3", satisfyCount)
+	}
+
+	// The #derivation connection: a metadata-tagged, anonymous connection
+	// usage with three "end" members (DefEnd), each itself #original/
+	// #derive-tagged and referencing (via References) one of the three
+	// requirement usages above.
+	var derivationConn *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Kind == metamodel.KindUsage && el.DefKind == metamodel.DefConnection {
+			derivationConn = el
+		}
+	}
+	if derivationConn == nil {
+		t.Fatal("no DefConnection element found")
+	}
+	annotated, ok := relationshipTarget(model, derivationConn.ID, metamodel.AnnotatedBy)
+	if !ok || annotated != "VehicleMassRequirements::derivation" {
+		t.Errorf("connection AnnotatedBy = %q, want %q", annotated, "VehicleMassRequirements::derivation")
+	}
+	connMembers := childrenOf(model, derivationConn.ID)
+	if len(connMembers) != 3 {
+		t.Fatalf("got %d connection members, want 3", len(connMembers))
+	}
+
+	wantEndTag := map[metamodel.ElementID]metamodel.ElementID{
+		"VehicleMassRequirements::vehicleMassRequirement": "VehicleMassRequirements::original",
+		"VehicleMassRequirements::chassisMassRequirement": "VehicleMassRequirements::derive",
+		"VehicleMassRequirements::engineMassRequirement":  "VehicleMassRequirements::derive",
+	}
+	seenEndTargets := map[metamodel.ElementID]bool{}
+	for _, endID := range connMembers {
+		end := model.Elements[endID]
+		if end.DefKind != metamodel.DefEnd {
+			t.Errorf("end member %s: DefKind = %v, want DefEnd", endID, end.DefKind)
+		}
+		target, ok := relationshipTarget(model, endID, metamodel.References)
+		if !ok {
+			t.Errorf("end member %s: no References relationship", endID)
+			continue
+		}
+		seenEndTargets[target] = true
+		tag, ok := relationshipTarget(model, endID, metamodel.AnnotatedBy)
+		if !ok || tag != wantEndTag[target] {
+			t.Errorf("end referencing %s: AnnotatedBy = %q, want %q", target, tag, wantEndTag[target])
+		}
+	}
+	for reqID := range wantEndTag {
+		if !seenEndTargets[reqID] {
+			t.Errorf("no end member references %s", reqID)
+		}
+	}
+}
+
+// TestFromASTAttributeDepth is a self-contained simulation exercising
+// attributes more deeply than any single existing test: redefining an
+// inherited attribute (see TestFromASTInheritedFeatureResolution) with a
+// value that's an arithmetic chain over three separate feature-chain
+// operands (not just one), a multiplicity on a part array, a constraint
+// checking a redefined attribute's rolled-up value against a limit via a
+// feature chain, and a second, independent redefinition elsewhere in the
+// same model (to confirm one redefinition doesn't interfere with another
+// against a different inherited attribute of the same name). Also surfaces
+// (see the comment on massCheck's assertion below) a related, narrower
+// known limitation: a feature chain into an instance that redefines a
+// feature still resolves to the *type's* original declaration, not the
+// instance's own redefinition -- not fixed here, since it's harmless as
+// long as this project never evaluates values, only resolves structural
+// references.
+func TestFromASTAttributeDepth(t *testing.T) {
+	source := `package AttributeDepth {
+		attribute def Mass;
+		attribute def Count;
+
+		part def Component {
+			attribute mass : Mass;
+		}
+
+		part def RollupSpec {
+			attribute mass : Mass;
+		}
+
+		part engine : Component;
+		part chassis : Component;
+		part body : Component;
+
+		part vehicleRollup : RollupSpec {
+			attribute :>> mass = engine.mass + chassis.mass + body.mass;
+		}
+
+		attribute massLimit : Mass = 500;
+		constraint massCheck { vehicleRollup.mass <= massLimit }
+
+		part def Fleet {
+			part vehicles : Component[0..*];
+			attribute vehicleCount : Count;
+		}
+		part fleet : Fleet {
+			attribute :>> vehicleCount = 3;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	// vehicleRollup's redefined "mass" is a left-associative chain of three
+	// additions, each operand a feature chain into a sibling part's own
+	// mass attribute.
+	rollupMass := childrenOf(model, "AttributeDepth::vehicleRollup")
+	if len(rollupMass) != 1 {
+		t.Fatalf("got %d members under vehicleRollup, want 1", len(rollupMass))
+	}
+	massAttr, ok := model.Elements[rollupMass[0]]
+	if !ok {
+		t.Fatalf("missing element %s", rollupMass[0])
+	}
+	if redef, ok := relationshipTarget(model, massAttr.ID, metamodel.Redefines); !ok || redef != "AttributeDepth::RollupSpec::mass" {
+		t.Errorf("vehicleRollup's mass redefines %q, want %q", redef, "AttributeDepth::RollupSpec::mass")
+	}
+	outer, ok := massAttr.Value.(*metamodel.BinaryExpr)
+	if !ok || outer.Op != "+" {
+		t.Fatalf("vehicleRollup's mass Value = %+v, want a top-level '+' BinaryExpr", massAttr.Value)
+	}
+	// Each term's target is Component::mass -- the *definition's* own
+	// declared attribute, not e.g. "AttributeDepth::engine::mass" (engine
+	// has no such child itself; it's reached entirely through its type,
+	// per ResolveFeatureChain's design) -- all three siblings share the
+	// identical target since they're all plain Component instances with no
+	// redefinition of their own.
+	bodyTerm, ok := outer.Right.(*metamodel.FeatureChain)
+	if !ok || bodyTerm.Target != "AttributeDepth::Component::mass" {
+		t.Errorf("outer.Right = %+v, want a FeatureChain targeting AttributeDepth::Component::mass", outer.Right)
+	}
+	inner, ok := outer.Left.(*metamodel.BinaryExpr)
+	if !ok || inner.Op != "+" {
+		t.Fatalf("outer.Left = %+v, want a nested '+' BinaryExpr", outer.Left)
+	}
+	engineTerm, ok := inner.Left.(*metamodel.FeatureChain)
+	if !ok || engineTerm.Target != "AttributeDepth::Component::mass" {
+		t.Errorf("inner.Left = %+v, want a FeatureChain targeting AttributeDepth::Component::mass", inner.Left)
+	}
+	chassisTerm, ok := inner.Right.(*metamodel.FeatureChain)
+	if !ok || chassisTerm.Target != "AttributeDepth::Component::mass" {
+		t.Errorf("inner.Right = %+v, want a FeatureChain targeting AttributeDepth::Component::mass", inner.Right)
+	}
+
+	// The constraint checks the redefined rollup value via a feature chain
+	// into vehicleRollup's own (redefined) mass, against the sibling
+	// massLimit attribute.
+	var massCheck *metamodel.Element
+	for _, el := range model.Elements {
+		if el.DefKind == metamodel.DefConstraint && el.Name == "massCheck" {
+			massCheck = el
+		}
+	}
+	if massCheck == nil {
+		t.Fatal("no constraint named massCheck found")
+	}
+	cmp, ok := massCheck.Result.(*metamodel.BinaryExpr)
+	if !ok || cmp.Op != "<=" {
+		t.Fatalf("massCheck.Result = %+v, want a '<=' BinaryExpr", massCheck.Result)
+	}
+	// Note: "vehicleRollup.mass" resolves to RollupSpec::mass -- the
+	// *original* declaration "mass" names in vehicleRollup's type -- not to
+	// vehicleRollup's own redefining usage (the arithmetic chain above),
+	// even though that's the more specific one. ResolveFeatureChain always
+	// steps into the type, never checking whether the instance itself (or
+	// along its type chain) redefines the segment first; this project
+	// doesn't model "prefer the redefinition" for chain lookups. Harmless
+	// here since this project never evaluates values anyway (only resolves
+	// structural references), but worth knowing if that ever changes.
+	left, ok := cmp.Left.(*metamodel.FeatureChain)
+	if !ok || left.Target != "AttributeDepth::RollupSpec::mass" {
+		t.Errorf("massCheck.Result.Left = %+v, want a FeatureChain targeting AttributeDepth::RollupSpec::mass", cmp.Left)
+	}
+	right, ok := cmp.Right.(*metamodel.NameRef)
+	if !ok || right.Target != "AttributeDepth::massLimit" {
+		t.Errorf("massCheck.Result.Right = %+v, want a NameRef targeting AttributeDepth::massLimit", cmp.Right)
+	}
+
+	// fleet's redefinition targets Fleet's own "vehicleCount" -- a
+	// different inherited attribute, same mechanism, independent of
+	// vehicleRollup's -- with a plain integer value instead of an
+	// expression chain, and vehicles[0..*] is a multiplicity on a part
+	// array declared directly in Fleet's own definition.
+	fleetMembers := childrenOf(model, "AttributeDepth::fleet")
+	if len(fleetMembers) != 1 {
+		t.Fatalf("got %d members under fleet, want 1", len(fleetMembers))
+	}
+	countAttr, ok := model.Elements[fleetMembers[0]]
+	if !ok {
+		t.Fatalf("missing element %s", fleetMembers[0])
+	}
+	if redef, ok := relationshipTarget(model, countAttr.ID, metamodel.Redefines); !ok || redef != "AttributeDepth::Fleet::vehicleCount" {
+		t.Errorf("fleet's vehicleCount redefines %q, want %q", redef, "AttributeDepth::Fleet::vehicleCount")
+	}
+	if lit, ok := countAttr.Value.(*metamodel.IntLiteral); !ok || lit.Value != 3 {
+		t.Errorf("fleet's vehicleCount Value = %+v, want IntLiteral{3}", countAttr.Value)
+	}
+
+	vehicles, ok := model.Elements["AttributeDepth::Fleet::vehicles"]
+	if !ok {
+		t.Fatal("missing element AttributeDepth::Fleet::vehicles")
+	}
+	wantMultiplicity := metamodel.Multiplicity{Lower: metamodel.Bound{Value: 0}, Upper: metamodel.Bound{Value: metamodel.Unbounded}}
+	if vehicles.Multiplicity == nil || *vehicles.Multiplicity != wantMultiplicity {
+		t.Errorf("vehicles Multiplicity = %+v, want %+v", vehicles.Multiplicity, wantMultiplicity)
 	}
 }

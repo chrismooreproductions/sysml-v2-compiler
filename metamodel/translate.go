@@ -467,29 +467,58 @@ func (t *translator) resolveWildcardImports() error {
 // their IDs (each usage's ID joined with that kind's own name) never
 // collide.
 func (t *translator) resolveReferences() error {
+	// TypedBy resolves in a pass of its own, before every other kind: a
+	// nested member's own pendingReference is queued before its enclosing
+	// usage's Type is (declareMembers runs, queuing everything nested,
+	// before the containing Usage/Definition case queues its own Type --
+	// see those cases in declareMember), so e.g. the "mass" in
+	// "requirement r : R { subject :>> mass = ...; }" would otherwise try
+	// to resolve before r's own TypedBy relationship to R exists --
+	// exactly what lookupChild's inherited-member fallback (see its own
+	// doc comment) needs to already be there.
 	for _, p := range t.pending {
-		targetID, ok := t.model.Resolve(p.owner, p.name)
-		if !ok {
-			return fmt.Errorf("metamodel: %s: unresolved %s %q", t.model.Elements[p.usage].Name, p.kind, p.name)
+		if p.kind != TypedBy {
+			continue
 		}
-		// AnnotatedBy (e.g. "#Classified #Security z1;") and a Definition's
-		// own Subsets (its comma-separated Specializes list, e.g.
-		// "part def C :> A, B;") are the two cases a single source Element
-		// can carry more than one Relationship of the same kind, so their
-		// ID also folds in the target's own name to stay unique -- every
-		// other case keeps the plain usage+kind ID, since a usage only
-		// ever has at most one type/subsets/redefines/references.
-		id := p.usage + "::" + ElementID(p.kind.String())
-		if p.kind == AnnotatedBy || t.model.Elements[p.usage].Kind == KindDefinition {
-			id += "::" + ElementID(p.name)
+		if err := t.resolvePendingReference(p); err != nil {
+			return err
 		}
-		t.model.Relationships = append(t.model.Relationships, &Relationship{
-			ID:     id,
-			Kind:   p.kind,
-			Source: p.usage,
-			Target: targetID,
-		})
 	}
+	for _, p := range t.pending {
+		if p.kind == TypedBy {
+			continue
+		}
+		if err := t.resolvePendingReference(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resolvePendingReference resolves a single pendingReference into a
+// Relationship, appended to t.model.Relationships.
+func (t *translator) resolvePendingReference(p pendingReference) error {
+	targetID, ok := t.model.Resolve(p.owner, p.name)
+	if !ok {
+		return fmt.Errorf("metamodel: %s: unresolved %s %q", t.model.Elements[p.usage].Name, p.kind, p.name)
+	}
+	// AnnotatedBy (e.g. "#Classified #Security z1;") and a Definition's
+	// own Subsets (its comma-separated Specializes list, e.g.
+	// "part def C :> A, B;") are the two cases a single source Element
+	// can carry more than one Relationship of the same kind, so their
+	// ID also folds in the target's own name to stay unique -- every
+	// other case keeps the plain usage+kind ID, since a usage only
+	// ever has at most one type/subsets/redefines/references.
+	id := p.usage + "::" + ElementID(p.kind.String())
+	if p.kind == AnnotatedBy || t.model.Elements[p.usage].Kind == KindDefinition {
+		id += "::" + ElementID(p.name)
+	}
+	t.model.Relationships = append(t.model.Relationships, &Relationship{
+		ID:     id,
+		Kind:   p.kind,
+		Source: p.usage,
+		Target: targetID,
+	})
 	return nil
 }
 

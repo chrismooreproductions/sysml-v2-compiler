@@ -519,7 +519,15 @@ func (m *Model) children() map[ElementID]map[string]ElementID {
 // request originating from inside ns's own subtree: ns's direct children
 // first, then -- regardless of their own Visibility, since privacy only
 // ever restricts access from outside a namespace, never from within it --
-// each namespace ns wildcard-imports. Used by Resolve's bare-name climb and
+// each namespace ns wildcard-imports, then (last, so a locally-declared or
+// imported name always wins over a same-named inherited one) a member ns
+// inherits from its own type, if it has one -- e.g. the "mass" in
+// `requirement r : R { subject :>> mass = ...; }`, declared only inside R's
+// own body, not r's, needed so a usage's nested body can see (and
+// redefine/subset/reference) whatever its type declares, the same way real
+// KerML feature inheritance works. Only one TypedBy hop deep, the same as
+// ResolveFeatureChain takes per segment -- a type's own further
+// specialization chain isn't walked. Used by Resolve's bare-name climb and
 // resolveQualifiedFrom's climb, where every ns checked is, by construction,
 // an ancestor of the original request.
 func (m *Model) lookupChild(ns ElementID, name string) (ElementID, bool) {
@@ -528,6 +536,11 @@ func (m *Model) lookupChild(ns ElementID, name string) (ElementID, bool) {
 	}
 	for _, imp := range m.WildcardImports[ns] {
 		if id, ok := m.children()[imp.Target][name]; ok {
+			return id, true
+		}
+	}
+	if typeID, ok := m.typeOf(ns); ok {
+		if id, ok := m.lookupChildExternal(typeID, name); ok {
 			return id, true
 		}
 	}
@@ -686,9 +699,13 @@ func (m *Model) typeOf(id ElementID) (ElementID, bool) {
 // named by the next segment (via lookupChildExternal, the same "stepping
 // in from outside" visibility a qualified path's descend uses) -- since
 // "vehicle.chassis" means "chassis, a feature of whatever vehicle is typed
-// by," not "chassis, a member of vehicle's own namespace." Returns false
-// if any segment fails to resolve, including when a middle segment's
-// element has no TypedBy relationship to walk at all.
+// by," not "chassis, a member of vehicle's own namespace." If the previous
+// segment's element has no TypedBy relationship at all (an untyped usage
+// with its own inline body instead, e.g. "part vehicle { part chassis;
+// };" -- see general usage bodies), the next segment is looked up among
+// its own direct children instead, since that's the only "feature of
+// vehicle" there is to mean in that case. Returns false if any segment
+// fails to resolve either way.
 func (m *Model) ResolveFeatureChain(from ElementID, path []string) (ElementID, bool) {
 	current, ok := m.Resolve(from, path[0])
 	if !ok {
@@ -696,11 +713,11 @@ func (m *Model) ResolveFeatureChain(from ElementID, path []string) (ElementID, b
 	}
 
 	for _, segment := range path[1:] {
-		typeID, ok := m.typeOf(current)
-		if !ok {
-			return "", false
+		scope := current
+		if typeID, ok := m.typeOf(current); ok {
+			scope = typeID
 		}
-		next, ok := m.lookupChildExternal(typeID, segment)
+		next, ok := m.lookupChildExternal(scope, segment)
 		if !ok {
 			return "", false
 		}

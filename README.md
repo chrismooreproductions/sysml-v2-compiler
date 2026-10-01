@@ -43,9 +43,22 @@ An expression can also be a dot-separated feature chain
 (`vehicle.chassis.mass`), resolved differently from a `::`-qualified name:
 only the first segment is an ordinary namespace lookup, and each segment
 after that is looked up among the *type* of the previous one (following
-its typing relationship to a definition and finding a member there),
-matching how a feature chain actually navigates through typed values
-rather than through nested namespaces.
+its typing relationship to a definition and finding a member there) — or,
+if that segment has no type at all (an untyped usage with its own inline
+body instead), among its own direct members — matching how a feature chain
+actually navigates through typed values rather than through nested
+namespaces. One related, narrower known gap: a chain segment always
+resolves to its *type's* original declaration of a name, even when the
+segment's own usage redefines that name more specifically — harmless today
+since this project only ever resolves structural references, never
+evaluates values.
+
+A bare name — in a `subsets`/`redefines`/`references` target, or an
+ordinary expression reference — can also resolve to a member a usage
+inherits from its own type (not just its containment ancestry), e.g. the
+"mass" in `requirement r : R { subject :>> mass = vehicle.mass; }`,
+declared only inside `R`'s own body. This is the mechanism real requirement
+derivation depends on throughout.
 
 Any usage, not just a definition, can carry its own nested body (`part p {
 part x; }`), and a `constraint`/`calc` definition or usage's body can
