@@ -155,6 +155,19 @@ type Definition struct {
 	// Metadata is this member's `#Tag` prefix annotations -- see Usage's
 	// doc comment on its own Metadata field for the full explanation.
 	Metadata []string
+
+	// Specializes is the definition's classifier-level specialization list
+	// (KerML's SubclassificationPart), e.g. the "VehiclePart" in
+	// `part def Vehicle :> VehiclePart;` -- comma-separated, so more than
+	// one target can appear (`part def C :> A, B;`), unlike Usage.Subsets's
+	// single target. nil if none. Spelled "specializes" or ":>" (both
+	// parse the same way); this project reuses Usage's own Subsets token
+	// for both spellings, a deliberate simplification -- real KerML keeps
+	// Classifier-level specialization and Feature-level subsetting as
+	// distinct relationships that merely share the ":>" symbol (not the
+	// word: only "subsets" is Feature-level, only "specializes" is
+	// Classifier-level), a distinction this project doesn't model.
+	Specializes []string
 }
 
 func (*Definition) memberNode() {}

@@ -265,6 +265,7 @@ var kinds = map[string]Kind{
 	"subsets":     Subsets,
 	"redefines":   Redefines,
 	"references":  References,
+	"specializes": Subsets,
 	":>":          Subsets,
 	":>>":         Redefines,
 	"::>":         References,

@@ -269,6 +269,13 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
 		t.queueMetadata(id, m.Metadata, owner)
+		// Each comma-separated specialization target is its own
+		// pendingReference -- a Definition can have more than one, unlike a
+		// Usage's single Subsets, which is why resolveReferences folds the
+		// target name into a Definition-sourced Relationship's ID.
+		for _, target := range m.Specializes {
+			t.pending = append(t.pending, pendingReference{usage: id, name: target, owner: owner, kind: Subsets})
+		}
 		if err := t.declareMembers(m.Members, id, newScope()); err != nil {
 			return err
 		}
@@ -465,13 +472,15 @@ func (t *translator) resolveReferences() error {
 		if !ok {
 			return fmt.Errorf("metamodel: %s: unresolved %s %q", t.model.Elements[p.usage].Name, p.kind, p.name)
 		}
-		// AnnotatedBy is the one kind a single Element can carry more than
-		// one of (e.g. "#Classified #Security z1;"), so its ID also folds
-		// in the target's own name to stay unique -- every other kind keeps
-		// the plain usage+kind ID, since a usage only ever has at most one
-		// type/subsets/redefines.
+		// AnnotatedBy (e.g. "#Classified #Security z1;") and a Definition's
+		// own Subsets (its comma-separated Specializes list, e.g.
+		// "part def C :> A, B;") are the two cases a single source Element
+		// can carry more than one Relationship of the same kind, so their
+		// ID also folds in the target's own name to stay unique -- every
+		// other case keeps the plain usage+kind ID, since a usage only
+		// ever has at most one type/subsets/redefines/references.
 		id := p.usage + "::" + ElementID(p.kind.String())
-		if p.kind == AnnotatedBy {
+		if p.kind == AnnotatedBy || t.model.Elements[p.usage].Kind == KindDefinition {
 			id += "::" + ElementID(p.name)
 		}
 		t.model.Relationships = append(t.model.Relationships, &Relationship{

@@ -17,9 +17,13 @@ member of `P1` resolvable as if declared in the importing namespace) —
 where a `private import` isn't re-exported to whoever, in turn,
 wildcard-imports the importing namespace. Usages can also `subsets`/`:>`,
 `redefines`/`:>>`, or `references`/`::>` another feature, in any
-combination with a typing and a multiplicity. A deliberate subset of the
-full language, grown incrementally rather than implemented against the
-spec wholesale.
+combination with a typing and a multiplicity. A definition can likewise
+`specializes`/`:>` one or more other definitions (`part def Vehicle :>
+VehiclePart;`, or a comma-separated list) — this project doesn't
+distinguish real KerML's Classifier-level specialization from Feature-level
+subsetting lexically, reusing the same token for both. A deliberate subset
+of the full language, grown incrementally rather than implemented against
+the spec wholesale.
 
 A usage's assigned value (`= ...`) can now be a full expression, not just
 an integer literal: boolean/integer/real/string literals, a qualified-name

@@ -33,11 +33,11 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// only ever accepts "assert"/"not"/"satisfy", not "assert" followed
 		// directly by "constraint".
 		{"ConstraintTest.sysml", `line 24: unexpected 'constraint', want 'satisfy'`},
-		// definition-level specialization ("part def Vehicle :>
-		// VehiclePart;", KerML's SubclassificationPart) isn't supported --
-		// this project's ":>"/"subsets" only cover usage-level feature
-		// subsetting, not classifier specialization on a definition.
-		{"CalculationTest.sysml", `line 9: unexpected 'subsets', want ';' or '{'`},
+		// "in" (a parameter-direction keyword) isn't a recognized
+		// defKeywords entry -- it's swept into the calc body's trailing
+		// result-expression attempt as a bare NameRef, then the next
+		// identifier ("partMasses") isn't valid where '}' was expected.
+		{"CalculationTest.sysml", `line 18: unexpected identifier "partMasses", want '}'`},
 		// "bind"/BindingConnectorAsUsage isn't supported -- a structurally
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment).

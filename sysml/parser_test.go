@@ -754,6 +754,44 @@ func TestModelParseUsageTypeAndSubsets(t *testing.T) {
 	}
 }
 
+// TestModelParseDefinitionSpecializes checks a definition's own
+// classifier-level specialization list (SubclassificationPart): both
+// spellings ("specializes" and ":>"), a single target, and a
+// comma-separated multi-target list.
+func TestModelParseDefinitionSpecializes(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   []string
+	}{
+		"symbol, single target": {
+			`part def Vehicle :> VehiclePart;`, []string{"VehiclePart"},
+		},
+		"keyword, single target": {
+			`part def Vehicle specializes VehiclePart;`, []string{"VehiclePart"},
+		},
+		"multiple targets": {
+			`part def Vehicle :> A, B;`, []string{"A", "B"},
+		},
+		"with body": {
+			`part def Vehicle :> VehiclePart { attribute m : Real; }`, []string{"VehiclePart"},
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.source+` }`)
+
+			def, ok := pkg.Members[0].(*sysml.Definition)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+			}
+			if !reflect.DeepEqual(def.Specializes, tt.want) {
+				t.Errorf("Specializes = %#v, want %#v", def.Specializes, tt.want)
+			}
+		})
+	}
+}
+
 // TestModelParseExpression checks the expression parser's tree shapes:
 // each literal kind, a bare/qualified name reference, binary and unary
 // operators, precedence climbing (including "**"'s right-associativity),
@@ -1520,6 +1558,8 @@ func TestModelParseErrors(t *testing.T) {
 		"part usage duplicate subsets":                "package Vehicle { part b subsets a subsets a; }",
 		"part usage duplicate redefines":              "package Vehicle { part b redefines a redefines a; }",
 		"part usage duplicate references":             "package Vehicle { part b references a references a; }",
+		"definition specializes missing target":       "package Vehicle { part def V :> ; }",
+		"definition specializes trailing comma":       "package Vehicle { part def V :> A,; }",
 		"unmatched closing brace":                     "package Vehicle { } }",
 		"qualified type missing segment":              "package Vehicle { part engine : Vehicle::; }",
 		"qualified type trailing path sep":            "package Vehicle { part engine : Vehicle::Engine::; }",

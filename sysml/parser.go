@@ -313,6 +313,11 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 		return nil, err
 	}
 
+	specializes, err := p.parseSubclassificationPart()
+	if err != nil {
+		return nil, err
+	}
+
 	tok, ok := p.current()
 	if !ok {
 		return nil, fmt.Errorf("unexpected end of input after %s def %q, want %s or %s", kind, string(name.Value), Semicolon, OpenBrace)
@@ -321,7 +326,7 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 	switch tok.Kind {
 	case Semicolon:
 		p.pos++
-		return &Definition{Kind: kind, Name: string(name.Value)}, nil
+		return &Definition{Kind: kind, Name: string(name.Value), Specializes: specializes}, nil
 
 	case OpenBrace:
 		p.pos++
@@ -333,7 +338,7 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 			if _, err := p.expect(CloseBrace); err != nil {
 				return nil, err
 			}
-			return &Definition{Kind: kind, Name: string(name.Value), Members: members, Result: result}, nil
+			return &Definition{Kind: kind, Name: string(name.Value), Members: members, Result: result, Specializes: specializes}, nil
 		}
 		members, err := p.parseMembers()
 		if err != nil {
@@ -342,10 +347,38 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 		if _, err := p.expect(CloseBrace); err != nil {
 			return nil, err
 		}
-		return &Definition{Kind: kind, Name: string(name.Value), Members: members}, nil
+		return &Definition{Kind: kind, Name: string(name.Value), Members: members, Specializes: specializes}, nil
 
 	default:
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s or %s", tok.Pos.Line, describeToken(tok), Semicolon, OpenBrace)
+	}
+}
+
+// parseSubclassificationPart consumes a definition's optional classifier-
+// level specialization list (SubclassificationPart): "subsets"/":>"/
+// "specializes" (all the same Subsets token, see Definition.Specializes'
+// doc comment) followed by one or more comma-separated qualified names.
+// Consumes nothing and returns nil if the next token isn't that token.
+func (p *parser) parseSubclassificationPart() ([]string, error) {
+	tok, ok := p.current()
+	if !ok || tok.Kind != Subsets {
+		return nil, nil
+	}
+	p.pos++
+
+	var targets []string
+	for {
+		target, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, target)
+
+		if tok, ok := p.current(); ok && tok.Kind == Comma {
+			p.pos++
+			continue
+		}
+		return targets, nil
 	}
 }
 

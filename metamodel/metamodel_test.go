@@ -1706,6 +1706,73 @@ func TestFromASTUnresolvedSubsets(t *testing.T) {
 	}
 }
 
+// TestFromASTDefinitionSpecializes checks that a definition's own
+// classifier-level specialization resolves to a Subsets Relationship, the
+// same RelationshipKind a usage's own subsetting produces.
+func TestFromASTDefinitionSpecializes(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def VehiclePart;
+		part def Vehicle :> VehiclePart;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	target, ok := relationshipTarget(model, "Vehicle::Vehicle", metamodel.Subsets)
+	if !ok {
+		t.Fatal("no Subsets relationship found for Vehicle::Vehicle")
+	}
+	if target != "Vehicle::VehiclePart" {
+		t.Errorf("Vehicle specializes %q, want %q", target, "Vehicle::VehiclePart")
+	}
+}
+
+// TestFromASTDefinitionMultipleSpecializes checks that a comma-separated
+// specialization list produces one Subsets Relationship per target, each
+// independently resolved and with a distinct ID (the ID-uniqueness fix
+// resolveReferences needs once a single source can have more than one
+// Relationship of the same kind -- see its own comment).
+func TestFromASTDefinitionMultipleSpecializes(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def A;
+		part def B;
+		part def C :> A, B;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	targets := relationshipTargets(model, "Vehicle::C", metamodel.Subsets)
+	want := []metamodel.ElementID{"Vehicle::A", "Vehicle::B"}
+	if !reflect.DeepEqual(targets, want) {
+		t.Errorf("C specializes %v, want %v", targets, want)
+	}
+}
+
+// TestFromASTUnresolvedDefinitionSpecializes checks that an unresolvable
+// specialization target fails translation the same strictly-required way
+// an unresolved usage subsets does.
+func TestFromASTUnresolvedDefinitionSpecializes(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { part def C :> Nope; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved specialization target, got nil")
+	}
+}
+
 // TestFromASTReferences is TestFromASTRedefines's counterpart for
 // "references"/"::>", including a qualified target.
 func TestFromASTReferences(t *testing.T) {
