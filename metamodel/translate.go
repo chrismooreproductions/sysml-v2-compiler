@@ -261,6 +261,7 @@ func (t *translator) declareUsage(m *sysml.Usage, owner ElementID, sc *scope) (E
 	t.model.Elements[id].DefKind = DefKind(m.Kind)
 	t.model.Elements[id].Visibility = Visibility(m.Visibility)
 	t.model.Elements[id].Abstract = m.Abstract
+	t.model.Elements[id].ShortName = m.ShortName
 	t.queueMetadata(id, m.Metadata, owner)
 	if m.Multiplicity != nil {
 		// sysml.Unbounded and metamodel.Unbounded are both -1 by
@@ -332,6 +333,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
 		t.model.Elements[id].Abstract = m.Abstract
+		t.model.Elements[id].ShortName = m.ShortName
 		t.queueMetadata(id, m.Metadata, owner)
 		// Each comma-separated specialization target is its own
 		// pendingReference -- a Definition can have more than one, unlike a

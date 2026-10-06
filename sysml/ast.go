@@ -195,6 +195,12 @@ type Definition struct {
 	// checks that an abstract definition is never directly instantiated,
 	// the one thing being abstract is actually supposed to mean.
 	Abstract bool
+
+	// ShortName is this definition's optional "<Name>" (Identification's
+	// own declaredShortName), e.g. the "xx" in `part def <xx> B { ... }`.
+	// "" if none. Recorded but not otherwise used -- nothing can currently
+	// reference a definition by its short name instead of its real one.
+	ShortName string
 }
 
 func (*Definition) memberNode() {}
@@ -274,6 +280,13 @@ type Usage struct {
 	// `abstract part a: A[1..2];`. Recorded but not enforced -- see
 	// Definition.Abstract's own doc comment.
 	Abstract bool
+
+	// ShortName is this usage's optional "<Name>" (FeatureIdentification's
+	// own declaredShortName), e.g. the "'1'" in `part <'1'> b: B;`. "" if
+	// none -- see Definition.ShortName's own doc comment for what it's
+	// (not) used for. Independent of Name: a short name can appear with a
+	// real name, or (not yet exercised by any fixture here) alone.
+	ShortName string
 }
 
 func (*Usage) memberNode() {}

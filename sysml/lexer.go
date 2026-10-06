@@ -198,6 +198,36 @@ func (l *lexer) scanString(start Pos) Token {
 	return Token{Kind: StringLit, Value: value, Pos: start}
 }
 
+// scanRestrictedName scans a single-quoted restricted name (e.g. 'User
+// Defined Extensions'), which can contain characters an ordinary
+// identifier can't (spaces, dots, a leading digit, ...). Unlike
+// scanString, the result is a plain Identifier token -- not a new kind --
+// whose Value is the *unquoted* inner text, so every consumer of an
+// Identifier (qualified names, declaration names, short names) handles it
+// exactly like a bare name, with no further unquoting step; StringLit
+// keeps its quotes instead, for parsePrimary's own unquoteString, since a
+// string literal is a value, not a name. An unterminated restricted name
+// runs to EOF, the same as an unterminated string does.
+func (l *lexer) scanRestrictedName(start Pos) Token {
+	l.advance()
+
+	var value []rune
+	for {
+		r, size := l.current()
+		if size == 0 || r == '\'' {
+			break
+		}
+		l.advance()
+		value = append(value, r)
+	}
+
+	if r, size := l.current(); size > 0 && r == '\'' {
+		l.advance()
+	}
+
+	return Token{Kind: Identifier, Value: value, Pos: start}
+}
+
 // scanNumber scans a numeric literal: a run of digits, optionally followed
 // by '.' and more digits (a real literal), e.g. "5" or "3.14". Kept as an
 // ordinary Identifier-kind token, like any other bare word -- parsePrimary
@@ -315,6 +345,9 @@ func (l *lexer) next() (Token, bool) {
 
 		case r == '"':
 			return l.scanString(start), true
+
+		case r == '\'':
+			return l.scanRestrictedName(start), true
 
 		case isDigit(r):
 			return l.scanNumber(start), true

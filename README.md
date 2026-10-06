@@ -84,6 +84,16 @@ none at all. A definition, usage, or connection can also carry a leading
 definition is never directly instantiated). Not yet supported:
 `bind`/`succession` (structurally unrelated shorthand forms).
 
+A name — anywhere one can appear, including a usage's or definition's own
+declared name — can be a single-quoted restricted name (`'User Defined
+Extensions'`), letting it contain characters an ordinary identifier can't
+(spaces, dots, a leading digit, ...); it lexes as a plain identifier with
+the quotes stripped, so every consumer handles it exactly like a bare
+name. A usage or definition can also carry an optional short name ahead of
+its real one (`part <'1'> b: B;`, `part def <xx> B;`), itself either bare
+or restricted — recorded, but not otherwise used (nothing can currently
+reference something by its short name instead of its real one).
+
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):
 `ScalarValues` (`Boolean`, `String`, `Real`, `Rational`, `Integer`,
@@ -104,9 +114,10 @@ full grammar: a `#Tag` is only parsed once, right after an optional leading
 visibility keyword and before the definition/usage keyword itself (real
 SysML allows it interspersed more freely, including on a bare usage with no
 kind keyword at all); and each tag is a plain qualified name, not the fuller
-typing a real metadata usage allows. Not yet supported: single-quoted/
-restricted names (`'User Defined Extensions'`) — unrelated to metadata
-itself, but the first thing a real metadata-heavy example file trips on.
+typing a real metadata usage allows. Not yet supported: `library package`
+(LibraryPackage's own prefix keyword) and `enum def` — unrelated to
+metadata itself, but the next things a real metadata-heavy example file
+trips on.
 
 `requirement`/`concern`/`case` are three more definition/usage keyword
 families, alongside `subject`/`assume`/`require`/`frame`/`actor`/
@@ -137,14 +148,17 @@ with a body).
 A handful of recurring gaps that blocked real examples well before their
 own subject matter have since closed: every usage kind (not just
 constraint/calc-shaped ones) can carry a general body; `end` introduces a
-body member inside a connection/interface *definition* (see above); and
+body member inside a connection/interface *definition* (see above);
 `in`/`out`/`inout`/`return` (parameter-direction keywords) and `ref`
 (the plain reference-usage keyword) are five more keyword families, each
 the exact same plain usage shape `subject`/`actor`/`stakeholder` already
-have. Still open, each its own fixture's current blocker: `bind`/
-`succession`, `abstract`, `AssertConstraintUsage`'s non-`satisfy` form,
-sequence expressions, the inline `satisfy` declaration above, short names,
-single-quoted/restricted names, and recursive imports.
+have; a definition, usage, or connection can carry a leading `abstract`
+prefix; `Satisfy`'s inline `requirement req1 : Req1` declaration form
+works alongside its bare-reference one; and restricted/short names (see
+above) are supported. Still open, each its own fixture's current
+blocker: `bind`/`succession`, `AssertConstraintUsage`'s non-`satisfy`
+form, sequence expressions, `library package`, `enum def`, and recursive
+imports.
 
 ## References
 

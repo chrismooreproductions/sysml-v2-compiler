@@ -995,6 +995,40 @@ func TestFromASTAbstract(t *testing.T) {
 	}
 }
 
+// TestFromASTShortName checks that a usage's and a definition's optional
+// "<Name>" short name carries over onto Element.ShortName.
+func TestFromASTShortName(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def < xx > B;
+		part <'1'> b : B;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	tests := []struct {
+		id   metamodel.ElementID
+		want string
+	}{
+		{"Vehicle::B", "xx"},
+		{"Vehicle::b", "1"},
+	}
+	for _, tt := range tests {
+		el, ok := model.Elements[tt.id]
+		if !ok {
+			t.Fatalf("missing element %q", tt.id)
+		}
+		if el.ShortName != tt.want {
+			t.Errorf("%s: ShortName = %q, want %q", tt.id, el.ShortName, tt.want)
+		}
+	}
+}
+
 // TestFromASTDefKeywords checks that "attribute", "item", and "port"
 // definitions/usages each carry their sysml.DefKind over onto Element.DefKind
 // correctly -- across the sysml.DefKind -> metamodel.DefKind conversion

@@ -338,7 +338,39 @@ func (p *parser) parseMetadataPrefixes() ([]string, error) {
 	}
 }
 
+// parseShortName consumes an optional short name ("'<' Name '>'",
+// Identification's own declaredShortName), e.g. the "'1'" in
+// "part <'1'> b: B;" or the "xx" in "part def <xx> B". A short name's own
+// Name can be a bare identifier or a restricted (single-quoted) one --
+// both lex as the same Identifier token (see scanRestrictedName), so this
+// is just an Identifier between "<" and ">". Consumes nothing and returns
+// "" if the next token isn't "<". Note: "<" is also the Lt binary
+// operator token, but a short name only ever appears where a usage/
+// definition's Identification does, never inside an expression, so no
+// disambiguation beyond that position is needed.
+func (p *parser) parseShortName() (string, error) {
+	tok, ok := p.current()
+	if !ok || tok.Kind != Lt {
+		return "", nil
+	}
+	p.pos++
+
+	name, err := p.expect(Identifier)
+	if err != nil {
+		return "", err
+	}
+	if _, err := p.expect(Gt); err != nil {
+		return "", err
+	}
+	return string(name.Value), nil
+}
+
 func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
+	shortName, err := p.parseShortName()
+	if err != nil {
+		return nil, err
+	}
+
 	name, err := p.expect(Identifier)
 	if err != nil {
 		return nil, err
@@ -357,7 +389,7 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 	switch tok.Kind {
 	case Semicolon:
 		p.pos++
-		return &Definition{Kind: kind, Name: string(name.Value), Specializes: specializes}, nil
+		return &Definition{Kind: kind, Name: string(name.Value), Specializes: specializes, ShortName: shortName}, nil
 
 	case OpenBrace:
 		p.pos++
@@ -369,7 +401,7 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 			if _, err := p.expect(CloseBrace); err != nil {
 				return nil, err
 			}
-			return &Definition{Kind: kind, Name: string(name.Value), Members: members, Result: result, Specializes: specializes}, nil
+			return &Definition{Kind: kind, Name: string(name.Value), Members: members, Result: result, Specializes: specializes, ShortName: shortName}, nil
 		}
 		members, err := p.parseMembers()
 		if err != nil {
@@ -378,7 +410,7 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 		if _, err := p.expect(CloseBrace); err != nil {
 			return nil, err
 		}
-		return &Definition{Kind: kind, Name: string(name.Value), Members: members, Specializes: specializes}, nil
+		return &Definition{Kind: kind, Name: string(name.Value), Members: members, Specializes: specializes, ShortName: shortName}, nil
 
 	default:
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s or %s", tok.Pos.Line, describeToken(tok), Semicolon, OpenBrace)
@@ -475,6 +507,12 @@ func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
 // case, calling this and then handling everything that can follow.
 func (p *parser) parseUsageDeclaration(kind DefKind) (*Usage, error) {
 	usage := &Usage{Kind: kind}
+
+	shortName, err := p.parseShortName()
+	if err != nil {
+		return nil, err
+	}
+	usage.ShortName = shortName
 
 	if inner, ok := requirementConstraintInnerKeyword[kind]; ok {
 		if tok, ok := p.current(); ok && tok.Kind == inner {

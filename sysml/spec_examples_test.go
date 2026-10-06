@@ -22,12 +22,10 @@ func TestModelParseSpecExamples(t *testing.T) {
 		file    string
 		wantErr string
 	}{
-		// short names ("part <'1'> b: B;") aren't supported. Since Phase 3
-		// made a usage's name optional, '<' no longer needs to be an
-		// identifier there -- it's just treated as "no name", so parsing
-		// now gets one token further before rejecting '<' as neither a
-		// specialization part nor a value nor ';'.
-		{"PartTest.sysml", `line 6: unexpected '<', want ';'`},
+		// "constant" as a prefix modifier (alongside "derived"/"readonly"/
+		// "nonunique"/"ordered") isn't supported -- short names are fixed
+		// now, so this fixture advances to its next gap.
+		{"PartTest.sysml", `line 8: unexpected identifier "constant", want 'package', 'import', or 'part'`},
 		// AssertConstraintUsage's non-"satisfy" form ("assert constraint
 		// massAnalysis : MassAnalysis { ... }") isn't supported -- parseSatisfy
 		// only ever accepts "assert"/"not"/"satisfy", not "assert" followed
@@ -43,21 +41,17 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment).
 		{"ConnectionTest.sysml", `line 22: unexpected identifier "bind", want 'package', 'import', or 'part'`},
-		// single-quoted/restricted names ("'User Defined Extensions'")
-		// aren't supported -- the lexer has no handling for '\'' at all,
-		// so it gets swept into the identifier it's touching ("'User"),
-		// and the space inside the quoted name splits what should be one
-		// name into two tokens. This trips well before anything
-		// metadata-related: it's the qualified name in this fixture's
-		// own private import, on line 2.
-		{"MetadataTest.sysml", `line 2: unexpected identifier "Defined", want ';'`},
+		// "library" (LibraryPackage's own prefix keyword, "standard"?
+		// "library" Package) isn't supported -- unrelated to metadata
+		// itself, but the next thing this fixture's own
+		// "library package 'User Defined Extensions' { ... }" trips on,
+		// now that restricted names (the quoted package name itself)
+		// resolve correctly.
+		{"MetadataTest.sysml", `line 4: unexpected identifier "library", want 'package', 'import', or 'part'`},
 		// recursive imports ("q::**") aren't supported -- unrelated to
 		// requirements themselves, but the first thing this fixture's own
 		// "private import q::**;" trips on, at line 4.
 		{"RequirementTest.sysml", `line 4: unexpected '**', want identifier`},
-		// short names ("<'UR1.1'>") aren't supported -- the same long-tail
-		// gap PartTest.sysml's own blocker is, at line 4.
-		{"HSUVRequirements.sysml", `line 4: unexpected '<', want ';'`},
 	}
 
 	for _, tt := range cases {
@@ -105,6 +99,9 @@ func TestModelParseSpecExamplesSuccess(t *testing.T) {
 		// Exercises Satisfy's inline "requirement req1 : Req1" declaration
 		// form, the only thing it was missing.
 		"RequirementDerivationExample.sysml",
+		// Exercises restricted names and short names together
+		// ("<'UR1.1'> Load"), the only things it was missing.
+		"HSUVRequirements.sysml",
 	}
 
 	for _, file := range files {

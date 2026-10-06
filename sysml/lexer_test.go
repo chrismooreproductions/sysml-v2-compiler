@@ -389,6 +389,35 @@ func TestLexerStringLiteral(t *testing.T) {
 	}
 }
 
+// TestLexerRestrictedName checks that a single-quoted restricted name
+// lexes as a single Identifier-kind token (not a new kind, unlike
+// StringLit) whose Value is the *unquoted* inner text -- so it's handled
+// exactly like a bare name wherever one's expected, with no further
+// unquoting step.
+func TestLexerRestrictedName(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		want   string
+	}{
+		"simple":               {`'User Defined Extensions'`, `User Defined Extensions`},
+		"empty":                {`''`, ``},
+		"with dots and digits": {`'UR1.1'`, `UR1.1`},
+		"unterminated at EOF":  {`'hello`, `hello`},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			tokens, err := sysml.NewModel(tt.source).Lex()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(tokens) != 1 || tokens[0].Kind != sysml.Identifier || string(tokens[0].Value) != tt.want {
+				t.Errorf("Lex(%q) = %v, want a single Identifier %q", tt.source, tokens, tt.want)
+			}
+		})
+	}
+}
+
 // TestLexerNumericLiteral checks that a run of digits lexes as one
 // Identifier-kind token (matching how "5" already worked for multiplicity
 // bounds), that a decimal point followed by more digits extends it into a

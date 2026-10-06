@@ -212,6 +212,11 @@ type Element struct {
 	// enforced, the same as Visibility.
 	Abstract bool
 
+	// ShortName is this Element's optional "<Name>" short name, mirroring
+	// sysml.Definition/Usage's own ShortName. "" if none; not otherwise
+	// used -- nothing can currently reference an Element by it.
+	ShortName string
+
 	// Owner is the ID of the Element that directly contains this one, or
 	// "" for the root. Containment is kept as a plain field rather than a
 	// Relationship: it's the one edge nearly everything else (scoping,
