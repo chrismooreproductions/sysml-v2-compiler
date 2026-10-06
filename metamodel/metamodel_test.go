@@ -2272,6 +2272,115 @@ func TestFromASTSatisfyNoBy(t *testing.T) {
 	}
 }
 
+// TestFromASTSatisfyInlineDeclaration checks SatisfyRequirementUsage's
+// other alternative: "satisfy requirement req1 : Req1 by system;" declares
+// a brand new requirement usage (req1) as an ordinary sibling in the
+// satisfy statement's own scope -- resolvable by name from anywhere that
+// scope already reaches, e.g. a later derivation connection's "end" member
+// -- rather than a bare reference to an existing one, and links it in via
+// the same References relationship the bare-reference form uses, with no
+// pendingReference needed since the ID is already known synchronously.
+func TestFromASTSatisfyInlineDeclaration(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		requirement def Req1;
+		part def System;
+		part system : System;
+
+		part satisfactionContext {
+			satisfy requirement req1 : Req1 by system;
+			satisfy requirement req1_1 : Req1 by system;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	req1, ok := model.Elements["Vehicle::satisfactionContext::req1"]
+	if !ok {
+		t.Fatal("missing element Vehicle::satisfactionContext::req1")
+	}
+	if req1.DefKind != metamodel.DefRequirement {
+		t.Errorf("req1.DefKind = %v, want DefRequirement", req1.DefKind)
+	}
+	if target, ok := typeOf(model, req1.ID); !ok || target != "Vehicle::Req1" {
+		t.Errorf("req1 typed by %q, want Vehicle::Req1", target)
+	}
+
+	// Both satisfy statements' References relationships point at their own
+	// distinct declared requirement, not each other's.
+	for _, reqID := range []metamodel.ElementID{"Vehicle::satisfactionContext::req1", "Vehicle::satisfactionContext::req1_1"} {
+		var found bool
+		for _, el := range model.Elements {
+			if el.Kind != metamodel.KindSatisfy {
+				continue
+			}
+			target, ok := relationshipTarget(model, el.ID, metamodel.References)
+			if ok && target == reqID {
+				found = true
+				if len(el.Connects) != 1 || el.Connects[0] != "Vehicle::system" {
+					t.Errorf("satisfy of %s: Connects = %v, want [Vehicle::system]", reqID, el.Connects)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("no satisfy element references %s", reqID)
+		}
+	}
+}
+
+// TestFromASTSatisfyInlineDeclarationUntyped checks the declaration-only
+// shape with neither a type nor a "by" clause ("satisfy requirement
+// req1;").
+func TestFromASTSatisfyInlineDeclarationUntyped(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part satisfactionContext {
+			satisfy requirement req1;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	req1, ok := model.Elements["Vehicle::satisfactionContext::req1"]
+	if !ok {
+		t.Fatal("missing element Vehicle::satisfactionContext::req1")
+	}
+	if _, ok := typeOf(model, req1.ID); ok {
+		t.Error("req1 has a TypedBy relationship, want none (untyped)")
+	}
+
+	sat := findSatisfy(model, "Vehicle::satisfactionContext")
+	if sat == nil {
+		t.Fatal("no KindSatisfy element found under satisfactionContext")
+	}
+	if sat.Connects != nil {
+		t.Errorf("Connects = %v, want nil", sat.Connects)
+	}
+}
+
+// TestFromASTUnresolvedSatisfyInlineDeclarationType checks that an inline
+// declaration's own unresolvable type fails translation.
+func TestFromASTUnresolvedSatisfyInlineDeclarationType(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { satisfy requirement req1 : Nope; }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved inline declaration type, got nil")
+	}
+}
+
 // TestFromASTUnresolvedSatisfyRequirement checks that an unresolvable
 // requirement reference fails translation the same strictly-required way an
 // unresolved subsets target does.

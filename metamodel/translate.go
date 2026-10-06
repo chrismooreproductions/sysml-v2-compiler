@@ -247,6 +247,69 @@ func (t *translator) declareMembers(members []sysml.Member, owner ElementID, sc 
 	return nil
 }
 
+// declareUsage declares a *sysml.Usage under owner/sc exactly the way
+// declareMember's own *sysml.Usage case does, returning the new Element's
+// ID so a caller that needs it synchronously -- Satisfy's inline
+// "requirement req1 : Req1" declaration needs its own ID immediately, to
+// record as the satisfy's requirement target, rather than through a
+// deferred pendingReference -- can use it without re-resolving by name.
+func (t *translator) declareUsage(m *sysml.Usage, owner ElementID, sc *scope) (ElementID, error) {
+	id, ok := t.declare(KindUsage, m.Name, owner, sc)
+	if !ok {
+		return "", fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
+	}
+	t.model.Elements[id].DefKind = DefKind(m.Kind)
+	t.model.Elements[id].Visibility = Visibility(m.Visibility)
+	t.model.Elements[id].Abstract = m.Abstract
+	t.queueMetadata(id, m.Metadata, owner)
+	if m.Multiplicity != nil {
+		// sysml.Unbounded and metamodel.Unbounded are both -1 by
+		// convention, so each Bound's Value carries over unchanged.
+		t.model.Elements[id].Multiplicity = &Multiplicity{
+			Lower: Bound{Value: m.Multiplicity.Lower.Value, Name: m.Multiplicity.Lower.Name},
+			Upper: Bound{Value: m.Multiplicity.Upper.Value, Name: m.Multiplicity.Upper.Name},
+		}
+	}
+	if m.Value != nil {
+		val, err := t.convertExpression(m.Value, owner)
+		if err != nil {
+			return "", err
+		}
+		t.model.Elements[id].Value = val
+	}
+	// Only a constraint/calc usage ever has Members/Result (see
+	// hasCalculationBody in sysml/parser.go) -- declareMembers on a nil
+	// slice is a no-op for every other kind. Both resolve against id,
+	// the same as a Definition's own Members/Result do, for the same
+	// reason: they're the usage's own body, not its containing scope.
+	if err := t.declareMembers(m.Members, id, newScope()); err != nil {
+		return "", err
+	}
+	if m.Result != nil {
+		result, err := t.convertExpression(m.Result, id)
+		if err != nil {
+			return "", err
+		}
+		t.model.Elements[id].Result = result
+	}
+	// An untyped usage (e.g. "port p;") has no type to resolve; a usage
+	// can independently have a type, a subsets, a redefines, and/or a
+	// references, each queued as its own pendingReference.
+	if m.Type != "" {
+		t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})
+	}
+	if m.Subsets != "" {
+		t.pending = append(t.pending, pendingReference{usage: id, name: m.Subsets, owner: owner, kind: Subsets})
+	}
+	if m.Redefines != "" {
+		t.pending = append(t.pending, pendingReference{usage: id, name: m.Redefines, owner: owner, kind: Redefines})
+	}
+	if m.References != "" {
+		t.pending = append(t.pending, pendingReference{usage: id, name: m.References, owner: owner, kind: References})
+	}
+	return id, nil
+}
+
 func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *scope) error {
 	switch m := member.(type) {
 	case *sysml.Package:
@@ -295,60 +358,8 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		return nil
 
 	case *sysml.Usage:
-		id, ok := t.declare(KindUsage, m.Name, owner, sc)
-		if !ok {
-			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
-		}
-		t.model.Elements[id].DefKind = DefKind(m.Kind)
-		t.model.Elements[id].Visibility = Visibility(m.Visibility)
-		t.model.Elements[id].Abstract = m.Abstract
-		t.queueMetadata(id, m.Metadata, owner)
-		if m.Multiplicity != nil {
-			// sysml.Unbounded and metamodel.Unbounded are both -1 by
-			// convention, so each Bound's Value carries over unchanged.
-			t.model.Elements[id].Multiplicity = &Multiplicity{
-				Lower: Bound{Value: m.Multiplicity.Lower.Value, Name: m.Multiplicity.Lower.Name},
-				Upper: Bound{Value: m.Multiplicity.Upper.Value, Name: m.Multiplicity.Upper.Name},
-			}
-		}
-		if m.Value != nil {
-			val, err := t.convertExpression(m.Value, owner)
-			if err != nil {
-				return err
-			}
-			t.model.Elements[id].Value = val
-		}
-		// Only a constraint/calc usage ever has Members/Result (see
-		// hasCalculationBody in sysml/parser.go) -- declareMembers on a nil
-		// slice is a no-op for every other kind. Both resolve against id,
-		// the same as a Definition's own Members/Result do, for the same
-		// reason: they're the usage's own body, not its containing scope.
-		if err := t.declareMembers(m.Members, id, newScope()); err != nil {
-			return err
-		}
-		if m.Result != nil {
-			result, err := t.convertExpression(m.Result, id)
-			if err != nil {
-				return err
-			}
-			t.model.Elements[id].Result = result
-		}
-		// An untyped usage (e.g. "port p;") has no type to resolve; a usage
-		// can independently have a type, a subsets, a redefines, and/or a
-		// references, each queued as its own pendingReference.
-		if m.Type != "" {
-			t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})
-		}
-		if m.Subsets != "" {
-			t.pending = append(t.pending, pendingReference{usage: id, name: m.Subsets, owner: owner, kind: Subsets})
-		}
-		if m.Redefines != "" {
-			t.pending = append(t.pending, pendingReference{usage: id, name: m.Redefines, owner: owner, kind: Redefines})
-		}
-		if m.References != "" {
-			t.pending = append(t.pending, pendingReference{usage: id, name: m.References, owner: owner, kind: References})
-		}
-		return nil
+		_, err := t.declareUsage(m, owner, sc)
+		return err
 
 	case *sysml.Connection:
 		id, ok := t.declare(KindUsage, m.Name, owner, sc)
@@ -390,11 +401,31 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		t.model.Elements[id].Assert = m.Assert
 		t.model.Elements[id].Negated = m.Negated
-		// m.Requirement (X) is a reference-subsetting-shaped resolution --
-		// the real grammar's own ReferenceSubsetting -- resolved the same
-		// way a usage's own References is (see the References
-		// RelationshipKind's own doc comment).
-		t.pending = append(t.pending, pendingReference{usage: id, name: m.Requirement, owner: owner, kind: References})
+		if m.Declaration != nil {
+			// The inline-declaration alternative: declare the brand new
+			// requirement usage as an ordinary sibling in owner/sc (so it's
+			// resolvable by name from anywhere owner's own scope already
+			// reaches, e.g. a later "end r1 ::> req1;" in a derivation
+			// connection) and link it in directly -- its ID is already
+			// known synchronously, so this needs no pendingReference at
+			// all, unlike the bare-reference alternative below.
+			declID, err := t.declareUsage(m.Declaration, owner, sc)
+			if err != nil {
+				return err
+			}
+			t.model.Relationships = append(t.model.Relationships, &Relationship{
+				ID:     id + "::" + ElementID(References.String()),
+				Kind:   References,
+				Source: id,
+				Target: declID,
+			})
+		} else {
+			// m.Requirement (X) is a reference-subsetting-shaped
+			// resolution -- the real grammar's own ReferenceSubsetting --
+			// resolved the same way a usage's own References is (see the
+			// References RelationshipKind's own doc comment).
+			t.pending = append(t.pending, pendingReference{usage: id, name: m.Requirement, owner: owner, kind: References})
+		}
 		// m.By (Y), if present, is a plain expression (NameRef or
 		// FeatureChain) already -- converting and queuing it is identical to
 		// how a Connection's own ends are handled, harvested into Connects

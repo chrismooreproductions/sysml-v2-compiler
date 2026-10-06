@@ -463,15 +463,17 @@ func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
 	}
 }
 
-// parseUsage parses a usage. Its name is optional (see Usage's doc
-// comment): a leading Identifier is consumed as the name if present,
-// otherwise the usage is anonymous and nothing is consumed for it.
-// parseUsage parses a usage declaration and, for most DefKinds, the plain
-// Usage that follows from it. For a connector kind (see isConnectorKind)
-// followed by an explicit "connect" clause, it instead returns a
-// Connection carrying the name/type already parsed -- the one case this
-// function's result isn't a *Usage.
-func (p *parser) parseUsage(kind DefKind) (Member, error) {
+// parseUsageDeclaration parses just a usage's Identification and
+// FeatureSpecializationPart (UsageDeclaration proper, in grammar terms):
+// an optional inner keyword (see requirementConstraintInnerKeyword), an
+// optional name, then an optional type/multiplicity/subsets/redefines/
+// references in whichever order they appear. Deliberately stops there,
+// without consuming a value/body/terminator, so a caller that needs
+// something else to come next before committing to those -- Satisfy's
+// inline `requirement req1 : Req1` declaration needs its own "by" clause
+// in between -- can keep parsing first. parseUsage below is the ordinary
+// case, calling this and then handling everything that can follow.
+func (p *parser) parseUsageDeclaration(kind DefKind) (*Usage, error) {
 	usage := &Usage{Kind: kind}
 
 	if inner, ok := requirementConstraintInnerKeyword[kind]; ok {
@@ -486,6 +488,22 @@ func (p *parser) parseUsage(kind DefKind) (Member, error) {
 	}
 
 	if err := p.parseFeatureSpecializationPart(usage); err != nil {
+		return nil, err
+	}
+	return usage, nil
+}
+
+// parseUsage parses a usage. Its name is optional (see Usage's doc
+// comment): a leading Identifier is consumed as the name if present,
+// otherwise the usage is anonymous and nothing is consumed for it.
+// parseUsage parses a usage declaration and, for most DefKinds, the plain
+// Usage that follows from it. For a connector kind (see isConnectorKind)
+// followed by an explicit "connect" clause, it instead returns a
+// Connection carrying the name/type already parsed -- the one case this
+// function's result isn't a *Usage.
+func (p *parser) parseUsage(kind DefKind) (Member, error) {
+	usage, err := p.parseUsageDeclaration(kind)
+	if err != nil {
 		return nil, err
 	}
 
@@ -621,11 +639,12 @@ func (p *parser) startsSatisfyNot() bool {
 
 // parseSatisfy parses a "satisfy X by Y;" member (see Satisfy's doc
 // comment): an optional leading "assert", an optional leading "not"
-// (independently of each other), the "satisfy" keyword, a bare (possibly
-// "::"-qualified) reference to an existing requirement usage, and an
-// optional "by <expression>" clause. The caller has already established
-// (via startsSatisfyNot, or seeing "satisfy"/"assert" directly) that this
-// is the right production to try.
+// (independently of each other), the "satisfy" keyword, then X -- either a
+// bare (possibly "::"-qualified) reference to an existing requirement
+// usage, or (if "requirement" follows) an inline usage declaration of a
+// brand new one -- and an optional "by <expression>" clause. The caller
+// has already established (via startsSatisfyNot, or seeing
+// "satisfy"/"assert" directly) that this is the right production to try.
 func (p *parser) parseSatisfy() (*Satisfy, error) {
 	sat := &Satisfy{}
 
@@ -643,11 +662,20 @@ func (p *parser) parseSatisfy() (*Satisfy, error) {
 		return nil, err
 	}
 
-	name, err := p.parseQualifiedName()
-	if err != nil {
-		return nil, err
+	if tok, ok := p.current(); ok && tok.Kind == RequirementKw {
+		p.pos++
+		decl, err := p.parseUsageDeclaration(DefRequirement)
+		if err != nil {
+			return nil, err
+		}
+		sat.Declaration = decl
+	} else {
+		name, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		sat.Requirement = name
 	}
-	sat.Requirement = name
 
 	if tok, ok := p.current(); ok && tok.Kind == ByKw {
 		p.pos++

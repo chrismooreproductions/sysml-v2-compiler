@@ -58,12 +58,6 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// short names ("<'UR1.1'>") aren't supported -- the same long-tail
 		// gap PartTest.sysml's own blocker is, at line 4.
 		{"HSUVRequirements.sysml", `line 4: unexpected '<', want ';'`},
-		// an inline "satisfy requirement req1 : Req1 by system;"
-		// declaration (SatisfyRequirementUsage's other alternative, a brand
-		// new nested requirement usage) isn't supported -- only a bare
-		// reference to an existing requirement usage is (see sysml.Satisfy's
-		// own doc comment).
-		{"RequirementDerivationExample.sysml", `line 27: unexpected 'requirement', want identifier`},
 	}
 
 	for _, tt := range cases {
@@ -108,6 +102,9 @@ func TestModelParseSpecExamplesSuccess(t *testing.T) {
 		// Exercises the "abstract" prefix modifier, the only thing it was
 		// missing after Phase 7.
 		"InterfaceTest.sysml",
+		// Exercises Satisfy's inline "requirement req1 : Req1" declaration
+		// form, the only thing it was missing.
+		"RequirementDerivationExample.sysml",
 	}
 
 	for _, file := range files {

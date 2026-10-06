@@ -1541,6 +1541,69 @@ func TestModelParseSatisfy(t *testing.T) {
 	}
 }
 
+// TestModelParseSatisfyInlineDeclaration checks SatisfyRequirementUsage's
+// other alternative -- an inline "requirement req1 : Req1" declaration of
+// a brand new requirement usage, instead of a bare reference to an
+// existing one -- in both its typed and untyped forms, and alongside a
+// "by" clause.
+func TestModelParseSatisfyInlineDeclaration(t *testing.T) {
+	t.Run("typed, with by", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			satisfy requirement req1 : Req1 by system;
+		}`)
+
+		sat, ok := pkg.Members[0].(*sysml.Satisfy)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Satisfy", pkg.Members[0])
+		}
+		if sat.Requirement != "" {
+			t.Errorf("Requirement = %q, want %q (empty)", sat.Requirement, "")
+		}
+		if sat.Declaration == nil {
+			t.Fatal("Declaration = nil, want a *sysml.Usage")
+		}
+		if sat.Declaration.Kind != sysml.DefRequirement || sat.Declaration.Name != "req1" || sat.Declaration.Type != "Req1" {
+			t.Errorf("Declaration = %+v, want a DefRequirement usage req1 : Req1", sat.Declaration)
+		}
+		ref, ok := sat.By.(*sysml.NameRef)
+		if !ok || ref.Path != "system" {
+			t.Errorf("By = %+v, want NameRef{Path: system}", sat.By)
+		}
+	})
+
+	t.Run("untyped, no by", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			satisfy requirement req1;
+		}`)
+
+		sat, ok := pkg.Members[0].(*sysml.Satisfy)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Satisfy", pkg.Members[0])
+		}
+		if sat.Declaration == nil || sat.Declaration.Name != "req1" || sat.Declaration.Type != "" {
+			t.Errorf("Declaration = %+v, want an untyped DefRequirement usage named req1", sat.Declaration)
+		}
+		if sat.By != nil {
+			t.Errorf("By = %+v, want nil", sat.By)
+		}
+	})
+
+	t.Run("by feature chain", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			satisfy requirement req1_1 : Req1_1 by system.sub1;
+		}`)
+
+		sat, ok := pkg.Members[0].(*sysml.Satisfy)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Satisfy", pkg.Members[0])
+		}
+		fc, ok := sat.By.(*sysml.FeatureChain)
+		if !ok || !reflect.DeepEqual(fc.Path, []string{"system", "sub1"}) {
+			t.Errorf("By = %+v, want FeatureChain{Path: [system sub1]}", sat.By)
+		}
+	})
+}
+
 // TestModelParseSatisfyNotDisambiguatesFromUnaryExpression checks that a
 // calc body's trailing "not X" result expression still parses as a unary
 // expression, not a Satisfy member -- the ambiguity startsSatisfyNot exists

@@ -446,27 +446,30 @@ type Import struct {
 func (*Import) memberNode() {}
 
 // Satisfy is a "satisfy X by Y;" member (SatisfyRequirementUsage), asserting
-// that Y satisfies the requirement usage named X, e.g. `satisfy r by p;` or
+// that Y satisfies the requirement X, e.g. `satisfy r by p;` or
 // `assert not satisfy r1 by q;`. Assert and Negated mirror the "assert" and
 // "not" prefixes, each independently optional (all four combinations --
-// neither, either, or both -- appear in real examples). Requirement is a
-// bare (possibly "::"-qualified) reference to an existing requirement usage
-// -- the real grammar's own OwnedReferenceSubsetting,
-// resolved the same way a usage's own References is (see metamodel's
-// Satisfy handling) -- not SatisfyRequirementUsage's other
-// alternative, an inline `satisfy requirement req1 : Req1 by system;`
-// declaration of a brand new requirement usage, which isn't supported. By is
-// nil if no "by" clause was written; when present, it's a plain or dotted
-// feature reference (*NameRef or *FeatureChain), reusing the same expression
-// machinery a Connection's ends do. Deliberately out of scope: a trailing
-// RequirementBody (real SysML lets a satisfy statement carry its own nested
-// members after the "by" clause; this project's satisfy is always
-// ";"-terminated).
+// neither, either, or both -- appear in real examples). X is one of two
+// alternatives (SatisfyRequirementUsage's own grammar): a bare (possibly
+// "::"-qualified) reference to an existing requirement usage -- the real
+// grammar's own OwnedReferenceSubsetting, resolved the same way a usage's
+// own References is (see metamodel's Satisfy handling) -- stored in
+// Requirement, with Declaration nil; or an inline
+// `requirement req1 : Req1` declaration of a brand new requirement usage
+// (just its UsageDeclaration -- see parseUsageDeclaration -- no value or
+// body of its own), stored in Declaration, with Requirement "". Exactly
+// one of the two is ever set. By is nil if no "by" clause was written;
+// when present, it's a plain or dotted feature reference (*NameRef or
+// *FeatureChain), reusing the same expression machinery a Connection's
+// ends do. Deliberately out of scope: a trailing RequirementBody (real
+// SysML lets a satisfy statement carry its own nested members after the
+// "by" clause; this project's satisfy is always ";"-terminated).
 type Satisfy struct {
 	Visibility  Visibility
 	Assert      bool
 	Negated     bool
 	Requirement string
+	Declaration *Usage
 	By          Expression
 }
 
