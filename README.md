@@ -13,9 +13,13 @@ multiplicity (`[*]`, `[3]`, `[0..5]`, or a name-valued bound like `[n]`,
 left unresolved), assigned integer values (`= 5`), and `import` statements
 against both an externally supplied `Model` (`import Vehicle;`) and a
 sibling namespace within the same model (`import P1::*;`, making every
-member of `P1` resolvable as if declared in the importing namespace) —
-where a `private import` isn't re-exported to whoever, in turn,
-wildcard-imports the importing namespace. Usages can also `subsets`/`:>`,
+member of `P1` resolvable as if declared in the importing namespace, or
+`import P1::**;` for its recursive form — parsed, though not yet given
+any deeper resolution semantics than the plain form already has) — where
+a `private import` isn't re-exported to whoever, in turn,
+wildcard-imports the importing namespace. A package can also carry a
+leading `library` prefix (`library package 'User Defined Extensions' {
+... }`), recorded but not otherwise used. Usages can also `subsets`/`:>`,
 `redefines`/`:>>`, or `references`/`::>` another feature, in any
 combination with a typing and a multiplicity. A definition can likewise
 `specializes`/`:>` one or more other definitions (`part def Vehicle :>
@@ -154,11 +158,16 @@ body member inside a connection/interface *definition* (see above);
 the exact same plain usage shape `subject`/`actor`/`stakeholder` already
 have; a definition, usage, or connection can carry a leading `abstract`
 prefix; `Satisfy`'s inline `requirement req1 : Req1` declaration form
-works alongside its bare-reference one; and restricted/short names (see
-above) are supported. Still open, each its own fixture's current
-blocker: `bind`/`succession`, `AssertConstraintUsage`'s non-`satisfy`
-form, sequence expressions, `library package`, `enum def`, and recursive
-imports.
+works alongside its bare-reference one; restricted/short names (see
+above) are supported; and so are `library` packages and recursive
+imports (see above, both just parsed so far — see their own doc
+comments for exactly what's not deepened yet). Still open, each its own
+fixture's current blocker: `bind`/`succession`, `AssertConstraintUsage`'s
+non-`satisfy` form, sequence expressions, `enum def` (its body uses
+completely keyword-less members, which this project's parser can't
+dispatch at all today), and `doc` annotations (this project's parser
+drops comments entirely before seeing them, so there's nowhere to hang
+the text).
 
 ## References
 

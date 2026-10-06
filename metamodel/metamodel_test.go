@@ -1029,6 +1029,33 @@ func TestFromASTShortName(t *testing.T) {
 	}
 }
 
+// TestFromASTLibrary checks that a leading "library" prefix carries over
+// onto Element.Library for a package, and that an ordinary package leaves
+// it false.
+func TestFromASTLibrary(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		library package Lib { }
+		package Plain { }
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	lib, ok := model.Elements["Vehicle::Lib"]
+	if !ok || !lib.Library {
+		t.Errorf("Vehicle::Lib = %+v, want a library package", lib)
+	}
+	plain, ok := model.Elements["Vehicle::Plain"]
+	if !ok || plain.Library {
+		t.Errorf("Vehicle::Plain = %+v, want a non-library package", plain)
+	}
+}
+
 // TestFromASTDefKeywords checks that "attribute", "item", and "port"
 // definitions/usages each carry their sysml.DefKind over onto Element.DefKind
 // correctly -- across the sysml.DefKind -> metamodel.DefKind conversion
@@ -1559,6 +1586,43 @@ func TestFromASTWildcardImport(t *testing.T) {
 		}
 		package P2 {
 			import P1::*;
+			part a : A;
+		}
+	}`
+
+	ns, err := sysml.NewModel(source).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	typeID, ok := typeOf(model, "Root::P2::a")
+	if !ok {
+		t.Fatal("no TypedBy relationship found for Root::P2::a")
+	}
+	if typeID != "Root::P1::A" {
+		t.Errorf("usage type = %q, want %q", typeID, "Root::P1::A")
+	}
+}
+
+// TestFromASTRecursiveImportResolvesLikePlainWildcard checks that
+// "import P1::**;" (Wildcard and Recursive both set) resolves exactly
+// like a plain "import P1::*;" does today -- see sysml.Import.Recursive's
+// own doc comment: it's parsed, but metamodel doesn't yet give it any
+// deeper resolution semantics (reaching P1's nested namespaces' own
+// members too, not just P1's direct ones) than an ordinary wildcard
+// import already has.
+func TestFromASTRecursiveImportResolvesLikePlainWildcard(t *testing.T) {
+	source := `package Root {
+		package P1 {
+			part def A;
+		}
+		package P2 {
+			import P1::**;
 			part a : A;
 		}
 	}`

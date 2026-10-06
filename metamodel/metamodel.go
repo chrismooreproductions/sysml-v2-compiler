@@ -217,6 +217,11 @@ type Element struct {
 	// used -- nothing can currently reference an Element by it.
 	ShortName string
 
+	// Library is this Element's leading `library` prefix, mirroring
+	// sysml.Package's own Library. Meaningful only when Kind is
+	// KindPackage; always false otherwise.
+	Library bool
+
 	// Owner is the ID of the Element that directly contains this one, or
 	// "" for the root. Containment is kept as a plain field rather than a
 	// Relationship: it's the one edge nearly everything else (scoping,

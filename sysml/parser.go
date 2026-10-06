@@ -204,6 +204,20 @@ func (p *parser) parseAbstractPrefix() bool {
 	return true
 }
 
+// parseLibraryPrefix consumes a leading `library` keyword if the next
+// token is one, returning whether it did. Consumes nothing otherwise.
+// Only meaningful ahead of a package (LibraryPackage); checked here
+// regardless, the same uniform-dispatch style every other prefix in this
+// project already has.
+func (p *parser) parseLibraryPrefix() bool {
+	tok, ok := p.current()
+	if !ok || tok.Kind != LibraryKw {
+		return false
+	}
+	p.pos++
+	return true
+}
+
 func (p *parser) parseMember() (Member, error) {
 	vis := p.parseVisibility()
 	metadata, err := p.parseMetadataPrefixes()
@@ -211,6 +225,7 @@ func (p *parser) parseMember() (Member, error) {
 		return nil, err
 	}
 	abstract := p.parseAbstractPrefix()
+	library := p.parseLibraryPrefix()
 
 	tok, ok := p.current()
 	if !ok {
@@ -224,6 +239,7 @@ func (p *parser) parseMember() (Member, error) {
 		}
 		pkg.Visibility = vis
 		pkg.Metadata = metadata
+		pkg.Library = library
 		return pkg, nil
 	}
 
@@ -450,7 +466,7 @@ func (p *parser) parseImport() (*Import, error) {
 		return nil, err
 	}
 
-	path, wildcard, err := p.parseImportTarget()
+	path, wildcard, recursive, err := p.parseImportTarget()
 	if err != nil {
 		return nil, err
 	}
@@ -459,37 +475,44 @@ func (p *parser) parseImport() (*Import, error) {
 		return nil, err
 	}
 
-	return &Import{Path: path, Wildcard: wildcard}, nil
+	return &Import{Path: path, Wildcard: wildcard, Recursive: recursive}, nil
 }
 
 // parseImportTarget parses an import's target: a qualified name (e.g.
 // "Vehicle::Electrical"), optionally followed by "::*" naming every member
 // of that namespace rather than the namespace itself, e.g. "P1::*" (a
-// NamespaceImport). Shaped like parseQualifiedName's loop, but checks for a
+// NamespaceImport), or "::**" for its recursive form (both Wildcard and
+// Recursive set) -- "**" already lexes as its own token (Power, the same
+// one "2 ** 3" uses), so this just accepts it as an alternate to a plain
+// "*" at the same position. Shaped like parseQualifiedName's loop, but checks for a
 // trailing "::*" at each "::" rather than always requiring another
 // identifier.
-func (p *parser) parseImportTarget() (path string, wildcard bool, err error) {
+func (p *parser) parseImportTarget() (path string, wildcard, recursive bool, err error) {
 	first, err := p.expect(Identifier)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
 
 	name := string(first.Value)
 	for {
 		tok, ok := p.current()
 		if !ok || tok.Kind != PathSep {
-			return name, false, nil
+			return name, false, false, nil
 		}
 		p.pos++
 
 		if tok, ok := p.current(); ok && tok.Kind == Star {
 			p.pos++
-			return name, true, nil
+			return name, true, false, nil
+		}
+		if tok, ok := p.current(); ok && tok.Kind == Power {
+			p.pos++
+			return name, true, true, nil
 		}
 
 		next, err := p.expect(Identifier)
 		if err != nil {
-			return "", false, err
+			return "", false, false, err
 		}
 		name += "::" + string(next.Value)
 	}

@@ -319,6 +319,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 			return fmt.Errorf("metamodel: %q is already declared in this scope", m.Name)
 		}
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.model.Elements[id].Library = m.Library
 		t.queueMetadata(id, m.Metadata, owner)
 		return t.declareMembers(m.Members, id, newScope())
 

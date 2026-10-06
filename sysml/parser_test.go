@@ -1029,6 +1029,36 @@ func TestModelParseImportWildcard(t *testing.T) {
 	}
 }
 
+// TestModelParseImportRecursive checks that "::**" (NamespaceImport's
+// recursive form, "**" lexing as the same Power token "2 ** 3" uses) sets
+// both Wildcard and Recursive, alongside a qualified path, and that a
+// plain "::*" import leaves Recursive false.
+func TestModelParseImportRecursive(t *testing.T) {
+	cases := map[string]struct {
+		source        string
+		wantPath      string
+		wantRecursive bool
+	}{
+		"recursive":           {`import P1::**;`, "P1", true},
+		"qualified recursive": {`import Vehicle::Electrical::**;`, "Vehicle::Electrical", true},
+		"plain wildcard":      {`import P1::*;`, "P1", false},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Car { `+tt.source+` }`)
+
+			imp, ok := pkg.Members[0].(*sysml.Import)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Import", pkg.Members[0])
+			}
+			if imp.Path != tt.wantPath || !imp.Wildcard || imp.Recursive != tt.wantRecursive {
+				t.Errorf("import = %+v, want Path: %q, Wildcard: true, Recursive: %v", imp, tt.wantPath, tt.wantRecursive)
+			}
+		})
+	}
+}
+
 // TestModelParseVisibility checks that an optional leading
 // public/private/protected keyword is parsed and attached to whichever kind
 // of member follows it -- a package, a definition, a usage, or an import --
@@ -1138,6 +1168,26 @@ func TestModelParseAbstractPrefix(t *testing.T) {
 	conn, ok := pkg.Members[4].(*sysml.Connection)
 	if !ok || !conn.Abstract {
 		t.Errorf("member 4 = %+v, want an abstract Connection", pkg.Members[4])
+	}
+}
+
+// TestModelParseLibraryPrefix checks that a leading "library" keyword
+// ahead of a package is recorded on Package.Library, and that an ordinary
+// package without it leaves Library false.
+func TestModelParseLibraryPrefix(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		library package Lib { }
+		package Plain { }
+	}`)
+
+	lib, ok := pkg.Members[0].(*sysml.Package)
+	if !ok || !lib.Library || lib.Name != "Lib" {
+		t.Errorf("member 0 = %+v, want a library Package named Lib", pkg.Members[0])
+	}
+
+	plain, ok := pkg.Members[1].(*sysml.Package)
+	if !ok || plain.Library {
+		t.Errorf("member 1 = %+v, want a non-library Package", pkg.Members[1])
 	}
 }
 
@@ -1786,7 +1836,6 @@ func TestModelParseErrors(t *testing.T) {
 		"qualified type trailing path sep":            "package Vehicle { part engine : Vehicle::Engine::; }",
 		"import missing path":                         "package Vehicle { import; }",
 		"import missing semicolon":                    "package Vehicle { import Engine }",
-		"import recursive not supported":              "package Vehicle { import P1::**; }",
 		"connection missing to":                       "package Vehicle { connect a b; }",
 		"connection missing close paren":              "package Vehicle { connect (a, b; }",
 		"connection missing end":                      "package Vehicle { connect a to ; }",

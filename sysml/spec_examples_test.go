@@ -41,17 +41,21 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment).
 		{"ConnectionTest.sysml", `line 22: unexpected identifier "bind", want 'package', 'import', or 'part'`},
-		// "library" (LibraryPackage's own prefix keyword, "standard"?
-		// "library" Package) isn't supported -- unrelated to metadata
-		// itself, but the next thing this fixture's own
-		// "library package 'User Defined Extensions' { ... }" trips on,
-		// now that restricted names (the quoted package name itself)
-		// resolve correctly.
-		{"MetadataTest.sysml", `line 4: unexpected identifier "library", want 'package', 'import', or 'part'`},
-		// recursive imports ("q::**") aren't supported -- unrelated to
-		// requirements themselves, but the first thing this fixture's own
-		// "private import q::**;" trips on, at line 4.
-		{"RequirementTest.sysml", `line 4: unexpected '**', want identifier`},
+		// "enum def" (EnumerationDefinition) isn't supported -- its body
+		// uses completely keyword-less members ("uncl : ClassificationLevel
+		// = 0;", no "attribute" or anything else), which parseMember can't
+		// dispatch at all today (every member must start with a recognized
+		// keyword). Unrelated to metadata itself, but the next thing this
+		// fixture's own library package trips on, now that "library" and
+		// restricted names both resolve correctly.
+		{"MetadataTest.sysml", `line 6: unexpected identifier "enum", want 'package', 'import', or 'part'`},
+		// "doc" annotations aren't supported -- this project's parser
+		// drops comments entirely before seeing them (newParser filters
+		// every Comment token out up front), so there's nowhere to hang
+		// the text that follows "doc". Unrelated to requirements
+		// themselves, but the next thing this fixture's own "doc /* */"
+		// trips on, now that recursive imports resolve correctly.
+		{"RequirementTest.sysml", `line 8: unexpected identifier "doc", want 'package', 'import', or 'part'`},
 	}
 
 	for _, tt := range cases {

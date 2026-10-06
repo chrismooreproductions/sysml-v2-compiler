@@ -50,6 +50,14 @@ type Package struct {
 	// "Security" in `#Security enum def ...`. See DefMetadata's sibling
 	// doc comment on Usage for what this simplifies away.
 	Metadata []string
+
+	// Library is this package's leading `library` prefix (LibraryPackage),
+	// e.g. `library package 'User Defined Extensions' { ... }`. Recorded
+	// but not otherwise used -- nothing currently treats a library package
+	// any differently from an ordinary one. Real KerML also allows an
+	// optional `standard` before `library`; that spelling isn't supported,
+	// since no fixture here needs it yet.
+	Library bool
 }
 
 func (*Package) memberNode() {}
@@ -445,15 +453,22 @@ type Multiplicity struct {
 
 // Import declares that another namespace's members should be resolvable
 // from this one, e.g. `import Vehicle;` (a MembershipImport, importing
-// Vehicle itself by name) or `import Vehicle::*;` (a NamespaceImport,
+// Vehicle itself by name), `import Vehicle::*;` (a NamespaceImport,
 // Wildcard set, importing every one of Vehicle's members as if declared
-// directly in the importing namespace). Path is the imported namespace's
-// ("::"-qualified) name. Recursive imports ("::**") aren't supported, and
-// neither is the FilterPackage form of NamespaceImport.
+// directly in the importing namespace), or `import Vehicle::**;` (also
+// Recursive, reaching every member of every namespace nested inside
+// Vehicle too, not just Vehicle's own direct members). Path is the
+// imported namespace's ("::"-qualified) name. Recursive is only ever true
+// alongside Wildcard; parsed but not yet given its fuller resolution
+// semantics -- metamodel's wildcard-import resolution reaches only Path's
+// own direct children today, the same as a plain Wildcard import, so a
+// name declared in a nested namespace still won't resolve through one of
+// these. The FilterPackage form of NamespaceImport isn't supported.
 type Import struct {
 	Visibility Visibility
 	Path       string
 	Wildcard   bool
+	Recursive  bool
 }
 
 func (*Import) memberNode() {}

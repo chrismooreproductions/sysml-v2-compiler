@@ -34,6 +34,7 @@ const (
 	ReturnKw
 	RefKw
 	AbstractKw
+	LibraryKw
 	Def
 	ImportKw
 	PublicKw
@@ -144,6 +145,8 @@ func (k Kind) String() string {
 		return "'ref'"
 	case AbstractKw:
 		return "'abstract'"
+	case LibraryKw:
+		return "'library'"
 	case Def:
 		return "'def'"
 	case ImportKw:
@@ -270,6 +273,7 @@ var kinds = map[string]Kind{
 	"return":      ReturnKw,
 	"ref":         RefKw,
 	"abstract":    AbstractKw,
+	"library":     LibraryKw,
 	"def":         Def,
 	"import":      ImportKw,
 	"public":      PublicKw,
