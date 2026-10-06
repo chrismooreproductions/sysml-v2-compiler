@@ -188,12 +188,29 @@ func (p *parser) parseVisibility() Visibility {
 	return vis
 }
 
+// parseAbstractPrefix consumes a leading `abstract` keyword if the next
+// token is one, returning whether it did. Consumes nothing otherwise.
+// Called from parseMember after visibility and metadata, so this project's
+// fixed prefix order is visibility, then `#Tag`s, then `abstract` -- real
+// SysML's MemberPrefix/OccurrenceUsagePrefix allow more interleaving than
+// this (e.g. `abstract private part def X;` is legal there), which this
+// project doesn't support.
+func (p *parser) parseAbstractPrefix() bool {
+	tok, ok := p.current()
+	if !ok || tok.Kind != AbstractKw {
+		return false
+	}
+	p.pos++
+	return true
+}
+
 func (p *parser) parseMember() (Member, error) {
 	vis := p.parseVisibility()
 	metadata, err := p.parseMetadataPrefixes()
 	if err != nil {
 		return nil, err
 	}
+	abstract := p.parseAbstractPrefix()
 
 	tok, ok := p.current()
 	if !ok {
@@ -229,6 +246,7 @@ func (p *parser) parseMember() (Member, error) {
 		}
 		conn.Visibility = vis
 		conn.Metadata = metadata
+		conn.Abstract = abstract
 		return conn, nil
 	}
 
@@ -246,8 +264,13 @@ func (p *parser) parseMember() (Member, error) {
 		if err != nil {
 			return nil, err
 		}
-		if usage, ok := member.(*Usage); ok {
-			usage.Visibility = vis
+		switch m := member.(type) {
+		case *Usage:
+			m.Visibility = vis
+			m.Abstract = abstract
+		case *Connection:
+			m.Visibility = vis
+			m.Abstract = abstract
 		}
 		return member, nil
 	}
@@ -272,6 +295,7 @@ func (p *parser) parseMember() (Member, error) {
 		}
 		def.Visibility = vis
 		def.Metadata = metadata
+		def.Abstract = abstract
 		return def, nil
 	}
 
@@ -283,9 +307,11 @@ func (p *parser) parseMember() (Member, error) {
 	case *Usage:
 		m.Visibility = vis
 		m.Metadata = metadata
+		m.Abstract = abstract
 	case *Connection:
 		m.Visibility = vis
 		m.Metadata = metadata
+		m.Abstract = abstract
 	}
 	return member, nil
 }

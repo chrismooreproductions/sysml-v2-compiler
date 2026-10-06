@@ -268,6 +268,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		// safe without a lookup table.
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.model.Elements[id].Abstract = m.Abstract
 		t.queueMetadata(id, m.Metadata, owner)
 		// Each comma-separated specialization target is its own
 		// pendingReference -- a Definition can have more than one, unlike a
@@ -300,6 +301,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.model.Elements[id].Abstract = m.Abstract
 		t.queueMetadata(id, m.Metadata, owner)
 		if m.Multiplicity != nil {
 			// sysml.Unbounded and metamodel.Unbounded are both -1 by
@@ -355,6 +357,7 @@ func (t *translator) declareMember(member sysml.Member, owner ElementID, sc *sco
 		}
 		t.model.Elements[id].DefKind = DefKind(m.Kind)
 		t.model.Elements[id].Visibility = Visibility(m.Visibility)
+		t.model.Elements[id].Abstract = m.Abstract
 		t.queueMetadata(id, m.Metadata, owner)
 		if m.Type != "" {
 			t.pending = append(t.pending, pendingReference{usage: id, name: m.Type, owner: owner, kind: TypedBy})

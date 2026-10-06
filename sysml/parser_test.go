@@ -1096,6 +1096,51 @@ func TestModelParseVisibilityOnEveryMemberKind(t *testing.T) {
 	}
 }
 
+// TestModelParseAbstractPrefix checks that a leading "abstract" keyword is
+// accepted ahead of a definition, a usage, and a connection alike (every
+// Member kind that has an Abstract field), the same shared-prefix pattern
+// TestModelParseVisibilityOnEveryMemberKind already checks for visibility
+// -- and that it's independently optional, alongside visibility and
+// metadata, in whichever combination is present.
+func TestModelParseAbstractPrefix(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		abstract part def Engine;
+		part engine : Engine;
+		abstract part eng2 : Engine;
+		private #Classified abstract part eng3 : Engine;
+		abstract connect engine to eng2;
+	}`)
+
+	if len(pkg.Members) != 5 {
+		t.Fatalf("got %d members, want 5", len(pkg.Members))
+	}
+
+	def, ok := pkg.Members[0].(*sysml.Definition)
+	if !ok || !def.Abstract {
+		t.Errorf("member 0 = %+v, want an abstract Definition", pkg.Members[0])
+	}
+
+	plain, ok := pkg.Members[1].(*sysml.Usage)
+	if !ok || plain.Abstract {
+		t.Errorf("member 1 = %+v, want a non-abstract Usage", pkg.Members[1])
+	}
+
+	usage, ok := pkg.Members[2].(*sysml.Usage)
+	if !ok || !usage.Abstract {
+		t.Errorf("member 2 = %+v, want an abstract Usage", pkg.Members[2])
+	}
+
+	combined, ok := pkg.Members[3].(*sysml.Usage)
+	if !ok || !combined.Abstract || combined.Visibility != sysml.VisibilityPrivate || !reflect.DeepEqual(combined.Metadata, []string{"Classified"}) {
+		t.Errorf("member 3 = %+v, want an abstract, private, #Classified Usage", pkg.Members[3])
+	}
+
+	conn, ok := pkg.Members[4].(*sysml.Connection)
+	if !ok || !conn.Abstract {
+		t.Errorf("member 4 = %+v, want an abstract Connection", pkg.Members[4])
+	}
+}
+
 // TestModelParseMetadataPrefixes checks that a member can carry one or more
 // leading "#Tag" annotations (PrefixMetadataAnnotation), stacked in the
 // order written, alongside its own leading visibility prefix.

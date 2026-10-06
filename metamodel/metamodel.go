@@ -207,6 +207,11 @@ type Element struct {
 	// see Visibility's doc comment.
 	Visibility Visibility
 
+	// Abstract is this Element's leading `abstract` prefix, mirroring
+	// sysml.Definition/Usage/Connection's own Abstract. Recorded but not
+	// enforced, the same as Visibility.
+	Abstract bool
+
 	// Owner is the ID of the Element that directly contains this one, or
 	// "" for the root. Containment is kept as a plain field rather than a
 	// Relationship: it's the one edge nearly everything else (scoping,

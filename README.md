@@ -79,8 +79,10 @@ resolved through the same feature-chain machinery as any other expression.
 p1: P1;`, `end end1;`, `end #original ::> vehicleMassRequirement;`) — a
 bare prefix in front of an otherwise ordinary usage, optionally itself
 starting with a recognized keyword (used as that usage's own kind) or with
-none at all. Not yet supported: `bind`/`succession` (structurally
-unrelated shorthand forms) and `abstract` as a prefix modifier.
+none at all. A definition, usage, or connection can also carry a leading
+`abstract` prefix (recorded, not enforced — nothing checks that an abstract
+definition is never directly instantiated). Not yet supported:
+`bind`/`succession` (structurally unrelated shorthand forms).
 
 `metamodel` also seeds every translation with a small hand-built stand-in
 for a slice of the real OMG standard library (`metamodel/stdlib.go`):

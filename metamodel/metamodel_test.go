@@ -946,6 +946,55 @@ func TestFromASTVisibility(t *testing.T) {
 	}
 }
 
+// TestFromASTAbstract checks that a leading "abstract" prefix carries over
+// onto Element.Abstract for a definition, a usage, and a connection alike,
+// the same shared-prefix pattern TestFromASTVisibility already checks for
+// visibility.
+func TestFromASTAbstract(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		abstract part def Engine;
+		part engine : Engine;
+		abstract part eng2 : Engine;
+		abstract connect engine to eng2;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	tests := []struct {
+		id   metamodel.ElementID
+		want bool
+	}{
+		{"Vehicle::Engine", true},
+		{"Vehicle::engine", false},
+		{"Vehicle::eng2", true},
+	}
+	for _, tt := range tests {
+		el, ok := model.Elements[tt.id]
+		if !ok {
+			t.Fatalf("missing element %q", tt.id)
+		}
+		if el.Abstract != tt.want {
+			t.Errorf("%s: Abstract = %v, want %v", tt.id, el.Abstract, tt.want)
+		}
+	}
+
+	var conn *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Kind == metamodel.KindUsage && el.DefKind == metamodel.DefConnection {
+			conn = el
+		}
+	}
+	if conn == nil || !conn.Abstract {
+		t.Errorf("connection element = %+v, want an abstract KindUsage/DefConnection element", conn)
+	}
+}
+
 // TestFromASTDefKeywords checks that "attribute", "item", and "port"
 // definitions/usages each carry their sysml.DefKind over onto Element.DefKind
 // correctly -- across the sysml.DefKind -> metamodel.DefKind conversion

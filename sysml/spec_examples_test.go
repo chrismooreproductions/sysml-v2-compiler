@@ -43,8 +43,6 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment).
 		{"ConnectionTest.sysml", `line 22: unexpected identifier "bind", want 'package', 'import', or 'part'`},
-		// "abstract" as a prefix modifier isn't supported.
-		{"InterfaceTest.sysml", `line 24: unexpected identifier "abstract", want 'package', 'import', or 'part'`},
 		// single-quoted/restricted names ("'User Defined Extensions'")
 		// aren't supported -- the lexer has no handling for '\'' at all,
 		// so it gets swept into the identifier it's touching ("'User"),
@@ -107,6 +105,9 @@ func TestModelParseSpecExamplesSuccess(t *testing.T) {
 		// (increment C) all at once -- the first Requirements Examples
 		// fixture (not from "Simple Tests") to fully parse.
 		"VehicleRequirementDerivation.sysml",
+		// Exercises the "abstract" prefix modifier, the only thing it was
+		// missing after Phase 7.
+		"InterfaceTest.sysml",
 	}
 
 	for _, file := range files {

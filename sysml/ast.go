@@ -189,6 +189,12 @@ type Definition struct {
 	// word: only "subsets" is Feature-level, only "specializes" is
 	// Classifier-level), a distinction this project doesn't model.
 	Specializes []string
+
+	// Abstract is this definition's leading `abstract` prefix, e.g.
+	// `abstract part def B { ... }`. Recorded but not enforced -- nothing
+	// checks that an abstract definition is never directly instantiated,
+	// the one thing being abstract is actually supposed to mean.
+	Abstract bool
 }
 
 func (*Definition) memberNode() {}
@@ -263,6 +269,11 @@ type Usage struct {
 	// qualified name, not the fuller OwnedFeatureTyping a real
 	// PrefixMetadataUsage allows.
 	Metadata []string
+
+	// Abstract is this usage's leading `abstract` prefix, e.g.
+	// `abstract part a: A[1..2];`. Recorded but not enforced -- see
+	// Definition.Abstract's own doc comment.
+	Abstract bool
 }
 
 func (*Usage) memberNode() {}
@@ -294,6 +305,10 @@ type Connection struct {
 	// Metadata is this member's `#Tag` prefix annotations -- see Usage's
 	// doc comment on its own Metadata field for the full explanation.
 	Metadata []string
+
+	// Abstract is this connection's leading `abstract` prefix. Recorded
+	// but not enforced -- see Definition.Abstract's own doc comment.
+	Abstract bool
 }
 
 func (*Connection) memberNode() {}
