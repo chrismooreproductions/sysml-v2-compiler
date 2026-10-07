@@ -99,6 +99,17 @@ none at all. A definition, usage, or connection can also carry a leading
 `abstract` prefix (recorded, not enforced — nothing checks that an abstract
 definition is never directly instantiated).
 
+A member can also omit its introducing keyword entirely (`mass :
+MassValue;`, `:>> mass = vehicle3.mass;` with no `attribute` in front of
+either) — real KerML lets any `Usage` omit its keyword, defaulting to the
+base `Feature` type; this project narrows that default to `DefAttribute`,
+the only shape real examples actually use keyword-less. A bare
+`subsets`/`redefines`/`references` symbol heading straight into its own
+target is unambiguous on its own; a bare name needs one token of
+lookahead to tell a new member (`mass : MassValue;`) apart from a
+constraint/calc body's own trailing result expression, which can equally
+start with a bare name (`mass < massLimit`).
+
 `bind a = b;` (bare), `binding ab bind a = b;`, and `binding ab1 : AB bind
 a = b;` are a `BindingConnectorAsUsage`'s three forms — structurally its
 own shorthand, not a `ConnectorPart` variant, but resolved through the
@@ -180,13 +191,14 @@ prefix; `Satisfy`'s inline `requirement req1 : Req1` declaration form
 works alongside its bare-reference one; restricted/short names (see
 above) are supported; and so are `library` packages and recursive
 imports (see above, both just parsed so far — see their own doc
-comments for exactly what's not deepened yet). Still open, each its own
-fixture's current blocker: `bind`/`succession`, `AssertConstraintUsage`'s
-non-`satisfy` form, sequence expressions, `enum def` (its body uses
-completely keyword-less members, which this project's parser can't
-dispatch at all today), and `doc` annotations (this project's parser
-drops comments entirely before seeing them, so there's nowhere to hang
-the text).
+comments for exactly what's not deepened yet); `bind`/`binding`,
+`AssertConstraintUsage`'s non-`satisfy` form, sequence expressions, and
+keyword-less members (see above) have since closed too. Still open, each
+its own fixture's current blocker: `succession`, `enum def` (now that
+keyword-less members are supported, its body shape itself is in reach —
+the keyword `enum def` isn't, yet), and `doc` annotations (this project's
+parser drops comments entirely before seeing them, so there's nowhere to
+hang the text).
 
 ## References
 

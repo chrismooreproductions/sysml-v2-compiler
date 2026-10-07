@@ -22,17 +22,15 @@ func TestModelParseSpecExamples(t *testing.T) {
 		file    string
 		wantErr string
 	}{
-		// "constant" as a prefix modifier (alongside "derived"/"readonly"/
-		// "nonunique"/"ordered") isn't supported -- short names are fixed
-		// now, so this fixture advances to its next gap.
-		{"PartTest.sysml", `line 8: unexpected identifier "constant", want 'package', 'import', or 'part'`},
-		// keyword-less (bare) members ("mass : MassValue;", no "attribute"
-		// or anything else) aren't supported -- real KerML lets any Usage
-		// omit its keyword; this project doesn't yet. Unrelated to
-		// AssertConstraintUsage, now fully supported -- this is the
-		// *next* line, a plain (non-assert) "constraint massLimitation {
-		// ... }" usage whose own body members have no keyword at all.
-		{"ConstraintTest.sysml", `line 88: unexpected ':', want '}'`},
+		// "constant" (a prefix modifier, alongside "derived"/"readonly"/
+		// "nonunique"/"ordered") now parses as a keyword-less member's own
+		// bare name instead of being rejected outright -- real KerML lets
+		// any Usage omit its keyword, and "constant" isn't one this
+		// project recognizes as a prefix, so it's swept up as "the name of
+		// an anonymous-keyword attribute" instead, advancing one token
+		// further before rejecting "attribute" (another keyword) where a
+		// type/value/body/';' was expected.
+		{"PartTest.sysml", `line 8: unexpected 'attribute', want ';'`},
 		// "as" casts ("(vehicles as VehiclePart).m") aren't supported --
 		// a new Expression variant, plus extending postfix "."-chaining to
 		// apply after a parenthesized/cast result (today it only ever
@@ -43,24 +41,29 @@ func TestModelParseSpecExamples(t *testing.T) {
 		{"CalculationTest.sysml", `line 28: unexpected identifier "as", want ')'`},
 		// "first"/SuccessionAsUsage isn't supported -- a structurally
 		// unrelated shorthand form, not a ConnectorPart variant (see
-		// Connection's own doc comment), the same way bind/binding was
-		// before it.
-		{"ConnectionTest.sysml", `line 26: unexpected identifier "first", want 'package', 'import', or 'part'`},
-		// "enum def" (EnumerationDefinition) isn't supported -- its body
-		// uses completely keyword-less members ("uncl : ClassificationLevel
-		// = 0;", no "attribute" or anything else), which parseMember can't
-		// dispatch at all today (every member must start with a recognized
-		// keyword). Unrelated to metadata itself, but the next thing this
-		// fixture's own library package trips on, now that "library" and
-		// restricted names both resolve correctly.
-		{"MetadataTest.sysml", `line 6: unexpected identifier "enum", want 'package', 'import', or 'part'`},
+		// Connection's own doc comment). Like "constant" above, "first"
+		// now parses as a keyword-less member's own bare name instead of
+		// being rejected outright, advancing one token further before
+		// rejecting "a" (an identifier, not a valid specialization/value/
+		// body/';') where a terminator was expected.
+		{"ConnectionTest.sysml", `line 26: unexpected identifier "a", want ';'`},
+		// "enum def" (EnumerationDefinition) isn't supported. Its own body
+		// (e.g. "uncl : ClassificationLevel = 0;") is exactly the
+		// keyword-less-member shape this phase just added -- but "enum
+		// def" the construct itself still isn't a recognized keyword, so
+		// (like "constant"/"first" above) it's swept up as a keyword-less
+		// member's own bare name first, advancing one token further
+		// before rejecting "def" where a terminator was expected.
+		{"MetadataTest.sysml", `line 6: unexpected 'def', want ';'`},
 		// "doc" annotations aren't supported -- this project's parser
 		// drops comments entirely before seeing them (newParser filters
 		// every Comment token out up front), so there's nowhere to hang
-		// the text that follows "doc". Unrelated to requirements
-		// themselves, but the next thing this fixture's own "doc /* */"
-		// trips on, now that recursive imports resolve correctly.
-		{"RequirementTest.sysml", `line 8: unexpected identifier "doc", want 'package', 'import', or 'part'`},
+		// the text that follows "doc". Like "constant"/"first"/"enum"
+		// above, "doc" now parses as a keyword-less member's own bare
+		// name first, advancing one token further (past the dropped
+		// comment) before rejecting "requirement" (another keyword) where
+		// a terminator was expected.
+		{"RequirementTest.sysml", `line 9: unexpected 'requirement', want ';'`},
 	}
 
 	for _, tt := range cases {
@@ -111,6 +114,12 @@ func TestModelParseSpecExamplesSuccess(t *testing.T) {
 		// Exercises restricted names and short names together
 		// ("<'UR1.1'> Load"), the only things it was missing.
 		"HSUVRequirements.sysml",
+		// Exercises Phase 8's sequence expressions (increment A),
+		// AssertConstraintUsage (increment B), and keyword-less/bare
+		// members (increment C) all at once -- the first fixture whose
+		// own subject matter (constraint/parameter input) this whole
+		// phase was aimed at.
+		"ConstraintTest.sysml",
 	}
 
 	for _, file := range files {

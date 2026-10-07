@@ -837,6 +837,93 @@ func TestFromASTUnresolvedAssertConstraintReference(t *testing.T) {
 	}
 }
 
+// TestFromASTBareMember checks that a keyword-less (bare) member -- e.g.
+// the "mass : MassValue;" inside a constraint body, with no "attribute" or
+// other defKeywords prefix at all -- translates exactly like an ordinary,
+// explicitly-keyworded DefAttribute usage would: a resolvable Element with
+// the right DefKind and TypedBy, with zero special-casing in translate.go
+// (parser.go's startsBareUsage fallback already normalizes it to an
+// ordinary *sysml.Usage{Kind: DefAttribute} before FromAST ever sees it).
+func TestFromASTBareMember(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def MassValue;
+		part def Component;
+		part vehicle : Component;
+
+		constraint def MassLimitation {
+			mass : MassValue;
+			massLimit : MassValue;
+			mass < massLimit
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	mass, ok := model.Elements["Vehicle::MassLimitation::mass"]
+	if !ok {
+		t.Fatal("missing element Vehicle::MassLimitation::mass")
+	}
+	if mass.DefKind != metamodel.DefAttribute {
+		t.Errorf("mass.DefKind = %v, want DefAttribute", mass.DefKind)
+	}
+	if target, ok := typeOf(model, mass.ID); !ok || target != "Vehicle::MassValue" {
+		t.Errorf("mass typed by %q, want Vehicle::MassValue", target)
+	}
+
+	result, ok := model.Elements["Vehicle::MassLimitation"].Result.(*metamodel.BinaryExpr)
+	if !ok || result.Op != "<" {
+		t.Fatalf("MassLimitation.Result = %+v, want a '<' BinaryExpr", model.Elements["Vehicle::MassLimitation"].Result)
+	}
+	left, ok := result.Left.(*metamodel.NameRef)
+	if !ok || left.Target != mass.ID {
+		t.Errorf("Result.Left = %+v, want a NameRef resolved to %q", result.Left, mass.ID)
+	}
+}
+
+// TestFromASTBareMemberSubsetsRedefinesReferences checks that a bare member
+// starting directly with "subsets"/"redefines"/"references" (no name, no
+// keyword) resolves its relationship exactly like its explicitly-keyworded
+// equivalent would -- e.g. the ":>> mass = vehicle3.mass;" shape a real
+// "assert not massLimitation { ... }" body uses.
+func TestFromASTBareMemberSubsetsRedefinesReferences(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		part def Component { attribute mass : Real; }
+		part vehicle3 : Component;
+
+		constraint massLimitation {
+			:>> Component::mass = vehicle3.mass;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	var bare *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle::massLimitation" && el.DefKind == metamodel.DefAttribute && el.Name == "" {
+			bare = el
+		}
+	}
+	if bare == nil {
+		t.Fatal("no anonymous DefAttribute element found under Vehicle::massLimitation")
+	}
+	if target, ok := relationshipTarget(model, bare.ID, metamodel.Redefines); !ok || target != "Vehicle::Component::mass" {
+		t.Errorf("Redefines %q, want Vehicle::Component::mass", target)
+	}
+}
+
 // TestFromASTAnonymousUsage checks that an anonymous usage (no name --
 // Phase 3's "constraint { ... }" form) still translates to its own
 // distinct Element, and that two anonymous usages in the same scope don't

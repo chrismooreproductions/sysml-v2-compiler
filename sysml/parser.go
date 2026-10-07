@@ -349,6 +349,34 @@ func (p *parser) parseMember() (Member, error) {
 
 	defKind, ok := defKeywords[tok.Kind]
 	if !ok {
+		if startsBareUsage(tok.Kind) {
+			// A keyword-less member, e.g. the "mass : MassValue;" in
+			// `constraint massLimitation { mass : MassValue; ... }`, or
+			// the ":>> mass = vehicle3.mass;" in `assert not massLimitation
+			// { ... }`. Real KerML lets any Usage omit its keyword,
+			// defaulting to the base Feature type; this project narrows
+			// that default to DefAttribute (every bare member seen so far
+			// is a simple typed value). parseUsageDeclaration's own
+			// optional-name check naturally handles both shapes: tok is
+			// either the name itself (Identifier) or straight into
+			// FeatureSpecializationPart (Subsets/Redefines/References, no
+			// name at all).
+			usage, err := p.parseUsage(DefAttribute)
+			if err != nil {
+				return nil, err
+			}
+			switch m := usage.(type) {
+			case *Usage:
+				m.Visibility = vis
+				m.Metadata = metadata
+				m.Abstract = abstract
+			case *Connection:
+				m.Visibility = vis
+				m.Metadata = metadata
+				m.Abstract = abstract
+			}
+			return usage, nil
+		}
 		return nil, fmt.Errorf("line %d: unexpected %s, want %s, %s, or %s", tok.Pos.Line, describeToken(tok), Pkg, ImportKw, Part)
 	}
 	keyword := tok.Kind
@@ -991,7 +1019,7 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 		if tok.Kind == CloseBrace {
 			return members, result, nil
 		}
-		if startsMember(tok.Kind) || p.startsSatisfyNot() {
+		if startsMember(tok.Kind) || p.startsSatisfyNot() || p.startsBareMember() {
 			member, err := p.parseMember()
 			if err != nil {
 				return nil, nil, err
@@ -1009,13 +1037,22 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 }
 
 // startsMember reports whether kind can begin a member: a visibility
-// prefix, 'package', 'import', any definition/usage keyword, or a Satisfy
-// statement's 'assert'/'satisfy' prefixes. Deliberately doesn't cover
-// Satisfy's third, bare-'not' prefix -- see startsSatisfyNot, which needs a
-// lookahead this single-token predicate can't do, to tell it apart from a
-// unary-'not' expression (e.g. a calc body's trailing "not done" result).
+// prefix, 'package', 'import', any definition/usage keyword, a Satisfy
+// statement's 'assert'/'satisfy' prefixes, or 'Subsets'/'Redefines'/
+// 'References' starting a keyword-less member's own FeatureSpecialization
+// Part directly (e.g. the ":>> mass = ...;" in `assert not massLimitation
+// { ... }`) -- unambiguous, since none of those three tokens can ever
+// start an expression either. Deliberately doesn't cover a bare
+// Identifier (see startsBareMember instead, which needs a lookahead this
+// single-token predicate can't do) or Satisfy's bare-'not' prefix (see
+// startsSatisfyNot, same reason) -- both are genuinely ambiguous with a
+// calc body's trailing result expression, which can also start with a
+// bare name or a unary 'not'.
 func startsMember(kind Kind) bool {
 	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw {
+		return true
+	}
+	if kind == Subsets || kind == Redefines || kind == References {
 		return true
 	}
 	if _, ok := visibilityKeywords[kind]; ok {
@@ -1023,6 +1060,46 @@ func startsMember(kind Kind) bool {
 	}
 	_, ok := defKeywords[kind]
 	return ok
+}
+
+// startsBareUsage reports whether kind can legally start a keyword-less
+// Usage on its own, with no preceding name *or* keyword at all: a bare
+// Identifier (the usage's own name, e.g. "mass : MassValue;"), or
+// 'Subsets'/'Redefines'/'References' heading straight into
+// FeatureSpecializationPart with no name (e.g. ":>> mass =
+// vehicle3.mass;"). Used by parseMember's own defKeywords-lookup-failure
+// fallback -- unlike startsMember, this never needs to worry about the
+// calc-body trailing-result ambiguity, since parseMember is only ever
+// reached once something has already committed to "this is a member".
+func startsBareUsage(kind Kind) bool {
+	return kind == Identifier || kind == Subsets || kind == Redefines || kind == References
+}
+
+// startsBareMember reports whether the upcoming tokens look like a bare,
+// keyword-less member's own start ("mass : MassValue;") rather than the
+// start of a calc/constraint body's trailing result expression, which can
+// *also* begin with a bare identifier (e.g. "totalMass <= massLimit").
+// Disambiguated by peeking one token past the identifier: ':' (a type),
+// '[' (a multiplicity), '=' (a value with no type), or ';' (nothing at
+// all) only ever start a member's own FeatureSpecializationPart/
+// ValuePart/terminator -- never a binary operator continuing an
+// expression. Subsets/Redefines/References need no such lookahead (see
+// startsMember) -- they can never start an expression at all.
+func (p *parser) startsBareMember() bool {
+	tok, ok := p.current()
+	if !ok || tok.Kind != Identifier {
+		return false
+	}
+	next, ok := p.peekKind(1)
+	if !ok {
+		return false
+	}
+	switch next {
+	case Colon, OpenBracket, Equals, Semicolon:
+		return true
+	default:
+		return false
+	}
 }
 
 // parseFeatureSpecializationPart consumes a typing (": Type"), a

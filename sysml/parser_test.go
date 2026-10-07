@@ -1954,6 +1954,151 @@ func TestModelParseSatisfyNotDisambiguatesFromUnaryExpression(t *testing.T) {
 	}
 }
 
+// TestModelParseBareMember checks that a keyword-less (bare) member -- no
+// "attribute" or other defKeywords prefix at all -- parses as an ordinary
+// DefAttribute Usage, across each of the four ways a
+// FeatureSpecializationPart/ValuePart/bare terminator can follow the name
+// directly (see startsBareMember's own doc comment for why each of these,
+// and only these, disambiguates a bare member's start from a calc body's
+// trailing result expression).
+func TestModelParseBareMember(t *testing.T) {
+	cases := map[string]struct {
+		source   string
+		wantName string
+		wantType string
+	}{
+		"typed":        {"mass : MassValue;", "mass", "MassValue"},
+		"multiplicity": {"items [3];", "items", ""},
+		"valued":       {"count = 5;", "count", ""},
+		"terminator":   {"flag;", "flag", ""},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { constraint def C { `+tt.source+` } }`)
+
+			def, ok := pkg.Members[0].(*sysml.Definition)
+			if !ok {
+				t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+			}
+			if len(def.Members) != 1 {
+				t.Fatalf("got %d members, want 1", len(def.Members))
+			}
+			usage, ok := def.Members[0].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("body member is %T, want *sysml.Usage", def.Members[0])
+			}
+			if usage.Kind != sysml.DefAttribute || usage.Name != tt.wantName || usage.Type != tt.wantType {
+				t.Errorf("member = %+v, want a DefAttribute %s : %q", usage, tt.wantName, tt.wantType)
+			}
+		})
+	}
+
+	t.Run("valued, value content", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle { constraint def C { count = 5; } }`)
+
+		def := pkg.Members[0].(*sysml.Definition)
+		usage := def.Members[0].(*sysml.Usage)
+		lit, ok := usage.Value.(*sysml.IntLiteral)
+		if !ok || lit.Value != 5 {
+			t.Errorf("Value = %+v, want IntLiteral{5}", usage.Value)
+		}
+	})
+}
+
+// TestModelParseBareMemberSubsetsRedefinesReferences checks that a
+// keyword-less member can also start directly with "subsets"/"redefines"/
+// "references" (or their symbol forms) and no name at all -- e.g. the
+// ":>> mass = vehicle3.mass;" inside "assert not massLimitation { ... }" --
+// unambiguous without any lookahead, since none of those three tokens can
+// ever start an expression either (see startsMember's own doc comment).
+func TestModelParseBareMemberSubsetsRedefinesReferences(t *testing.T) {
+	cases := map[string]struct {
+		source string
+		check  func(t *testing.T, usage *sysml.Usage)
+	}{
+		"subsets": {
+			"part a; :> a;",
+			func(t *testing.T, usage *sysml.Usage) {
+				if usage.Name != "" || usage.Subsets != "a" {
+					t.Errorf("usage = %+v, want an anonymous usage subsetting a", usage)
+				}
+			},
+		},
+		"redefines": {
+			"part b; :>> b = x;",
+			func(t *testing.T, usage *sysml.Usage) {
+				if usage.Name != "" || usage.Redefines != "b" {
+					t.Errorf("usage = %+v, want an anonymous usage redefining b", usage)
+				}
+			},
+		},
+		"references": {
+			"part c; ::> c;",
+			func(t *testing.T, usage *sysml.Usage) {
+				if usage.Name != "" || usage.References != "c" {
+					t.Errorf("usage = %+v, want an anonymous usage referencing c", usage)
+				}
+			},
+		},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { attribute x : Real; `+tt.source+` }`)
+
+			usage, ok := pkg.Members[len(pkg.Members)-1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("last member is %T, want *sysml.Usage", pkg.Members[len(pkg.Members)-1])
+			}
+			if usage.Kind != sysml.DefAttribute {
+				t.Errorf("Kind = %v, want DefAttribute", usage.Kind)
+			}
+			tt.check(t, usage)
+		})
+	}
+}
+
+// TestModelParseBareMemberVsTrailingResult checks the trickiest
+// disambiguation this phase introduces: a calc body mixing bare, keyword-
+// less members with a trailing result expression that also starts with a
+// bare identifier -- e.g. ConstraintTest.sysml's own
+// "mass : MassValue; massLimit : MassValue; mass < massLimit" shape. Both
+// "mass : MassValue;" and "mass < massLimit" start with the identifier
+// "mass", so startsBareMember's one-token-past-the-identifier lookahead is
+// what tells them apart.
+func TestModelParseBareMemberVsTrailingResult(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		constraint def C {
+			mass : MassValue;
+			massLimit : MassValue;
+			mass < massLimit
+		}
+	}`)
+
+	def, ok := pkg.Members[0].(*sysml.Definition)
+	if !ok {
+		t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+	}
+	if len(def.Members) != 2 {
+		t.Fatalf("got %d members, want 2", len(def.Members))
+	}
+	for i, wantName := range []string{"mass", "massLimit"} {
+		usage, ok := def.Members[i].(*sysml.Usage)
+		if !ok || usage.Kind != sysml.DefAttribute || usage.Name != wantName || usage.Type != "MassValue" {
+			t.Errorf("member %d = %+v, want a bare DefAttribute %s : MassValue", i, def.Members[i], wantName)
+		}
+	}
+	result, ok := def.Result.(*sysml.BinaryExpr)
+	if !ok || result.Op != "<" {
+		t.Errorf("Result = %+v, want a '<' BinaryExpr", def.Result)
+	}
+	left, ok := result.Left.(*sysml.NameRef)
+	if !ok || left.Path != "mass" {
+		t.Errorf("Result.Left = %+v, want NameRef{Path: mass}", result.Left)
+	}
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without
