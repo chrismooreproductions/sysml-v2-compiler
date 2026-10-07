@@ -26,11 +26,13 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// "nonunique"/"ordered") isn't supported -- short names are fixed
 		// now, so this fixture advances to its next gap.
 		{"PartTest.sysml", `line 8: unexpected identifier "constant", want 'package', 'import', or 'part'`},
-		// AssertConstraintUsage's non-"satisfy" form ("assert constraint
-		// massAnalysis : MassAnalysis { ... }") isn't supported -- parseSatisfy
-		// only ever accepts "assert"/"not"/"satisfy", not "assert" followed
-		// directly by "constraint".
-		{"ConstraintTest.sysml", `line 24: unexpected 'constraint', want 'satisfy'`},
+		// keyword-less (bare) members ("mass : MassValue;", no "attribute"
+		// or anything else) aren't supported -- real KerML lets any Usage
+		// omit its keyword; this project doesn't yet. Unrelated to
+		// AssertConstraintUsage, now fully supported -- this is the
+		// *next* line, a plain (non-assert) "constraint massLimitation {
+		// ... }" usage whose own body members have no keyword at all.
+		{"ConstraintTest.sysml", `line 88: unexpected ':', want '}'`},
 		// "as" casts ("(vehicles as VehiclePart).m") aren't supported --
 		// a new Expression variant, plus extending postfix "."-chaining to
 		// apply after a parenthesized/cast result (today it only ever

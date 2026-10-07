@@ -261,9 +261,11 @@ type Element struct {
 	// DefInterface, and for a KindSatisfy Element with no "by" clause.
 	Connects []ElementID
 
-	// Assert and Negated mirror a KindSatisfy Element's sysml.Satisfy.Assert/
-	// Negated -- its independently optional "assert"/"not" prefixes.
-	// Meaningless (always false) for every other Kind.
+	// Assert and Negated mirror either a KindSatisfy Element's
+	// sysml.Satisfy.Assert/Negated, or (for a KindUsage Element reached
+	// via an AssertConstraintUsage) sysml.Usage.Assert/Negated -- either
+	// way, the same independently optional "assert"/"not" prefixes.
+	// Meaningless (always false) for every other Element.
 	Assert  bool
 	Negated bool
 }

@@ -759,6 +759,84 @@ func TestFromASTUsageCalculationBody(t *testing.T) {
 	}
 }
 
+// TestFromASTAssertConstraint checks that AssertConstraintUsage's two
+// alternatives both translate as ordinary DefConstraint usages, with
+// Assert/Negated carried onto Element: the "constraint" keyword form
+// (declared, resolvable by its own name) and the bare-reference form
+// (References pointing at an existing constraint usage declared
+// elsewhere, with its own CalculationBody resolving against its own
+// scope).
+func TestFromASTAssertConstraint(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		part def Component { attribute mass : Real; }
+		part vehicle : Component;
+
+		part def MassAnalysis;
+		assert constraint massAnalysis : MassAnalysis {
+			attribute totalMass : Real;
+			totalMass == vehicle.mass
+		}
+
+		constraint massLimitation;
+		assert not massLimitation {
+			attribute totalMass : Real = vehicle.mass;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	massAnalysis, ok := model.Elements["Vehicle::massAnalysis"]
+	if !ok {
+		t.Fatal("missing element Vehicle::massAnalysis")
+	}
+	if massAnalysis.DefKind != metamodel.DefConstraint || !massAnalysis.Assert || massAnalysis.Negated {
+		t.Errorf("massAnalysis = %+v, want DefConstraint, Assert: true, Negated: false", massAnalysis)
+	}
+	if target, ok := typeOf(model, massAnalysis.ID); !ok || target != "Vehicle::MassAnalysis" {
+		t.Errorf("massAnalysis typed by %q, want Vehicle::MassAnalysis", target)
+	}
+	result, ok := massAnalysis.Result.(*metamodel.BinaryExpr)
+	if !ok || result.Op != "==" {
+		t.Fatalf("massAnalysis.Result = %+v, want a '==' BinaryExpr", massAnalysis.Result)
+	}
+
+	var anon *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle" && el.DefKind == metamodel.DefConstraint && el.Name == "" {
+			anon = el
+		}
+	}
+	if anon == nil {
+		t.Fatal("no anonymous DefConstraint element found under Vehicle")
+	}
+	if !anon.Assert || !anon.Negated {
+		t.Errorf("Assert = %v, Negated = %v, want both true", anon.Assert, anon.Negated)
+	}
+	if target, ok := relationshipTarget(model, anon.ID, metamodel.References); !ok || target != "Vehicle::massLimitation" {
+		t.Errorf("References %q, want Vehicle::massLimitation", target)
+	}
+}
+
+// TestFromASTUnresolvedAssertConstraintReference checks that an
+// unresolvable bare reference fails translation.
+func TestFromASTUnresolvedAssertConstraintReference(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle { assert nope { true } }`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved bare reference, got nil")
+	}
+}
+
 // TestFromASTAnonymousUsage checks that an anonymous usage (no name --
 // Phase 3's "constraint { ... }" form) still translates to its own
 // distinct Element, and that two anonymous usages in the same scope don't

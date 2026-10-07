@@ -1802,6 +1802,136 @@ func TestModelParseSatisfyInlineDeclaration(t *testing.T) {
 	})
 }
 
+// TestModelParseAssertConstraint checks AssertConstraintUsage's forms:
+// "constraint" + a named/typed declaration with a CalculationBody,
+// "constraint" + a named/typed declaration with no body at all (a bare
+// ";"), a bare reference to an existing constraint with a body, and the
+// fully anonymous "assert constraint { ... }" form -- each independently
+// combined with "not".
+func TestModelParseAssertConstraint(t *testing.T) {
+	t.Run("constraint keyword, named and typed, with body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			assert constraint massAnalysis : MassAnalysis {
+				attribute redefines totalMass;
+			}
+		}`)
+
+		usage, ok := pkg.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+		}
+		if usage.Kind != sysml.DefConstraint || usage.Name != "massAnalysis" || usage.Type != "MassAnalysis" {
+			t.Errorf("member 0 = %+v, want a DefConstraint usage massAnalysis : MassAnalysis", usage)
+		}
+		if !usage.Assert || usage.Negated {
+			t.Errorf("Assert = %v, Negated = %v, want true, false", usage.Assert, usage.Negated)
+		}
+		if len(usage.Members) != 1 {
+			t.Fatalf("got %d members, want 1", len(usage.Members))
+		}
+	})
+
+	t.Run("constraint keyword, named and typed, no body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			assert constraint massConstraint : MassAnalysis2;
+		}`)
+
+		usage, ok := pkg.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+		}
+		if usage.Name != "massConstraint" || usage.Type != "MassAnalysis2" || usage.Members != nil {
+			t.Errorf("member 0 = %+v, want massConstraint : MassAnalysis2, no members", usage)
+		}
+	})
+
+	t.Run("bare reference, with body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			assert massAnalysis3 {
+				in totalMass = mass;
+			}
+		}`)
+
+		usage, ok := pkg.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+		}
+		if usage.Name != "" || usage.References != "massAnalysis3" {
+			t.Errorf("member 0 = %+v, want an anonymous usage referencing massAnalysis3", usage)
+		}
+		if len(usage.Members) != 1 {
+			t.Fatalf("got %d members, want 1", len(usage.Members))
+		}
+	})
+
+	t.Run("anonymous, with trailing result", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			assert constraint {
+				mass == engine.mass + frontAxleAssembly.mass
+			}
+		}`)
+
+		usage, ok := pkg.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+		}
+		if usage.Name != "" || usage.Type != "" {
+			t.Errorf("member 0 = %+v, want a fully anonymous, untyped usage", usage)
+		}
+		result, ok := usage.Result.(*sysml.BinaryExpr)
+		if !ok || result.Op != "==" {
+			t.Errorf("Result = %+v, want a '==' BinaryExpr", usage.Result)
+		}
+	})
+
+	t.Run("not, bare reference", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			assert not massLimitation {
+				attribute redefines mass = vehicle3.mass;
+			}
+		}`)
+
+		usage, ok := pkg.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+		}
+		if !usage.Assert || !usage.Negated || usage.References != "massLimitation" {
+			t.Errorf("member 0 = %+v, want Assert: true, Negated: true, References: massLimitation", usage)
+		}
+	})
+}
+
+// TestModelParseAssertConstraintVsSatisfyDispatch checks that "assert"
+// correctly dispatches to Satisfy when followed by (optionally "not"
+// then) "satisfy", and to AssertConstraintUsage otherwise -- in every
+// combination of the two prefixes.
+func TestModelParseAssertConstraintVsSatisfyDispatch(t *testing.T) {
+	cases := map[string]struct {
+		source      string
+		wantSatisfy bool
+	}{
+		"assert satisfy":        {"assert satisfy r;", true},
+		"assert not satisfy":    {"assert not satisfy r;", true},
+		"assert constraint":     {"assert constraint { true }", false},
+		"assert not constraint": {"assert not c { true }", false},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.source+` }`)
+
+			_, isSatisfy := pkg.Members[0].(*sysml.Satisfy)
+			_, isUsage := pkg.Members[0].(*sysml.Usage)
+			if tt.wantSatisfy && !isSatisfy {
+				t.Errorf("member 0 is %T, want *sysml.Satisfy", pkg.Members[0])
+			}
+			if !tt.wantSatisfy && !isUsage {
+				t.Errorf("member 0 is %T, want *sysml.Usage", pkg.Members[0])
+			}
+		})
+	}
+}
+
 // TestModelParseSatisfyNotDisambiguatesFromUnaryExpression checks that a
 // calc body's trailing "not X" result expression still parses as a unary
 // expression, not a Satisfy member -- the ambiguity startsSatisfyNot exists

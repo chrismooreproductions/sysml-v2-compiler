@@ -304,6 +304,18 @@ type Usage struct {
 	// (not) used for. Independent of Name: a short name can appear with a
 	// real name, or (not yet exercised by any fixture here) alone.
 	ShortName string
+
+	// Assert and Negated are an AssertConstraintUsage's own "assert"/
+	// "not" prefixes, e.g. `assert constraint massAnalysis : MassAnalysis
+	// { ... }` or `assert not massLimitation { ... }` -- mirroring
+	// Satisfy's own Assert/Negated fields (see its doc comment), since
+	// AssertConstraintUsage turns out not to need a new Member type at
+	// all: ConstraintUsageDeclaration is itself a ConstraintUsage, so this
+	// is just an ordinary DefConstraint usage reached via parseAssertConstraint
+	// instead of the usual defKeywords dispatch. Always false for every
+	// other DefKind.
+	Assert  bool
+	Negated bool
 }
 
 func (*Usage) memberNode() {}

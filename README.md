@@ -78,6 +78,14 @@ optional throughout, since nothing that can start a usage's specialization
 part is ever spelled as a bare identifier: an anonymous usage like
 `constraint { mass <= massLimit }` is unambiguous with no lookahead needed.
 
+`assert constraint massAnalysis : MassAnalysis { ... }`, `assert
+massAnalysis3 { ... }` (a bare reference to an existing constraint usage
+declared elsewhere), and `assert not massLimitation { ... }`
+(`AssertConstraintUsage`) are all just an ordinary `constraint` usage
+reached a different way — `assert`/`not` are recorded on the usage itself
+(`Usage.Assert`/`Negated`, the same fields `satisfy` already has), not a
+new kind of member.
+
 A `connection`/`interface` usage can carry an explicit connector part:
 `connect p to y;` (binary, no name or type at all — the bare shorthand
 form) or `connection bus : C connect (d1, d2, d3, d4);` (n-ary, named and

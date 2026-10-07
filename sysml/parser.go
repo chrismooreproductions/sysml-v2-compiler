@@ -305,13 +305,30 @@ func (p *parser) parseMember() (Member, error) {
 		return conn, nil
 	}
 
-	if tok.Kind == SatisfyKw || tok.Kind == AssertKw || p.startsSatisfyNot() {
+	if tok.Kind == SatisfyKw || p.startsSatisfyNot() {
 		sat, err := p.parseSatisfy()
 		if err != nil {
 			return nil, err
 		}
 		sat.Visibility = vis
 		return sat, nil
+	}
+
+	if tok.Kind == AssertKw {
+		if p.assertStartsSatisfy() {
+			sat, err := p.parseSatisfy()
+			if err != nil {
+				return nil, err
+			}
+			sat.Visibility = vis
+			return sat, nil
+		}
+		ac, err := p.parseAssertConstraint()
+		if err != nil {
+			return nil, err
+		}
+		ac.Visibility = vis
+		return ac, nil
 	}
 
 	if tok.Kind == EndKw {
@@ -780,6 +797,20 @@ func (p *parser) startsSatisfyNot() bool {
 	return ok && next == SatisfyKw
 }
 
+// assertStartsSatisfy reports whether the upcoming tokens are "assert",
+// optionally followed by "not", then "satisfy" -- Satisfy's own form --
+// as opposed to AssertConstraintUsage's ("assert" ("not")? "constraint"
+// or a bare reference -- see parseAssertConstraint). The caller has
+// already checked the current token is AssertKw.
+func (p *parser) assertStartsSatisfy() bool {
+	offset := 1
+	if k, ok := p.peekKind(1); ok && k == NotKw {
+		offset = 2
+	}
+	k, ok := p.peekKind(offset)
+	return ok && k == SatisfyKw
+}
+
 // parseSatisfy parses a "satisfy X by Y;" member (see Satisfy's doc
 // comment): an optional leading "assert", an optional leading "not"
 // (independently of each other), the "satisfy" keyword, then X -- either a
@@ -833,6 +864,71 @@ func (p *parser) parseSatisfy() (*Satisfy, error) {
 		return nil, err
 	}
 	return sat, nil
+}
+
+// parseAssertConstraint parses an AssertConstraintUsage ("assert
+// constraint massAnalysis : MassAnalysis { ... }", "assert constraint
+// massConstraint : MassAnalysis2;", or "assert massAnalysis3 { ... }"):
+// the caller has already checked the current token is AssertKw and that
+// it's not Satisfy's own form (see assertStartsSatisfy). Not a new Member
+// type: ConstraintUsageDeclaration is itself a ConstraintUsage, so this
+// produces a plain *Usage{Kind: DefConstraint} -- either from the
+// "constraint" keyword followed by an ordinary named/typed usage
+// declaration (reusing parseUsageDeclaration directly), or a bare
+// reference to an existing constraint usage declared elsewhere (stored
+// via the existing References field, the same OwnedReferenceSubsetting
+// shape it already models -- no new field needed) -- followed by a
+// CalculationBody, itself ";" or "{ ... }" (the same optionality every
+// other DefConstraint usage already has).
+func (p *parser) parseAssertConstraint() (*Usage, error) {
+	if _, err := p.expect(AssertKw); err != nil {
+		return nil, err
+	}
+
+	negated := false
+	if tok, ok := p.current(); ok && tok.Kind == NotKw {
+		p.pos++
+		negated = true
+	}
+
+	var usage *Usage
+	if tok, ok := p.current(); ok && tok.Kind == ConstraintKw {
+		p.pos++
+		decl, err := p.parseUsageDeclaration(DefConstraint)
+		if err != nil {
+			return nil, err
+		}
+		usage = decl
+	} else {
+		name, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		usage = &Usage{Kind: DefConstraint, References: name}
+	}
+	usage.Assert = true
+	usage.Negated = negated
+
+	// CalculationBody is itself ";" | "{ ... }" -- same optionality every
+	// other hasCalculationBody usage already has (e.g. "constraint def
+	// C;" needs no body either), not a mandatory brace.
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		members, result, err := p.parseCalculationBody()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		usage.Members = members
+		usage.Result = result
+		return usage, nil
+	}
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return usage, nil
 }
 
 // parseEndMember parses an "end" body member (DefaultInterfaceEnd/

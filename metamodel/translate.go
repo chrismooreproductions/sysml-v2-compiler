@@ -262,6 +262,12 @@ func (t *translator) declareUsage(m *sysml.Usage, owner ElementID, sc *scope) (E
 	t.model.Elements[id].Visibility = Visibility(m.Visibility)
 	t.model.Elements[id].Abstract = m.Abstract
 	t.model.Elements[id].ShortName = m.ShortName
+	// Assert/Negated are AssertConstraintUsage's own prefixes (see
+	// sysml.Usage.Assert's doc comment) -- Element already has both
+	// fields (added for KindSatisfy), so this is a plain passthrough,
+	// the same as Satisfy's own Assert/Negated assignment.
+	t.model.Elements[id].Assert = m.Assert
+	t.model.Elements[id].Negated = m.Negated
 	t.queueMetadata(id, m.Metadata, owner)
 	if m.Multiplicity != nil {
 		// sysml.Unbounded and metamodel.Unbounded are both -1 by
