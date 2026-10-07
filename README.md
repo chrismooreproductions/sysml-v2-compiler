@@ -174,10 +174,24 @@ own scope, so it's resolvable by name from anywhere that scope already
 reaches — e.g. a later derivation connection's `end r1 ::> req1;`); Y, when
 present, resolves through the same expression/feature-chain machinery a
 Connection's ends use. Not yet supported: a trailing body on a `satisfy`
-statement, `doc` annotations (this project's parser drops comments
-entirely before seeing them, so there's nowhere to hang the text), and
-`case`'s own richer `CaseBody` (a bare `case`/`case def` parses, but never
-with a body).
+statement, and `doc` annotations (this project's parser drops comments
+entirely before seeing them, so there's nowhere to hang the text).
+
+`analysis`/`verification` are two more `CalculationBody`-shaped keyword
+families alongside `case` (all three share `constraint`/`calc`'s own body
+shape: members, then an optional trailing result expression — e.g. the
+`VerificationCases::PassIf(v.m == 0)` at the end of a real
+`verification def`). `objective` is a plain usage-body keyword, the same
+shape `subject`/`require`/`frame` already have. `verify x;` or `verify
+requirement req1 : Req1 { ... }` — usually nested inside an `objective`
+— links a case to the requirement it verifies: the same bare-reference-
+vs-inline-declaration duality `satisfy`'s own `X` already has, since
+`RequirementVerificationUsage` is itself just a plain `RequirementUsage`
+in the real grammar, producing an ordinary `requirement` usage either
+way. Deliberately out of scope: `use case def`/`UseCaseUsage` and
+`include use case` (a different concept — user-facing usage scenarios,
+not requirement verification — spelled with a two-word keyword this
+project's single-token lexer doesn't special-case).
 
 A handful of recurring gaps that blocked real examples well before their
 own subject matter have since closed: every usage kind (not just

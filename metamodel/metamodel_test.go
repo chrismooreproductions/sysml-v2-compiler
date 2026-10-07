@@ -924,6 +924,73 @@ func TestFromASTBareMemberSubsetsRedefinesReferences(t *testing.T) {
 	}
 }
 
+// TestFromASTCaseAnalysisVerificationObjectiveVerify checks Phase 9's
+// Case/VerificationCase mechanism end to end: "analysis"/"verification"
+// translate exactly like "case" (a CalculationBody-shaped DefKind, same
+// machinery constraint/calc already use), "objective" exactly like
+// "subject" (a plain usage-body DefKind), and "verify" resolves its
+// bare-reference form through the same References relationship Satisfy's
+// own "X" already uses -- none of the five needed any new resolution
+// concept in translate.go.
+func TestFromASTCaseAnalysisVerificationObjectiveVerify(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		attribute mass : Real;
+		attribute massLimit : Real;
+
+		requirement def R;
+		requirement r : R;
+
+		verification def VC {
+			objective {
+				verify r;
+			}
+			mass <= massLimit
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	vc, ok := model.Elements["Vehicle::VC"]
+	if !ok {
+		t.Fatal("missing element Vehicle::VC")
+	}
+	if vc.DefKind != metamodel.DefVerification {
+		t.Errorf("VC.DefKind = %v, want DefVerification", vc.DefKind)
+	}
+	result, ok := vc.Result.(*metamodel.BinaryExpr)
+	if !ok || result.Op != "<=" {
+		t.Fatalf("VC.Result = %+v, want a '<=' BinaryExpr", vc.Result)
+	}
+
+	var objective, verify *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle::VC" && el.DefKind == metamodel.DefObjective {
+			objective = el
+		}
+	}
+	if objective == nil {
+		t.Fatal("no DefObjective element found under Vehicle::VC")
+	}
+	for _, el := range model.Elements {
+		if el.Owner == objective.ID && el.DefKind == metamodel.DefRequirement {
+			verify = el
+		}
+	}
+	if verify == nil {
+		t.Fatalf("no DefRequirement element found under %s", objective.ID)
+	}
+	if target, ok := relationshipTarget(model, verify.ID, metamodel.References); !ok || target != "Vehicle::r" {
+		t.Errorf("verify References %q, want Vehicle::r", target)
+	}
+}
+
 // TestFromASTAnonymousUsage checks that an anonymous usage (no name --
 // Phase 3's "constraint { ... }" form) still translates to its own
 // distinct Element, and that two anonymous usages in the same scope don't

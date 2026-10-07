@@ -100,29 +100,32 @@ func (p *parser) parseMembers() ([]Member, error) {
 // usage-only the way real SysML does (e.g. "subject def Foo;" parses fine
 // here, even though real SysML only ever lets "subject" introduce a usage).
 var defKeywords = map[Kind]DefKind{
-	Part:          DefPart,
-	Attribute:     DefAttribute,
-	Item:          DefItem,
-	Port:          DefPort,
-	ConstraintKw:  DefConstraint,
-	CalcKw:        DefCalculation,
-	ConnectionKw:  DefConnection,
-	InterfaceKw:   DefInterface,
-	MetadataKw:    DefMetadata,
-	RequirementKw: DefRequirement,
-	ConcernKw:     DefConcern,
-	CaseKw:        DefCase,
-	SubjectKw:     DefSubject,
-	AssumeKw:      DefAssume,
-	RequireKw:     DefRequire,
-	FrameKw:       DefFrame,
-	ActorKw:       DefActor,
-	StakeholderKw: DefStakeholder,
-	InKw:          DefIn,
-	OutKw:         DefOut,
-	InOutKw:       DefInOut,
-	ReturnKw:      DefReturn,
-	RefKw:         DefRef,
+	Part:           DefPart,
+	Attribute:      DefAttribute,
+	Item:           DefItem,
+	Port:           DefPort,
+	ConstraintKw:   DefConstraint,
+	CalcKw:         DefCalculation,
+	ConnectionKw:   DefConnection,
+	InterfaceKw:    DefInterface,
+	MetadataKw:     DefMetadata,
+	RequirementKw:  DefRequirement,
+	ConcernKw:      DefConcern,
+	CaseKw:         DefCase,
+	AnalysisKw:     DefAnalysis,
+	VerificationKw: DefVerification,
+	ObjectiveKw:    DefObjective,
+	SubjectKw:      DefSubject,
+	AssumeKw:       DefAssume,
+	RequireKw:      DefRequire,
+	FrameKw:        DefFrame,
+	ActorKw:        DefActor,
+	StakeholderKw:  DefStakeholder,
+	InKw:           DefIn,
+	OutKw:          DefOut,
+	InOutKw:        DefInOut,
+	ReturnKw:       DefReturn,
+	RefKw:          DefRef,
 }
 
 // isConnectorKind reports whether kind's usage form can carry an explicit
@@ -142,8 +145,15 @@ func isConnectorKind(kind DefKind) bool {
 // keyword (see requirementConstraintInnerKeyword) -- e.g. the
 // "{ mass <= massLimit }" in `require constraint { mass <= massLimit }` --
 // the plain bare-reference form ("require c;") never has a body at all.
+// DefCase/DefAnalysis/DefVerification (CaseBody, per the grammar) are the
+// same CalculationBody shape as constraint/calc -- Case's own richer body
+// (actor/subject/objective/include members alongside a trailing result)
+// is still a CalculationBody at its root, just with more member kinds
+// legal inside it, all of which (objective, verify, and everything
+// constraint/calc already support) are ordinary members regardless.
 func hasCalculationBody(kind DefKind) bool {
-	return kind == DefConstraint || kind == DefCalculation || kind == DefRequire || kind == DefAssume
+	return kind == DefConstraint || kind == DefCalculation || kind == DefRequire || kind == DefAssume ||
+		kind == DefCase || kind == DefAnalysis || kind == DefVerification
 }
 
 // requirementConstraintInnerKeyword maps a RequirementBodyItem prefix
@@ -329,6 +339,15 @@ func (p *parser) parseMember() (Member, error) {
 		}
 		ac.Visibility = vis
 		return ac, nil
+	}
+
+	if tok.Kind == VerifyKw {
+		req, err := p.parseVerify()
+		if err != nil {
+			return nil, err
+		}
+		req.Visibility = vis
+		return req, nil
 	}
 
 	if tok.Kind == EndKw {
@@ -959,6 +978,59 @@ func (p *parser) parseAssertConstraint() (*Usage, error) {
 	return usage, nil
 }
 
+// parseVerify parses a "verify" member (RequirementVerificationUsage),
+// e.g. "verify requirement : R;" or "verify r;", used inside an
+// analysis/verification case's "objective" to link it to the requirement
+// it verifies. Real grammar types RequirementVerificationUsage as a plain
+// RequirementUsage, so -- exactly like parseAssertConstraint above --
+// this is just an ordinary *Usage{Kind: DefRequirement} reached a
+// different way, with the same bare-reference-vs-inline-declaration
+// duality Satisfy's own "X" and AssertConstraintUsage already have:
+// "requirement" followed by an ordinary (here, always anonymous --
+// RequirementVerificationUsage carries no name of its own) usage
+// declaration, or a bare reference to a requirement usage declared
+// elsewhere, stored via Usage.References as always. Either way followed
+// by an ordinary RequirementBody (plain member-list body, not a
+// CalculationBody -- unlike AssertConstraintUsage's "constraint").
+func (p *parser) parseVerify() (*Usage, error) {
+	if _, err := p.expect(VerifyKw); err != nil {
+		return nil, err
+	}
+
+	var usage *Usage
+	if tok, ok := p.current(); ok && tok.Kind == RequirementKw {
+		p.pos++
+		decl, err := p.parseUsageDeclaration(DefRequirement)
+		if err != nil {
+			return nil, err
+		}
+		usage = decl
+	} else {
+		name, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		usage = &Usage{Kind: DefRequirement, References: name}
+	}
+
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		members, err := p.parseMembers()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		usage.Members = members
+		return usage, nil
+	}
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return usage, nil
+}
+
 // parseEndMember parses an "end" body member (DefaultInterfaceEnd/
 // ConnectorEnd's def-body form), e.g. "end port p1: P1;", "end p1: P1;",
 // "end end1;", or "end #original ::> vehicleMassRequirement;" -- "end" is a
@@ -1038,7 +1110,7 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 
 // startsMember reports whether kind can begin a member: a visibility
 // prefix, 'package', 'import', any definition/usage keyword, a Satisfy
-// statement's 'assert'/'satisfy' prefixes, or 'Subsets'/'Redefines'/
+// statement's 'assert'/'satisfy' prefixes, 'verify', or 'Subsets'/'Redefines'/
 // 'References' starting a keyword-less member's own FeatureSpecialization
 // Part directly (e.g. the ":>> mass = ...;" in `assert not massLimitation
 // { ... }`) -- unambiguous, since none of those three tokens can ever
@@ -1049,7 +1121,7 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 // calc body's trailing result expression, which can also start with a
 // bare name or a unary 'not'.
 func startsMember(kind Kind) bool {
-	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw {
+	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw || kind == VerifyKw {
 		return true
 	}
 	if kind == Subsets || kind == Redefines || kind == References {

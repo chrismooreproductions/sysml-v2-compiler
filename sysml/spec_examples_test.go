@@ -64,6 +64,19 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// comment) before rejecting "requirement" (another keyword) where
 		// a terminator was expected.
 		{"RequirementTest.sysml", `line 9: unexpected 'requirement', want ';'`},
+		// Both of these hit the exact same pre-existing "doc" gap
+		// RequirementTest.sysml above also hits (a "doc /* ... */"
+		// comment, dropped entirely before the parser ever sees it,
+		// swept up as a keyword-less member's own bare name before
+		// rejecting the next keyword) at the same early line, before
+		// ever reaching the "analysis"/"verification"/"objective"/
+		// "verify" constructs each is actually vendored to exercise --
+		// Phase 9's own hand-crafted parser/metamodel tests cover those
+		// directly instead (see TestModelParseCaseAnalysisVerification
+		// DefKeywords, TestModelParseObjectiveDefKeyword,
+		// TestModelParseVerify).
+		{"AnalysisTest.sysml", `line 11: unexpected '}', want ';'`},
+		{"VerificationTest.sysml", `line 11: unexpected '}', want ';'`},
 	}
 
 	for _, tt := range cases {

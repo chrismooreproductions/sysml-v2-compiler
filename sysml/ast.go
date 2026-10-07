@@ -115,6 +115,22 @@ const (
 	// parseMember directly, the same way "connect"'s own bare shorthand
 	// is.
 	DefBind
+	// DefAnalysis and DefVerification tag "analysis"/"verification" --
+	// AnalysisCaseDefinition/Usage and VerificationCaseDefinition/Usage,
+	// two more CalculationBody-shaped keyword families alongside DefCase
+	// (see hasCalculationBody). DefObjective tags "objective" --
+	// ObjectiveRequirementUsage, a plain usage-body keyword like
+	// DefSubject. None of the three need any parsing beyond the keyword
+	// itself. Appended here, after DefBind, rather than alongside
+	// DefCase/DefConcern/DefRequirement above where they conceptually
+	// belong -- metamodel.DefKind mirrors this type's iota values purely
+	// by shared ordering (see translate.go's direct DefKind(m.Kind) casts
+	// and metamodel.DefKind's own doc comment), so a new constant must
+	// always be appended at the end of both const blocks together, never
+	// inserted in the middle of either one alone.
+	DefAnalysis
+	DefVerification
+	DefObjective
 )
 
 func (k DefKind) String() string {
@@ -155,6 +171,12 @@ func (k DefKind) String() string {
 		return "actor"
 	case DefStakeholder:
 		return "stakeholder"
+	case DefAnalysis:
+		return "analysis"
+	case DefVerification:
+		return "verification"
+	case DefObjective:
+		return "objective"
 	case DefEnd:
 		return "end"
 	case DefIn:

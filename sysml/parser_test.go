@@ -2099,6 +2099,193 @@ func TestModelParseBareMemberVsTrailingResult(t *testing.T) {
 	}
 }
 
+// TestModelParseCaseAnalysisVerificationDefKeywords checks that "case",
+// "analysis", and "verification" are each a CalculationBody-shaped
+// defKeywords entry -- the same shape "constraint"/"calc" already have
+// (members, then an optional trailing result expression), not the plain
+// member-list body "subject"/"actor" have.
+func TestModelParseCaseAnalysisVerificationDefKeywords(t *testing.T) {
+	cases := map[string]struct {
+		keyword string
+		want    sysml.DefKind
+	}{
+		"case":         {"case", sysml.DefCase},
+		"analysis":     {"analysis", sysml.DefAnalysis},
+		"verification": {"verification", sysml.DefVerification},
+	}
+
+	for name, tt := range cases {
+		t.Run(name+" definition with calc body", func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle {
+				attribute mass : Real;
+				attribute massLimit : Real;
+				`+tt.keyword+` def X {
+					mass <= massLimit
+				}
+			}`)
+
+			def, ok := pkg.Members[2].(*sysml.Definition)
+			if !ok {
+				t.Fatalf("member 2 is %T, want *sysml.Definition", pkg.Members[2])
+			}
+			if def.Kind != tt.want {
+				t.Errorf("Kind = %v, want %v", def.Kind, tt.want)
+			}
+			result, ok := def.Result.(*sysml.BinaryExpr)
+			if !ok || result.Op != "<=" {
+				t.Errorf("Result = %+v, want a '<=' BinaryExpr", def.Result)
+			}
+		})
+
+		t.Run(name+" usage, no body", func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle { `+tt.keyword+` def X; `+tt.keyword+` x : X; }`)
+
+			usage, ok := pkg.Members[1].(*sysml.Usage)
+			if !ok {
+				t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+			}
+			if usage.Kind != tt.want || usage.Name != "x" || usage.Type != "X" {
+				t.Errorf("member 1 = %+v, want Usage{Kind: %v, Name: x, Type: X}", usage, tt.want)
+			}
+		})
+	}
+}
+
+// TestModelParseObjectiveDefKeyword checks that "objective" is a plain
+// defKeywords entry -- ObjectiveRequirementUsage's own grammar
+// (ConstraintUsageDeclaration RequirementBody) is the same named/typed-
+// usage-with-a-plain-body shape "subject"/"require"/"frame" already have,
+// both named and anonymous.
+func TestModelParseObjectiveDefKeyword(t *testing.T) {
+	t.Run("named and typed, with members", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			requirement def AnalysisObjective;
+			analysis def A {
+				objective obj : AnalysisObjective {
+					attribute x : Real;
+				}
+			}
+		}`)
+
+		def, ok := pkg.Members[1].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 1 is %T, want *sysml.Definition", pkg.Members[1])
+		}
+		objective, ok := def.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("nested member is %T, want *sysml.Usage", def.Members[0])
+		}
+		if objective.Kind != sysml.DefObjective || objective.Name != "obj" || objective.Type != "AnalysisObjective" {
+			t.Errorf("nested member = %+v, want a DefObjective usage obj : AnalysisObjective", objective)
+		}
+		if len(objective.Members) != 1 {
+			t.Errorf("got %d nested members, want 1", len(objective.Members))
+		}
+	})
+
+	t.Run("anonymous, plain body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			analysis def A {
+				objective {
+					attribute x : Real;
+				}
+			}
+		}`)
+
+		def, ok := pkg.Members[0].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+		}
+		objective, ok := def.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("nested member is %T, want *sysml.Usage", def.Members[0])
+		}
+		if objective.Kind != sysml.DefObjective || objective.Name != "" || objective.Type != "" {
+			t.Errorf("nested member = %+v, want an anonymous, untyped DefObjective usage", objective)
+		}
+	})
+}
+
+// TestModelParseVerify checks "verify"'s own bare-reference-vs-inline-
+// declaration duality (the same one Satisfy's own "X" and
+// AssertConstraintUsage already have): a bare name referencing an
+// existing requirement usage, stored via Usage.References, or an inline
+// "requirement : R" declaration of a brand new one -- since
+// RequirementVerificationUsage is itself just a plain RequirementUsage in
+// the real grammar, either form produces an ordinary
+// *sysml.Usage{Kind: DefRequirement}, with an ordinary RequirementBody
+// (plain member-list, not CalculationBody-shaped) following either one.
+func TestModelParseVerify(t *testing.T) {
+	t.Run("bare reference", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			requirement def R;
+			requirement r : R;
+			analysis def A {
+				objective {
+					verify r;
+				}
+			}
+		}`)
+
+		def := pkg.Members[2].(*sysml.Definition)
+		objective := def.Members[0].(*sysml.Usage)
+		verify, ok := objective.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("verify member is %T, want *sysml.Usage", objective.Members[0])
+		}
+		if verify.Kind != sysml.DefRequirement || verify.Name != "" || verify.References != "r" {
+			t.Errorf("verify member = %+v, want an anonymous DefRequirement usage referencing r", verify)
+		}
+	})
+
+	t.Run("inline declaration", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			requirement def R;
+			analysis def A {
+				objective {
+					verify requirement : R;
+				}
+			}
+		}`)
+
+		def := pkg.Members[1].(*sysml.Definition)
+		objective := def.Members[0].(*sysml.Usage)
+		verify, ok := objective.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("verify member is %T, want *sysml.Usage", objective.Members[0])
+		}
+		if verify.Kind != sysml.DefRequirement || verify.Name != "" || verify.Type != "R" || verify.References != "" {
+			t.Errorf("verify member = %+v, want an anonymous DefRequirement usage typed R", verify)
+		}
+	})
+
+	t.Run("inline declaration, named, with body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			requirement def R;
+			analysis def A {
+				objective {
+					verify requirement vr : R {
+						attribute x : Real;
+					}
+				}
+			}
+		}`)
+
+		def := pkg.Members[1].(*sysml.Definition)
+		objective := def.Members[0].(*sysml.Usage)
+		verify, ok := objective.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("verify member is %T, want *sysml.Usage", objective.Members[0])
+		}
+		if verify.Kind != sysml.DefRequirement || verify.Name != "vr" || verify.Type != "R" {
+			t.Errorf("verify member = %+v, want a DefRequirement usage vr : R", verify)
+		}
+		if len(verify.Members) != 1 {
+			t.Errorf("got %d nested members, want 1", len(verify.Members))
+		}
+	})
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without

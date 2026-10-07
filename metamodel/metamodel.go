@@ -107,6 +107,16 @@ const (
 	// DefBind mirrors sysml.DefBind: a BindingConnectorAsUsage ("bind a =
 	// b;").
 	DefBind
+	// DefAnalysis, DefVerification, and DefObjective mirror their sysml
+	// counterparts: AnalysisCase/VerificationCase's own keyword families,
+	// and the plain ObjectiveRequirementUsage keyword. Appended here,
+	// after DefBind, rather than alongside DefCase/DefConcern/
+	// DefRequirement above where they conceptually belong -- see this
+	// type's own doc comment on why a new constant must always be
+	// appended at the end of both packages' const blocks together.
+	DefAnalysis
+	DefVerification
+	DefObjective
 )
 
 func (k DefKind) String() string {
@@ -161,6 +171,12 @@ func (k DefKind) String() string {
 		return "ref"
 	case DefBind:
 		return "bind"
+	case DefAnalysis:
+		return "analysis"
+	case DefVerification:
+		return "verification"
+	case DefObjective:
+		return "objective"
 	default:
 		return "unknown"
 	}
