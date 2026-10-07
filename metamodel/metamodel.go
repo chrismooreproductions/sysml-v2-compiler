@@ -104,6 +104,9 @@ const (
 	DefInOut
 	DefReturn
 	DefRef
+	// DefBind mirrors sysml.DefBind: a BindingConnectorAsUsage ("bind a =
+	// b;").
+	DefBind
 )
 
 func (k DefKind) String() string {
@@ -156,6 +159,8 @@ func (k DefKind) String() string {
 		return "return"
 	case DefRef:
 		return "ref"
+	case DefBind:
+		return "bind"
 	default:
 		return "unknown"
 	}

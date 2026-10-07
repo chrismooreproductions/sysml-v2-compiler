@@ -14,6 +14,8 @@ const (
 	InterfaceKw
 	ConnectKw
 	ToKw
+	BindKw
+	BindingKw
 	MetadataKw
 	RequirementKw
 	ConcernKw
@@ -105,6 +107,10 @@ func (k Kind) String() string {
 		return "'connect'"
 	case ToKw:
 		return "'to'"
+	case BindKw:
+		return "'bind'"
+	case BindingKw:
+		return "'binding'"
 	case MetadataKw:
 		return "'metadata'"
 	case RequirementKw:
@@ -252,6 +258,8 @@ var kinds = map[string]Kind{
 	"interface":   InterfaceKw,
 	"connect":     ConnectKw,
 	"to":          ToKw,
+	"bind":        BindKw,
+	"binding":     BindingKw,
 	"metadata":    MetadataKw,
 	"@":           MetadataKw,
 	"requirement": RequirementKw,

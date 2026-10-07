@@ -362,6 +362,80 @@ func TestModelParseConnectionBareShorthand(t *testing.T) {
 	})
 }
 
+// TestModelParseBind checks BindingConnectorAsUsage's three forms: the
+// bare "'bind' ... '=' ..." shorthand (no name/type at all), "binding"
+// with just a name, and "binding" with both a name and a type -- each
+// producing a DefBind *sysml.Connection with two Ends, the same shape
+// "connect"'s own binary form has.
+func TestModelParseBind(t *testing.T) {
+	cases := map[string]struct {
+		source   string
+		wantName string
+		wantType string
+	}{
+		"bare":           {"bind a = b;", "", ""},
+		"binding, name":  {"binding ab bind a = b;", "ab", ""},
+		"binding, typed": {"binding ab1 : AB bind a = b;", "ab1", "AB"},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle {
+				part a;
+				part b;
+				`+tt.source+`
+			}`)
+
+			conn, ok := pkg.Members[2].(*sysml.Connection)
+			if !ok {
+				t.Fatalf("member 2 is %T, want *sysml.Connection", pkg.Members[2])
+			}
+			if conn.Kind != sysml.DefBind || conn.Name != tt.wantName || conn.Type != tt.wantType {
+				t.Errorf("Connection = %+v, want Kind: DefBind, Name: %q, Type: %q", conn, tt.wantName, tt.wantType)
+			}
+			if len(conn.Ends) != 2 {
+				t.Fatalf("got %d ends, want 2", len(conn.Ends))
+			}
+			left, ok := conn.Ends[0].(*sysml.NameRef)
+			if !ok || left.Path != "a" {
+				t.Errorf("Ends[0] = %+v, want NameRef{Path: a}", conn.Ends[0])
+			}
+			right, ok := conn.Ends[1].(*sysml.NameRef)
+			if !ok || right.Path != "b" {
+				t.Errorf("Ends[1] = %+v, want NameRef{Path: b}", conn.Ends[1])
+			}
+		})
+	}
+}
+
+// TestModelParseBindFeatureChainEndsAndBody checks that a bind's ends can
+// be dotted feature chains, and that it can carry an ordinary body
+// instead of a bare ";" -- the same general-body shape every usage
+// already has.
+func TestModelParseBindFeatureChainEndsAndBody(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		part massAnalysis {
+			part totalMass;
+		}
+		part mass;
+		bind massAnalysis.totalMass = mass {
+			part nested;
+		}
+	}`)
+
+	conn, ok := pkg.Members[2].(*sysml.Connection)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Connection", pkg.Members[2])
+	}
+	chain, ok := conn.Ends[0].(*sysml.FeatureChain)
+	if !ok || !reflect.DeepEqual(chain.Path, []string{"massAnalysis", "totalMass"}) {
+		t.Errorf("Ends[0] = %+v, want FeatureChain{Path: [massAnalysis totalMass]}", conn.Ends[0])
+	}
+	if len(conn.Members) != 1 {
+		t.Errorf("got %d members, want 1", len(conn.Members))
+	}
+}
+
 // TestModelParseConnectionUsage checks the "connection"/"interface"
 // keyword form, with a name, an optional type, and an explicit "connect"
 // clause -- as opposed to a plain "connection bus : C;" with no connect
@@ -1839,6 +1913,9 @@ func TestModelParseErrors(t *testing.T) {
 		"connection missing to":                       "package Vehicle { connect a b; }",
 		"connection missing close paren":              "package Vehicle { connect (a, b; }",
 		"connection missing end":                      "package Vehicle { connect a to ; }",
+		"bind missing equals":                         "package Vehicle { bind a b; }",
+		"bind missing right end":                      "package Vehicle { bind a = ; }",
+		"binding missing bind keyword":                "package Vehicle { binding ab a = b; }",
 		"multiplicity missing bound":                  "package Vehicle { part combatants : Combatant[]; }",
 		"multiplicity missing close":                  "package Vehicle { part combatants : Combatant[*; }",
 		"multiplicity punctuation bound":              "package Vehicle { part combatants : Combatant[;]; }",

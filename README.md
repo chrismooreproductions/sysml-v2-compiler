@@ -85,8 +85,15 @@ bare prefix in front of an otherwise ordinary usage, optionally itself
 starting with a recognized keyword (used as that usage's own kind) or with
 none at all. A definition, usage, or connection can also carry a leading
 `abstract` prefix (recorded, not enforced — nothing checks that an abstract
-definition is never directly instantiated). Not yet supported:
-`bind`/`succession` (structurally unrelated shorthand forms).
+definition is never directly instantiated).
+
+`bind a = b;` (bare), `binding ab bind a = b;`, and `binding ab1 : AB bind
+a = b;` are a `BindingConnectorAsUsage`'s three forms — structurally its
+own shorthand, not a `ConnectorPart` variant, but resolved through the
+exact same `Connects`/feature-chain machinery a `connect` already uses, so
+it needed no new metamodel concept at all. Not yet supported: `succession`
+(`first a then b;` and its own `succession`-prefixed forms — the same
+general shape `bind` is, structurally unrelated to `ConnectorPart`).
 
 A name — anywhere one can appear, including a usage's or definition's own
 declared name — can be a single-quoted restricted name (`'User Defined

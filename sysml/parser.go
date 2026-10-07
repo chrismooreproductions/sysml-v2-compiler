@@ -266,6 +266,45 @@ func (p *parser) parseMember() (Member, error) {
 		return conn, nil
 	}
 
+	if tok.Kind == BindKw {
+		// The bare "'bind' ... '=' ..." shorthand: no "binding" keyword,
+		// no name, no type at all.
+		p.pos++
+		conn, err := p.parseBindPart("", "")
+		if err != nil {
+			return nil, err
+		}
+		conn.Visibility = vis
+		conn.Metadata = metadata
+		conn.Abstract = abstract
+		return conn, nil
+	}
+
+	if tok.Kind == BindingKw {
+		// "binding" introduces an optional name/type ahead of the
+		// mandatory "bind" keyword -- reuses parseUsageDeclaration for
+		// that prefix the same way "end" does, though any
+		// multiplicity/subsets/redefines/references it parses go unused:
+		// BindingConnectorAsUsage's own grammar only ever carries a name
+		// and/or a type there.
+		p.pos++
+		decl, err := p.parseUsageDeclaration(DefBind)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(BindKw); err != nil {
+			return nil, err
+		}
+		conn, err := p.parseBindPart(decl.Name, decl.Type)
+		if err != nil {
+			return nil, err
+		}
+		conn.Visibility = vis
+		conn.Metadata = metadata
+		conn.Abstract = abstract
+		return conn, nil
+	}
+
 	if tok.Kind == SatisfyKw || tok.Kind == AssertKw || p.startsSatisfyNot() {
 		sat, err := p.parseSatisfy()
 		if err != nil {
@@ -671,6 +710,49 @@ func (p *parser) parseConnectorEnd() (Expression, error) {
 		return nil, err
 	}
 	return p.parseFeatureChainTail(path)
+}
+
+// parseBindPart parses a BindingConnectorAsUsage's own part: two
+// ConnectorEnds separated by "=" ("bind a = b;"), then an ordinary usage
+// body (";" or "{ members }" -- the same general-body shape every usage
+// already has). name/typ come from the caller, already parsed (both ""
+// for the bare "'bind' ... '=' ..." shorthand, which has no preceding
+// usage declaration at all -- the same split parseConnectorPart has
+// between the bare "connect" shorthand and a named/typed usage's own
+// "connect" clause). The caller has already consumed "bind".
+func (p *parser) parseBindPart(name, typ string) (*Connection, error) {
+	conn := &Connection{Kind: DefBind, Name: name, Type: typ}
+
+	first, err := p.parseConnectorEnd()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(Equals); err != nil {
+		return nil, err
+	}
+	second, err := p.parseConnectorEnd()
+	if err != nil {
+		return nil, err
+	}
+	conn.Ends = []Expression{first, second}
+
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		members, err := p.parseMembers()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		conn.Members = members
+		return conn, nil
+	}
+
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 // peekKind returns the Kind of the token offset positions ahead of the

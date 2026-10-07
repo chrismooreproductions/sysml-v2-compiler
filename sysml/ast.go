@@ -108,6 +108,13 @@ const (
 	DefInOut
 	DefReturn
 	DefRef
+	// DefBind tags a BindingConnectorAsUsage ("bind a = b;", "binding ab
+	// bind a = b;", "binding ab1 : AB bind a = b;") -- see Connection's
+	// own doc comment and parseBindPart. Not a defKeywords entry (unlike
+	// every other DefKind): "bind"/"binding" are dispatched from
+	// parseMember directly, the same way "connect"'s own bare shorthand
+	// is.
+	DefBind
 )
 
 func (k DefKind) String() string {
@@ -160,6 +167,8 @@ func (k DefKind) String() string {
 		return "return"
 	case DefRef:
 		return "ref"
+	case DefBind:
+		return "bind"
 	default:
 		return "unknown"
 	}
@@ -299,22 +308,26 @@ type Usage struct {
 
 func (*Usage) memberNode() {}
 
-// Connection is a connection or interface usage's connector part, e.g.
-// `connect p to y;` (binary, no name/type at all -- the bare
-// "'connect' ConnectorPart" shorthand), or
+// Connection is a connection/interface usage's connector part or a
+// BindingConnectorAsUsage, e.g. `connect p to y;` (binary, no name/type at
+// all -- the bare "'connect' ConnectorPart" shorthand),
 // `connection bus : C connect (d1, d2, d3, d4);` (n-ary, with a name and
-// type). Distinct from Usage because a connector's ends aren't expressed
-// through FeatureSpecializationPart syntax: each of Ends is a *NameRef or
-// *FeatureChain (a plain or dotted feature reference, e.g. "y" or
-// "p1.x"), reusing Phase 2's expression machinery rather than inventing a
-// separate reference shape. Kind is always DefConnection or DefInterface.
+// type), or `bind a = b;` / `binding ab bind a = b;` /
+// `binding ab1 : AB bind a = b;` (always binary, its own bare "'bind' ...
+// '=' ..." shorthand or an optional "binding" name/type ahead of it --
+// see parseBindPart). Distinct from Usage because a connector's ends
+// aren't expressed through FeatureSpecializationPart syntax: each of Ends
+// is a *NameRef or *FeatureChain (a plain or dotted feature reference,
+// e.g. "y" or "p1.x"), reusing Phase 2's expression machinery rather than
+// inventing a separate reference shape. Kind is DefConnection,
+// DefInterface, or DefBind.
 //
 // Deliberately out of scope: the optional multiplicity/`references`
-// prefix on an individual end (ConnectorEnd's own fuller grammar), `bind`/
-// `succession` (BindingConnectorAsUsage/SuccessionAsUsage -- structurally
-// unrelated shorthand forms, not ConnectorPart variants), and `end` as a
-// body member introducing a connector end inside a definition (only the
-// usage-level connect syntax is covered here).
+// prefix on an individual end (ConnectorEnd's own fuller grammar),
+// `succession` (SuccessionAsUsage -- a structurally unrelated shorthand
+// form, not a ConnectorPart variant, though the same general shape `bind`
+// is), and `end` as a body member introducing a connector end inside a
+// definition (only the usage-level connect syntax is covered here).
 type Connection struct {
 	Visibility Visibility
 	Kind       DefKind

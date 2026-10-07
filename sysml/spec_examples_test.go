@@ -37,10 +37,11 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// parsePrimary's OpenParen case only ever parses one inner
 		// expression for grouping, not a comma-separated sequence.
 		{"CalculationTest.sysml", `line 23: unexpected ',', want ')'`},
-		// "bind"/BindingConnectorAsUsage isn't supported -- a structurally
+		// "first"/SuccessionAsUsage isn't supported -- a structurally
 		// unrelated shorthand form, not a ConnectorPart variant (see
-		// Connection's own doc comment).
-		{"ConnectionTest.sysml", `line 22: unexpected identifier "bind", want 'package', 'import', or 'part'`},
+		// Connection's own doc comment), the same way bind/binding was
+		// before it.
+		{"ConnectionTest.sysml", `line 26: unexpected identifier "first", want 'package', 'import', or 'part'`},
 		// "enum def" (EnumerationDefinition) isn't supported -- its body
 		// uses completely keyword-less members ("uncl : ClassificationLevel
 		// = 0;", no "attribute" or anything else), which parseMember can't
