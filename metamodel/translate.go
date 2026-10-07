@@ -614,6 +614,17 @@ func (t *translator) convertExpression(expr sysml.Expression, owner ElementID) (
 		})
 		return inv, nil
 
+	case *sysml.SequenceExpr:
+		elements := make([]Expression, len(e.Elements))
+		for i, el := range e.Elements {
+			converted, err := t.convertExpression(el, owner)
+			if err != nil {
+				return nil, err
+			}
+			elements[i] = converted
+		}
+		return &SequenceExpr{Elements: elements}, nil
+
 	case *sysml.BinaryExpr:
 		left, err := t.convertExpression(e.Left, owner)
 		if err != nil {

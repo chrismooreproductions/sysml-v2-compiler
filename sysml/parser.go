@@ -1171,6 +1171,30 @@ func (p *parser) parsePrimary() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
+		if tok, ok := p.current(); ok && tok.Kind == Comma {
+			seq := &SequenceExpr{Elements: []Expression{inner}}
+			for {
+				p.pos++
+				elem, err := p.parseExpression()
+				if err != nil {
+					return nil, err
+				}
+				seq.Elements = append(seq.Elements, elem)
+
+				tok, ok := p.current()
+				if !ok {
+					return nil, fmt.Errorf("unexpected end of input, want %s or %s", Comma, CloseParen)
+				}
+				if tok.Kind == CloseParen {
+					break
+				}
+				if tok.Kind != Comma {
+					return nil, fmt.Errorf("line %d: unexpected %s, want %s or %s", tok.Pos.Line, describeToken(tok), Comma, CloseParen)
+				}
+			}
+			p.pos++
+			return seq, nil
+		}
 		if _, err := p.expect(CloseParen); err != nil {
 			return nil, err
 		}

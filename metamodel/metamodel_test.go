@@ -439,6 +439,68 @@ func TestFromASTInvocationExpr(t *testing.T) {
 	}
 }
 
+// TestFromASTSequenceExpr checks that each element of a sequence
+// expression is independently converted and resolved -- a mix of a plain
+// NameRef and a FeatureChain, confirming there's no new resolution
+// concept, just ordinary per-element convertExpression.
+func TestFromASTSequenceExpr(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Mass;
+		part def Component { attribute mass : Mass; }
+		part engine : Component;
+		part chassis : Component;
+		attribute masses[*] = (engine.mass, chassis.mass, engine);
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	masses, ok := model.Elements["Vehicle::masses"]
+	if !ok {
+		t.Fatal("missing element Vehicle::masses")
+	}
+	seq, ok := masses.Value.(*metamodel.SequenceExpr)
+	if !ok {
+		t.Fatalf("masses.Value is %T, want *metamodel.SequenceExpr", masses.Value)
+	}
+	if len(seq.Elements) != 3 {
+		t.Fatalf("got %d elements, want 3", len(seq.Elements))
+	}
+	first, ok := seq.Elements[0].(*metamodel.FeatureChain)
+	if !ok || first.Target != "Vehicle::Component::mass" {
+		t.Errorf("Elements[0] = %+v, want a FeatureChain targeting Vehicle::Component::mass", seq.Elements[0])
+	}
+	second, ok := seq.Elements[1].(*metamodel.FeatureChain)
+	if !ok || second.Target != "Vehicle::Component::mass" {
+		t.Errorf("Elements[1] = %+v, want a FeatureChain targeting Vehicle::Component::mass", seq.Elements[1])
+	}
+	third, ok := seq.Elements[2].(*metamodel.NameRef)
+	if !ok || third.Target != "Vehicle::engine" {
+		t.Errorf("Elements[2] = %+v, want a NameRef targeting Vehicle::engine", seq.Elements[2])
+	}
+}
+
+// TestFromASTUnresolvedSequenceElement checks that an unresolvable
+// element anywhere in a sequence fails translation.
+func TestFromASTUnresolvedSequenceElement(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		attribute def Real;
+		attribute n : Real = (1, nope, 3);
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	if _, err := metamodel.FromAST(ns); err == nil {
+		t.Error("expected an error for an unresolved sequence element, got nil")
+	}
+}
+
 // TestFromASTUnresolvedInvocationCallee checks that an invocation whose
 // callee doesn't resolve fails translation, the same as an unresolved
 // NameRef does.

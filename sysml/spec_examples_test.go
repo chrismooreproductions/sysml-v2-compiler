@@ -31,12 +31,14 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// only ever accepts "assert"/"not"/"satisfy", not "assert" followed
 		// directly by "constraint".
 		{"ConstraintTest.sysml", `line 24: unexpected 'constraint', want 'satisfy'`},
-		// sequence expressions ("(vehicle.eng.m, vehicle.trans.m)") aren't
-		// supported -- deliberately out of scope for this project's
-		// expression subsystem (see sysml.Expression's doc comment);
-		// parsePrimary's OpenParen case only ever parses one inner
-		// expression for grouping, not a comma-separated sequence.
-		{"CalculationTest.sysml", `line 23: unexpected ',', want ')'`},
+		// "as" casts ("(vehicles as VehiclePart).m") aren't supported --
+		// a new Expression variant, plus extending postfix "."-chaining to
+		// apply after a parenthesized/cast result (today it only ever
+		// follows a bare name) -- deliberately out of scope for this
+		// project's expression subsystem (see sysml.Expression's doc
+		// comment). Sequence expressions are fixed now, so this fixture
+		// advances to its next gap.
+		{"CalculationTest.sysml", `line 28: unexpected identifier "as", want ')'`},
 		// "first"/SuccessionAsUsage isn't supported -- a structurally
 		// unrelated shorthand form, not a ConnectorPart variant (see
 		// Connection's own doc comment), the same way bind/binding was

@@ -351,11 +351,12 @@ func (*Connection) memberNode() {}
 // `attribute n : Integer = 5;` or the "mass <= massLimit" a constraint
 // body will eventually carry. This project implements a deliberate subset
 // of KerML's full expression grammar: literals, qualified-name references,
-// binary/unary operators, and (narrowly, see InvocationExpr) invocation
-// expressions. Not supported, each being its own separate chunk of
-// grammar: conditional (`if`/`?`/`else`) expressions, constructor
-// expressions, sequence/index expressions, `collect`/`select`,
-// metadata-access, and casts (`as`/`istype`/`hastype`/`@`).
+// binary/unary operators, (narrowly, see InvocationExpr) invocation
+// expressions, and (see SequenceExpr) parenthesized sequences. Not
+// supported, each being its own separate chunk of grammar: conditional
+// (`if`/`?`/`else`) expressions, constructor expressions, index
+// expressions, `collect`/`select`, metadata-access, and casts (`as`/
+// `istype`/`hastype`/`@`).
 type Expression interface {
 	expressionNode()
 }
@@ -405,14 +406,27 @@ func (*FeatureChain) expressionNode() {}
 // is -- not itself a feature chain or another invocation, and nothing
 // chains after the call (no "foo().bar" or "foo()()"): each is its own
 // separate chunk of grammar, deliberately out of scope here the same way
-// Expression's own doc comment excludes conditional/cast/sequence
-// expressions.
+// Expression's own doc comment excludes conditional/cast expressions.
 type InvocationExpr struct {
 	Callee string
 	Args   []Expression
 }
 
 func (*InvocationExpr) expressionNode() {}
+
+// SequenceExpr is a parenthesized, comma-separated sequence of values,
+// e.g. "(vehicle, vehicle)" or "(engine.mass, frontAxleAssembly.mass,
+// rearAxleAssembly.mass)" -- KerML's SequenceExpression, used for
+// multi-valued parameter bindings and sequence-typed attributes. A
+// single-element, comma-less parenthesized expression is never a
+// SequenceExpr -- see parsePrimary's OpenParen case -- so "(1 + 2)"
+// parses exactly as it always has, as a plain grouped expression with no
+// extra node at all. Always at least two Elements.
+type SequenceExpr struct {
+	Elements []Expression
+}
+
+func (*SequenceExpr) expressionNode() {}
 
 // BinaryExpr is a binary operator expression, e.g. `mass <= massLimit`.
 // The supported operator set matches this project's standard-library stub

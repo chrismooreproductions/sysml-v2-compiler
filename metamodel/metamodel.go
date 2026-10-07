@@ -344,6 +344,17 @@ type InvocationExpr struct {
 
 func (*InvocationExpr) expressionNode() {}
 
+// SequenceExpr mirrors sysml.SequenceExpr: a parenthesized,
+// comma-separated sequence of values. Each element is converted and
+// resolved independently via the same convertExpression every other
+// expression goes through -- no new resolution concept, since an element
+// is just an ordinary expression.
+type SequenceExpr struct {
+	Elements []Expression
+}
+
+func (*SequenceExpr) expressionNode() {}
+
 // BinaryExpr is a resolved binary operator expression. Function is the
 // ElementID of the standard-library Function stub Op resolves to (see
 // stdlib.go).

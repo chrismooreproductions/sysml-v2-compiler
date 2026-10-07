@@ -32,14 +32,18 @@ the spec wholesale.
 A usage's assigned value (`= ...`) can now be a full expression, not just
 an integer literal: boolean/integer/real/string literals, a qualified-name
 reference, binary/unary operators over them (`mass <= massLimit`, `-x`,
-`not done`), and invocation expressions (`sum(componentMasses)`, zero or
+`not done`), invocation expressions (`sum(componentMasses)`, zero or
 more comma-separated arguments) — narrowly: the callee must be a bare/
 qualified name, not itself a feature chain or another call, and nothing
-chains after the call. Ordinary arithmetic/logical precedence and
-parenthesized grouping apply throughout. Not yet supported: conditional
-(`if`/`?`/`else`) expressions, constructor expressions, sequences,
-`collect`/`select`, metadata-access, and casts. Every name reference,
-operator, and invocation callee is genuinely resolved during translation
+chains after the call — and sequence expressions (`(engine.mass,
+frontAxleAssembly.mass, rearAxleAssembly.mass)`, two or more
+comma-separated elements; a single, comma-less parenthesized expression
+stays plain grouping, as it always has). Ordinary arithmetic/logical
+precedence and parenthesized grouping apply throughout. Not yet
+supported: conditional (`if`/`?`/`else`) expressions, constructor
+expressions, `collect`/`select`, metadata-access, and casts (`as`). Every
+name reference, operator, and invocation callee is genuinely resolved
+during translation
 (an operator like `<=` resolves to a real `ScalarFunctions::'<='`-shaped
 standard-library stub), not just parsed and stored.
 

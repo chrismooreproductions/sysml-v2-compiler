@@ -870,9 +870,11 @@ func TestModelParseDefinitionSpecializes(t *testing.T) {
 // each literal kind, a bare/qualified name reference, binary and unary
 // operators, precedence climbing (including "**"'s right-associativity),
 // left-associativity for same-precedence operators, parentheses
-// overriding precedence, and invocation expressions (zero, one, and
-// multiple arguments; a qualified callee; nested inside a binary
-// expression).
+// overriding precedence, invocation expressions (zero, one, and multiple
+// arguments; a qualified callee; nested inside a binary expression), and
+// sequence expressions (two or more comma-separated elements -- and that
+// a single-element parenthesized expression stays plain grouping, not a
+// SequenceExpr).
 func TestModelParseExpression(t *testing.T) {
 	cases := map[string]struct {
 		source string
@@ -978,6 +980,24 @@ func TestModelParseExpression(t *testing.T) {
 					Args:   []sysml.Expression{&sysml.NameRef{Path: "componentMasses"}},
 				},
 			},
+		},
+		"sequence, two elements": {
+			"(vehicle, vehicle)",
+			&sysml.SequenceExpr{Elements: []sysml.Expression{
+				&sysml.NameRef{Path: "vehicle"}, &sysml.NameRef{Path: "vehicle"},
+			}},
+		},
+		"sequence, three feature-chain elements": {
+			"(engine.mass, frontAxleAssembly.mass, rearAxleAssembly.mass)",
+			&sysml.SequenceExpr{Elements: []sysml.Expression{
+				&sysml.FeatureChain{Path: []string{"engine", "mass"}},
+				&sysml.FeatureChain{Path: []string{"frontAxleAssembly", "mass"}},
+				&sysml.FeatureChain{Path: []string{"rearAxleAssembly", "mass"}},
+			}},
+		},
+		"single-element parens stay plain grouping": {
+			"(1 + 2)",
+			&sysml.BinaryExpr{Op: "+", Left: &sysml.IntLiteral{Value: 1}, Right: &sysml.IntLiteral{Value: 2}},
 		},
 	}
 
@@ -1926,6 +1946,8 @@ func TestModelParseErrors(t *testing.T) {
 		"invocation missing close paren":              "package Vehicle { attribute n = sum(a, b; }",
 		"invocation trailing comma":                   "package Vehicle { attribute n = sum(a,); }",
 		"invocation chained call not supported":       "package Vehicle { attribute n = sum(a)(b); }",
+		"sequence trailing comma":                     "package Vehicle { attribute n = (a, b,); }",
+		"sequence missing close paren":                "package Vehicle { attribute n = (a, b; }",
 		"metadata prefix missing tag":                 "package Vehicle { # part engine : Engine; }",
 		"metadata prefix qualified trailing path sep": "package Vehicle { #Meta:: part engine : Engine; }",
 	}
