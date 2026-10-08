@@ -436,6 +436,50 @@ func TestModelParseBindFeatureChainEndsAndBody(t *testing.T) {
 	}
 }
 
+// TestModelParseSuccession checks SuccessionAsUsage's three forms --
+// structurally identical to TestModelParseBind's own three cases, just
+// with "first"/"then" in place of "bind"/"=".
+func TestModelParseSuccession(t *testing.T) {
+	cases := map[string]struct {
+		source   string
+		wantName string
+		wantType string
+	}{
+		"bare":              {"first a then b;", "", ""},
+		"succession, name":  {"succession s first a then b;", "s", ""},
+		"succession, typed": {"succession s1 : AB first a then b;", "s1", "AB"},
+	}
+
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			pkg := parseTopLevelPackage(t, `package Vehicle {
+				part a;
+				part b;
+				`+tt.source+`
+			}`)
+
+			conn, ok := pkg.Members[2].(*sysml.Connection)
+			if !ok {
+				t.Fatalf("member 2 is %T, want *sysml.Connection", pkg.Members[2])
+			}
+			if conn.Kind != sysml.DefSuccession || conn.Name != tt.wantName || conn.Type != tt.wantType {
+				t.Errorf("Connection = %+v, want Kind: DefSuccession, Name: %q, Type: %q", conn, tt.wantName, tt.wantType)
+			}
+			if len(conn.Ends) != 2 {
+				t.Fatalf("got %d ends, want 2", len(conn.Ends))
+			}
+			left, ok := conn.Ends[0].(*sysml.NameRef)
+			if !ok || left.Path != "a" {
+				t.Errorf("Ends[0] = %+v, want NameRef{Path: a}", conn.Ends[0])
+			}
+			right, ok := conn.Ends[1].(*sysml.NameRef)
+			if !ok || right.Path != "b" {
+				t.Errorf("Ends[1] = %+v, want NameRef{Path: b}", conn.Ends[1])
+			}
+		})
+	}
+}
+
 // TestModelParseConnectionUsage checks the "connection"/"interface"
 // keyword form, with a name, an optional type, and an explicit "connect"
 // clause -- as opposed to a plain "connection bus : C;" with no connect

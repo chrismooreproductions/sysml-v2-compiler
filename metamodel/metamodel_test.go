@@ -1118,6 +1118,56 @@ func TestFromASTBind(t *testing.T) {
 	}
 }
 
+// TestFromASTSuccession checks SuccessionAsUsage's bare and named/typed
+// forms -- structurally identical to TestFromASTBind's own checks, since
+// a succession resolves through the exact same Connects/feature-chain
+// machinery a bind does.
+func TestFromASTSuccession(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		part def AB;
+		part a;
+		part b;
+		first a then b;
+		succession s : AB first a then b;
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	var bare *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle" && el.DefKind == metamodel.DefSuccession && el.Name == "" {
+			bare = el
+		}
+	}
+	if bare == nil {
+		t.Fatal("no anonymous succession found under Vehicle")
+	}
+	want := []metamodel.ElementID{"Vehicle::a", "Vehicle::b"}
+	if !reflect.DeepEqual(bare.Connects, want) {
+		t.Errorf("Connects = %v, want %v", bare.Connects, want)
+	}
+
+	named, ok := model.Elements["Vehicle::s"]
+	if !ok {
+		t.Fatal("missing element Vehicle::s")
+	}
+	if named.DefKind != metamodel.DefSuccession {
+		t.Errorf("DefKind = %v, want DefSuccession", named.DefKind)
+	}
+	if target, ok := typeOf(model, named.ID); !ok || target != "Vehicle::AB" {
+		t.Errorf("typed by %q, want Vehicle::AB", target)
+	}
+	if !reflect.DeepEqual(named.Connects, want) {
+		t.Errorf("Connects = %v, want %v", named.Connects, want)
+	}
+}
+
 // TestFromASTConnectionUsageNary checks the named "connection bus : C
 // connect (d1, d2, d3, d4);" form: the type resolves via the ordinary
 // TypedBy relationship, and all four ends resolve into Connects in order.

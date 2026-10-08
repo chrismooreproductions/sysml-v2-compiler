@@ -114,9 +114,11 @@ start with a bare name (`mass < massLimit`).
 a = b;` are a `BindingConnectorAsUsage`'s three forms — structurally its
 own shorthand, not a `ConnectorPart` variant, but resolved through the
 exact same `Connects`/feature-chain machinery a `connect` already uses, so
-it needed no new metamodel concept at all. Not yet supported: `succession`
-(`first a then b;` and its own `succession`-prefixed forms — the same
-general shape `bind` is, structurally unrelated to `ConnectorPart`).
+it needed no new metamodel concept at all. `first a then b;`, `succession
+s first a then b;`, and `succession s1 : AB first a then b;` are a
+`SuccessionAsUsage`'s own three forms — structurally identical to
+`BindingConnectorAsUsage`, just spelled with `first`/`then` instead of
+`bind`/`=`, and resolved exactly the same way.
 
 A name — anywhere one can appear, including a usage's or definition's own
 declared name — can be a single-quoted restricted name (`'User Defined
@@ -206,13 +208,14 @@ works alongside its bare-reference one; restricted/short names (see
 above) are supported; and so are `library` packages and recursive
 imports (see above, both just parsed so far — see their own doc
 comments for exactly what's not deepened yet); `bind`/`binding`,
-`AssertConstraintUsage`'s non-`satisfy` form, sequence expressions, and
-keyword-less members (see above) have since closed too. Still open, each
-its own fixture's current blocker: `succession`, `enum def` (now that
-keyword-less members are supported, its body shape itself is in reach —
-the keyword `enum def` isn't, yet), and `doc` annotations (this project's
-parser drops comments entirely before seeing them, so there's nowhere to
-hang the text).
+`AssertConstraintUsage`'s non-`satisfy` form, sequence expressions,
+keyword-less members, and `succession` (see above) have since closed
+too. Still open, each its own fixture's current blocker: `flow def`
+(`FlowDefinition`, a structurally separate feature from connections),
+`enum def` (now that keyword-less members are supported, its body shape
+itself is in reach — the keyword `enum def` isn't, yet), and `doc`
+annotations (this project's parser drops comments entirely before
+seeing them, so there's nowhere to hang the text).
 
 ## References
 

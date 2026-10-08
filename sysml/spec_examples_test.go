@@ -39,14 +39,12 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// comment). Sequence expressions are fixed now, so this fixture
 		// advances to its next gap.
 		{"CalculationTest.sysml", `line 28: unexpected identifier "as", want ')'`},
-		// "first"/SuccessionAsUsage isn't supported -- a structurally
-		// unrelated shorthand form, not a ConnectorPart variant (see
-		// Connection's own doc comment). Like "constant" above, "first"
-		// now parses as a keyword-less member's own bare name instead of
-		// being rejected outright, advancing one token further before
-		// rejecting "a" (an identifier, not a valid specialization/value/
-		// body/';') where a terminator was expected.
-		{"ConnectionTest.sysml", `line 26: unexpected identifier "a", want ';'`},
+		// SuccessionAsUsage ("first a then b;", "succession s first a
+		// then b;") is supported now (Phase 10), clearing this fixture's
+		// entire middle section. Its next (genuinely different) blocker
+		// is "flow def" (FlowDefinition) -- a structurally separate
+		// feature (Clause 8.2.2.16), not yet supported.
+		{"ConnectionTest.sysml", `line 57: unexpected 'def', want ';'`},
 		// "enum def" (EnumerationDefinition) isn't supported. Its own body
 		// (e.g. "uncl : ClassificationLevel = 0;") is exactly the
 		// keyword-less-member shape this phase just added -- but "enum

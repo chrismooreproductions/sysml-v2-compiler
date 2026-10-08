@@ -315,6 +315,42 @@ func (p *parser) parseMember() (Member, error) {
 		return conn, nil
 	}
 
+	if tok.Kind == FirstKw {
+		// The bare "'first' ... 'then' ..." shorthand: no "succession"
+		// keyword, no name, no type at all.
+		p.pos++
+		conn, err := p.parseSuccessionPart("", "")
+		if err != nil {
+			return nil, err
+		}
+		conn.Visibility = vis
+		conn.Metadata = metadata
+		conn.Abstract = abstract
+		return conn, nil
+	}
+
+	if tok.Kind == SuccessionKw {
+		// "succession" introduces an optional name/type ahead of the
+		// mandatory "first" keyword -- same split BindingKw has ahead of
+		// "bind".
+		p.pos++
+		decl, err := p.parseUsageDeclaration(DefSuccession)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(FirstKw); err != nil {
+			return nil, err
+		}
+		conn, err := p.parseSuccessionPart(decl.Name, decl.Type)
+		if err != nil {
+			return nil, err
+		}
+		conn.Visibility = vis
+		conn.Metadata = metadata
+		conn.Abstract = abstract
+		return conn, nil
+	}
+
 	if tok.Kind == SatisfyKw || p.startsSatisfyNot() {
 		sat, err := p.parseSatisfy()
 		if err != nil {
@@ -792,6 +828,47 @@ func (p *parser) parseBindPart(name, typ string) (*Connection, error) {
 		return nil, err
 	}
 	if _, err := p.expect(Equals); err != nil {
+		return nil, err
+	}
+	second, err := p.parseConnectorEnd()
+	if err != nil {
+		return nil, err
+	}
+	conn.Ends = []Expression{first, second}
+
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		members, err := p.parseMembers()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		conn.Members = members
+		return conn, nil
+	}
+
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+// parseSuccessionPart parses a SuccessionAsUsage's own part: two
+// ConnectorEnds separated by "first"/"then" ("first a then b;"), then an
+// ordinary usage body -- structurally identical to parseBindPart, just
+// with "first"/"then" in place of "bind"/"=". name/typ come from the
+// caller, already parsed (both "" for the bare "'first' ... 'then' ..."
+// shorthand). The caller has already consumed "first".
+func (p *parser) parseSuccessionPart(name, typ string) (*Connection, error) {
+	conn := &Connection{Kind: DefSuccession, Name: name, Type: typ}
+
+	first, err := p.parseConnectorEnd()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(ThenKw); err != nil {
 		return nil, err
 	}
 	second, err := p.parseConnectorEnd()

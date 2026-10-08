@@ -131,6 +131,15 @@ const (
 	DefAnalysis
 	DefVerification
 	DefObjective
+	// DefSuccession tags a SuccessionAsUsage ("first a then b;",
+	// "succession s first a then b;", "succession s : S first a then
+	// b;") -- see Connection's own doc comment and parseSuccessionPart.
+	// Structurally identical to DefBind (two ConnectorEnds, an optional
+	// name/type, an optional body), just with "first"/"then" in place of
+	// "bind"/"="; not a defKeywords entry, for the same reason DefBind
+	// isn't -- "first"/"succession" are dispatched from parseMember
+	// directly.
+	DefSuccession
 )
 
 func (k DefKind) String() string {
@@ -191,6 +200,8 @@ func (k DefKind) String() string {
 		return "ref"
 	case DefBind:
 		return "bind"
+	case DefSuccession:
+		return "succession"
 	default:
 		return "unknown"
 	}

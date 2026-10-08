@@ -34,6 +34,9 @@ const (
 	VerificationKw
 	ObjectiveKw
 	VerifyKw
+	FirstKw
+	ThenKw
+	SuccessionKw
 	InKw
 	OutKw
 	InOutKw
@@ -151,6 +154,12 @@ func (k Kind) String() string {
 		return "'objective'"
 	case VerifyKw:
 		return "'verify'"
+	case FirstKw:
+		return "'first'"
+	case ThenKw:
+		return "'then'"
+	case SuccessionKw:
+		return "'succession'"
 	case InKw:
 		return "'in'"
 	case OutKw:
@@ -291,6 +300,9 @@ var kinds = map[string]Kind{
 	"verification": VerificationKw,
 	"objective":    ObjectiveKw,
 	"verify":       VerifyKw,
+	"first":        FirstKw,
+	"then":         ThenKw,
+	"succession":   SuccessionKw,
 	"in":           InKw,
 	"out":          OutKw,
 	"inout":        InOutKw,

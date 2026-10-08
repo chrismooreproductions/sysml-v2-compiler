@@ -117,6 +117,9 @@ const (
 	DefAnalysis
 	DefVerification
 	DefObjective
+	// DefSuccession mirrors sysml.DefSuccession: a SuccessionAsUsage
+	// ("first a then b;").
+	DefSuccession
 )
 
 func (k DefKind) String() string {
@@ -177,6 +180,8 @@ func (k DefKind) String() string {
 		return "verification"
 	case DefObjective:
 		return "objective"
+	case DefSuccession:
+		return "succession"
 	default:
 		return "unknown"
 	}
