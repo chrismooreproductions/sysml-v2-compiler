@@ -1,3 +1,3 @@
 module github.com/chrismooreproductions/sysml-v2-compiler
 
-go 1.25.4
+go 1.27.2
