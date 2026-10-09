@@ -153,7 +153,7 @@ func isConnectorKind(kind DefKind) bool {
 // constraint/calc already support) are ordinary members regardless.
 func hasCalculationBody(kind DefKind) bool {
 	return kind == DefConstraint || kind == DefCalculation || kind == DefRequire || kind == DefAssume ||
-		kind == DefCase || kind == DefAnalysis || kind == DefVerification
+		kind == DefCase || kind == DefAnalysis || kind == DefVerification || kind == DefUseCase
 }
 
 // requirementConstraintInnerKeyword maps a RequirementBodyItem prefix
@@ -384,6 +384,57 @@ func (p *parser) parseMember() (Member, error) {
 		}
 		req.Visibility = vis
 		return req, nil
+	}
+
+	if tok.Kind == IncludeKw {
+		inc, err := p.parseInclude()
+		if err != nil {
+			return nil, err
+		}
+		inc.Visibility = vis
+		return inc, nil
+	}
+
+	if tok.Kind == UseKw {
+		// "use case" is a two-word keyword -- the lexer never merges it
+		// into one token, so this dispatch consumes both itself, then
+		// proceeds exactly like any other defKeywords entry would
+		// (parseMember's own def-vs-usage dispatch below), just for
+		// DefUseCase directly rather than via that table.
+		p.pos++
+		if _, err := p.expect(CaseKw); err != nil {
+			return nil, err
+		}
+		tok, ok := p.current()
+		if !ok {
+			return nil, fmt.Errorf("unexpected end of input after %s %s", UseKw, CaseKw)
+		}
+		if tok.Kind == Def {
+			p.pos++
+			def, err := p.parseDefinition(DefUseCase)
+			if err != nil {
+				return nil, err
+			}
+			def.Visibility = vis
+			def.Metadata = metadata
+			def.Abstract = abstract
+			return def, nil
+		}
+		member, err := p.parseUsage(DefUseCase)
+		if err != nil {
+			return nil, err
+		}
+		switch m := member.(type) {
+		case *Usage:
+			m.Visibility = vis
+			m.Metadata = metadata
+			m.Abstract = abstract
+		case *Connection:
+			m.Visibility = vis
+			m.Metadata = metadata
+			m.Abstract = abstract
+		}
+		return member, nil
 	}
 
 	if tok.Kind == EndKw {
@@ -1108,6 +1159,59 @@ func (p *parser) parseVerify() (*Usage, error) {
 	return usage, nil
 }
 
+// parseInclude parses an "include" member (IncludeUseCaseUsage), e.g.
+// "include uc2;" (a bare reference to an existing use-case usage) or
+// "include use case uc1 : UC1;" (an inline declaration of a brand new
+// one) -- the same bare-reference-vs-inline-declaration duality
+// parseVerify already has, just for DefUseCase instead of
+// DefRequirement, and with a "use case" prefix in place of a bare
+// "requirement" one. Unlike parseVerify's own RequirementBody (a plain
+// member-list body), IncludeUseCaseUsage's own body is an ordinary
+// CaseBody -- CalculationBody-shaped, with an optional trailing result
+// expression, the same as every other use-case-family body.
+func (p *parser) parseInclude() (*Usage, error) {
+	if _, err := p.expect(IncludeKw); err != nil {
+		return nil, err
+	}
+
+	var usage *Usage
+	if tok, ok := p.current(); ok && tok.Kind == UseKw {
+		p.pos++
+		if _, err := p.expect(CaseKw); err != nil {
+			return nil, err
+		}
+		decl, err := p.parseUsageDeclaration(DefUseCase)
+		if err != nil {
+			return nil, err
+		}
+		usage = decl
+	} else {
+		name, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		usage = &Usage{Kind: DefUseCase, References: name}
+	}
+
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		members, result, err := p.parseCalculationBody()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		usage.Members = members
+		usage.Result = result
+		return usage, nil
+	}
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return usage, nil
+}
+
 // parseEndMember parses an "end" body member (DefaultInterfaceEnd/
 // ConnectorEnd's def-body form), e.g. "end port p1: P1;", "end p1: P1;",
 // "end end1;", or "end #original ::> vehicleMassRequirement;" -- "end" is a
@@ -1198,7 +1302,8 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 // calc body's trailing result expression, which can also start with a
 // bare name or a unary 'not'.
 func startsMember(kind Kind) bool {
-	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw || kind == VerifyKw {
+	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw || kind == VerifyKw ||
+		kind == IncludeKw || kind == UseKw {
 		return true
 	}
 	if kind == Subsets || kind == Redefines || kind == References {

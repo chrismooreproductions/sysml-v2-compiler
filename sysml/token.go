@@ -37,6 +37,8 @@ const (
 	FirstKw
 	ThenKw
 	SuccessionKw
+	UseKw
+	IncludeKw
 	InKw
 	OutKw
 	InOutKw
@@ -160,6 +162,10 @@ func (k Kind) String() string {
 		return "'then'"
 	case SuccessionKw:
 		return "'succession'"
+	case UseKw:
+		return "'use'"
+	case IncludeKw:
+		return "'include'"
 	case InKw:
 		return "'in'"
 	case OutKw:
@@ -303,6 +309,8 @@ var kinds = map[string]Kind{
 	"first":        FirstKw,
 	"then":         ThenKw,
 	"succession":   SuccessionKw,
+	"use":          UseKw,
+	"include":      IncludeKw,
 	"in":           InKw,
 	"out":          OutKw,
 	"inout":        InOutKw,

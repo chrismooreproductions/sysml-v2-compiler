@@ -991,6 +991,51 @@ func TestFromASTCaseAnalysisVerificationObjectiveVerify(t *testing.T) {
 	}
 }
 
+// TestFromASTUseCaseAndInclude checks Phase 11's "use case"/"include" end
+// to end: "use case" translates exactly like "case"/"analysis"/
+// "verification" (a CalculationBody-shaped DefUseCase), and "include"
+// resolves its bare-reference form through the same References
+// relationship "verify"/"satisfy" already use.
+func TestFromASTUseCaseAndInclude(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		use case def UC;
+		use case uc : UC;
+
+		use case def Outer {
+			include uc;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	outer, ok := model.Elements["Vehicle::Outer"]
+	if !ok {
+		t.Fatal("missing element Vehicle::Outer")
+	}
+	if outer.DefKind != metamodel.DefUseCase {
+		t.Errorf("Outer.DefKind = %v, want DefUseCase", outer.DefKind)
+	}
+
+	var inc *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle::Outer" && el.DefKind == metamodel.DefUseCase && el.Name == "" {
+			inc = el
+		}
+	}
+	if inc == nil {
+		t.Fatal("no anonymous DefUseCase element found under Vehicle::Outer")
+	}
+	if target, ok := relationshipTarget(model, inc.ID, metamodel.References); !ok || target != "Vehicle::uc" {
+		t.Errorf("include References %q, want Vehicle::uc", target)
+	}
+}
+
 // TestFromASTAnonymousUsage checks that an anonymous usage (no name --
 // Phase 3's "constraint { ... }" form) still translates to its own
 // distinct Element, and that two anonymous usages in the same scope don't

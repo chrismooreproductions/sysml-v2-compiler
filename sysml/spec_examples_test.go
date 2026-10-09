@@ -75,6 +75,15 @@ func TestModelParseSpecExamples(t *testing.T) {
 		// TestModelParseVerify).
 		{"AnalysisTest.sysml", `line 11: unexpected '}', want ';'`},
 		{"VerificationTest.sysml", `line 11: unexpected '}', want ';'`},
+		// "use case"/"include" (Phase 11) are both fully supported --
+		// this fixture parses cleanly through subject/actor/objective/
+		// include/nested-use-case-usage before tripping on "perform"
+		// (PerformActionUsage, Phase 12 territory, not yet supported):
+		// "perform" isn't a recognized keyword, so it's swept up as a
+		// keyword-less member's own bare name (like "constant"/"doc"
+		// elsewhere), advancing one token further before rejecting "u"
+		// (another identifier) where a terminator was expected.
+		{"UseCaseTest.sysml", `line 34: unexpected identifier "u", want ';'`},
 	}
 
 	for _, tt := range cases {

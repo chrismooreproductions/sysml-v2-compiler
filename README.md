@@ -190,10 +190,19 @@ requirement req1 : Req1 { ... }` — usually nested inside an `objective`
 vs-inline-declaration duality `satisfy`'s own `X` already has, since
 `RequirementVerificationUsage` is itself just a plain `RequirementUsage`
 in the real grammar, producing an ordinary `requirement` usage either
-way. Deliberately out of scope: `use case def`/`UseCaseUsage` and
-`include use case` (a different concept — user-facing usage scenarios,
-not requirement verification — spelled with a two-word keyword this
-project's single-token lexer doesn't special-case).
+way.
+
+`use case def`/`use case` are supported too — the same `CalculationBody`
+shape `case`/`analysis`/`verification` have, just spelled with the
+two-word keyword `"use" "case"`; the parser dispatches on it directly
+rather than special-casing multi-word tokens in the lexer. `include x;`
+or `include use case uc1 : UC1 { ... }` links a use case to one it
+includes, with the identical bare-reference-vs-inline-declaration
+duality `verify` has (its own body, unlike `verify`'s plain
+`RequirementBody`, is `CaseBody`-shaped like every other use-case-family
+member). `first a then b;`, `succession s first a then b;`, and
+`succession s1 : AB first a then b;` are a `SuccessionAsUsage`'s three
+forms — see the connections paragraph above.
 
 A handful of recurring gaps that blocked real examples well before their
 own subject matter have since closed: every usage kind (not just

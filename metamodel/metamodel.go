@@ -120,6 +120,8 @@ const (
 	// DefSuccession mirrors sysml.DefSuccession: a SuccessionAsUsage
 	// ("first a then b;").
 	DefSuccession
+	// DefUseCase mirrors sysml.DefUseCase: "use case"/"use case def".
+	DefUseCase
 )
 
 func (k DefKind) String() string {
@@ -182,6 +184,8 @@ func (k DefKind) String() string {
 		return "objective"
 	case DefSuccession:
 		return "succession"
+	case DefUseCase:
+		return "use case"
 	default:
 		return "unknown"
 	}

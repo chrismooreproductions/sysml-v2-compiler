@@ -2330,6 +2330,103 @@ func TestModelParseVerify(t *testing.T) {
 	})
 }
 
+// TestModelParseUseCaseDefKeyword checks that "use case"/"use case def"
+// -- a two-word keyword, dispatched directly from parseMember rather
+// than through the defKeywords table -- is a CalculationBody-shaped
+// DefUseCase, the same shape "case"/"analysis"/"verification" already
+// have.
+func TestModelParseUseCaseDefKeyword(t *testing.T) {
+	t.Run("definition with calc body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			attribute mass : Real;
+			attribute massLimit : Real;
+			use case def X {
+				mass <= massLimit
+			}
+		}`)
+
+		def, ok := pkg.Members[2].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 2 is %T, want *sysml.Definition", pkg.Members[2])
+		}
+		if def.Kind != sysml.DefUseCase {
+			t.Errorf("Kind = %v, want DefUseCase", def.Kind)
+		}
+		result, ok := def.Result.(*sysml.BinaryExpr)
+		if !ok || result.Op != "<=" {
+			t.Errorf("Result = %+v, want a '<=' BinaryExpr", def.Result)
+		}
+	})
+
+	t.Run("usage, named and typed, no body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle { use case def X; use case x : X; }`)
+
+		usage, ok := pkg.Members[1].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+		}
+		if usage.Kind != sysml.DefUseCase || usage.Name != "x" || usage.Type != "X" {
+			t.Errorf("member 1 = %+v, want Usage{Kind: DefUseCase, Name: x, Type: X}", usage)
+		}
+	})
+}
+
+// TestModelParseInclude checks "include"'s own bare-reference-vs-inline-
+// declaration duality -- the same one "verify" and AssertConstraintUsage
+// already have -- and that its body is CaseBody-shaped (CalculationBody
+// shaped, with an optional trailing result), unlike "verify"'s own plain
+// RequirementBody.
+func TestModelParseInclude(t *testing.T) {
+	t.Run("bare reference", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			use case def UC;
+			use case uc : UC;
+			use case def Outer {
+				include uc;
+			}
+		}`)
+
+		def := pkg.Members[2].(*sysml.Definition)
+		inc, ok := def.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("include member is %T, want *sysml.Usage", def.Members[0])
+		}
+		if inc.Kind != sysml.DefUseCase || inc.Name != "" || inc.References != "uc" {
+			t.Errorf("include member = %+v, want an anonymous DefUseCase usage referencing uc", inc)
+		}
+	})
+
+	t.Run("inline declaration, named, with body and trailing result", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			use case def UC;
+			attribute mass : Real;
+			attribute massLimit : Real;
+			use case def Outer {
+				include use case uc1 : UC {
+					attribute x : Real;
+					mass <= massLimit
+				}
+			}
+		}`)
+
+		def := pkg.Members[3].(*sysml.Definition)
+		inc, ok := def.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("include member is %T, want *sysml.Usage", def.Members[0])
+		}
+		if inc.Kind != sysml.DefUseCase || inc.Name != "uc1" || inc.Type != "UC" {
+			t.Errorf("include member = %+v, want a DefUseCase usage uc1 : UC", inc)
+		}
+		if len(inc.Members) != 1 {
+			t.Errorf("got %d nested members, want 1", len(inc.Members))
+		}
+		result, ok := inc.Result.(*sysml.BinaryExpr)
+		if !ok || result.Op != "<=" {
+			t.Errorf("Result = %+v, want a '<=' BinaryExpr", inc.Result)
+		}
+	})
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without

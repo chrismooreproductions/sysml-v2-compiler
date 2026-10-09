@@ -140,6 +140,15 @@ const (
 	// isn't -- "first"/"succession" are dispatched from parseMember
 	// directly.
 	DefSuccession
+	// DefUseCase tags "use case"/"use case def" -- UseCaseDefinition/
+	// Usage, one more CalculationBody-shaped keyword family alongside
+	// DefCase/DefAnalysis/DefVerification (see hasCalculationBody), just
+	// spelled with the two-word keyword "use case" rather than one
+	// token. Not a defKeywords entry (unlike every other
+	// CalculationBody-shaped kind): "use" is dispatched from parseMember
+	// directly, since the lexer never merges "use"+"case" into a single
+	// token.
+	DefUseCase
 )
 
 func (k DefKind) String() string {
@@ -202,6 +211,8 @@ func (k DefKind) String() string {
 		return "bind"
 	case DefSuccession:
 		return "succession"
+	case DefUseCase:
+		return "use case"
 	default:
 		return "unknown"
 	}
