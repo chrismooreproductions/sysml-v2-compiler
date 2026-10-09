@@ -1,11 +1,11 @@
-# Agent notes for sysml-modeller
+# Agent notes for sysml-v2-compiler
 
 Repeatable rules for working in this repo. `README.md` describes *what*
 is implemented; this file is about *how* to work on it.
 
 ## Module
 
-`github.com/chrismooreproductions/sysml-modeller`, Go 1.25. Two packages:
+`github.com/chrismooreproductions/sysml-v2-compiler`, Go 1.25. Two packages:
 `sysml` (lexer/parser, produces an AST) and `metamodel` (translates that
 AST into a flat, KerML-shaped Element/Relationship graph). `main.go` is a
 placeholder — this is a library, not a CLI, today.

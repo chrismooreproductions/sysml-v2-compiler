@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chrismooreproductions/sysml-modeller/sysml"
+	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 // FromAST translates a parsed SysML AST into a flat metamodel instance,

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chrismooreproductions/sysml-modeller/sysml"
+	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 // TestModelParseSpecExamples runs the parser against real example models

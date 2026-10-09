@@ -3,7 +3,7 @@ package sysml_test
 import (
 	"testing"
 
-	"github.com/chrismooreproductions/sysml-modeller/sysml"
+	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 func TestModelLex(t *testing.T) {

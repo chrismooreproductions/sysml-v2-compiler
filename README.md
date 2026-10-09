@@ -1,4 +1,4 @@
-# sysml-modeller
+# sysml-v2-compiler
 
 A from-scratch implementation of a SysML v2-style textual modeling
 language: a lexer and recursive-descent parser (`sysml`) producing an
@@ -19,8 +19,8 @@ consume it.
 
 ```go
 import (
-    "github.com/chrismooreproductions/sysml-modeller/sysml"
-    "github.com/chrismooreproductions/sysml-modeller/metamodel"
+    "github.com/chrismooreproductions/sysml-v2-compiler/sysml"
+    "github.com/chrismooreproductions/sysml-v2-compiler/metamodel"
 )
 
 ns, err := sysml.NewModel(source).Parse()   // text -> AST

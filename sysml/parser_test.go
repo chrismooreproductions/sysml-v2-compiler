@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/chrismooreproductions/sysml-modeller/sysml"
+	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 // parseTopLevelPackage parses source, expecting it to produce a root

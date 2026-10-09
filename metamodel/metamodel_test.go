@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/chrismooreproductions/sysml-modeller/metamodel"
-	"github.com/chrismooreproductions/sysml-modeller/sysml"
+	"github.com/chrismooreproductions/sysml-v2-compiler/metamodel"
+	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 // TestModelResolve exercises Resolve directly (rather than only indirectly
