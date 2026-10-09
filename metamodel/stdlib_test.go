@@ -40,10 +40,9 @@ func TestFromASTResolvesStandardLibraryScalarValues(t *testing.T) {
 }
 
 // TestFromASTResolvesStandardLibraryScalarFunctions checks that each
-// operator symbol this project's expression subsystem will need (see the
-// project plan's Phase 1) resolves, via the ordinary qualified-name
-// mechanism, to a stub Function element under ScalarFunctions -- again
-// with no explicit import.
+// operator symbol the expression subsystem needs resolves, via the
+// ordinary qualified-name mechanism, to a stub Function element under
+// ScalarFunctions -- again with no explicit import.
 func TestFromASTResolvesStandardLibraryScalarFunctions(t *testing.T) {
 	ns, err := sysml.NewModel(`package Empty { }`).Parse()
 	if err != nil {

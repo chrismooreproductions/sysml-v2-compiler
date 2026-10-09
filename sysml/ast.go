@@ -374,8 +374,8 @@ func (*Usage) memberNode() {}
 // see parseBindPart). Distinct from Usage because a connector's ends
 // aren't expressed through FeatureSpecializationPart syntax: each of Ends
 // is a *NameRef or *FeatureChain (a plain or dotted feature reference,
-// e.g. "y" or "p1.x"), reusing Phase 2's expression machinery rather than
-// inventing a separate reference shape. Kind is DefConnection,
+// e.g. "y" or "p1.x"), reusing the ordinary expression machinery rather
+// than inventing a separate reference shape. Kind is DefConnection,
 // DefInterface, or DefBind.
 //
 // Deliberately out of scope: the optional multiplicity/`references`

@@ -261,10 +261,9 @@ func TestModelParseUsageWithBody(t *testing.T) {
 
 // TestModelParseUsageGeneralBody checks that a usage of any DefKind --
 // not just constraint/calc-shaped ones -- can carry a plain "{ members }"
-// body with no trailing result expression, e.g. "part p { part x; }". This
-// used to be a hasCalculationBody/hasPlainBody-gated capability; parseUsage
-// now accepts a body for every kind uniformly, deciding only its *shape*
-// (calc vs. plain) once an OpenBrace is actually seen.
+// body with no trailing result expression, e.g. "part p { part x; }".
+// parseUsage accepts a body for every kind uniformly, deciding only its
+// *shape* (calc vs. plain) once an OpenBrace is actually seen.
 func TestModelParseUsageGeneralBody(t *testing.T) {
 	pkg := parseTopLevelPackage(t, `package Vehicle {
 		part p {
@@ -1355,8 +1354,8 @@ func TestModelParseShortName(t *testing.T) {
 		// own doc comment on '>' not being real punctuation) -- tight,
 		// unspaced brackets around a bare (non-quoted) name, as PartTest
 		// .sysml's own "<xx>" is actually written, get swallowed into one
-		// greedy identifier ("xx>") instead. Not fixed here: every target
-		// fixture for this increment only ever uses a quoted short name
+		// greedy identifier ("xx>") instead. Not fixed here: every real
+		// fixture this project vendors only ever uses a quoted short name
 		// (see the "restricted name" case above), which naturally
 		// delimits itself regardless of spacing.
 		pkg := parseTopLevelPackage(t, `package Vehicle { part def < xx > B; }`)
@@ -2104,9 +2103,9 @@ func TestModelParseBareMemberSubsetsRedefinesReferences(t *testing.T) {
 }
 
 // TestModelParseBareMemberVsTrailingResult checks the trickiest
-// disambiguation this phase introduces: a calc body mixing bare, keyword-
-// less members with a trailing result expression that also starts with a
-// bare identifier -- e.g. ConstraintTest.sysml's own
+// disambiguation keyword-less members introduce: a calc body mixing
+// bare, keyword-less members with a trailing result expression that
+// also starts with a bare identifier -- e.g. ConstraintTest.sysml's own
 // "mass : MassValue; massLimit : MassValue; mass < massLimit" shape. Both
 // "mass : MassValue;" and "mass < massLimit" start with the identifier
 // "mass", so startsBareMember's one-token-past-the-identifier lookahead is

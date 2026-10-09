@@ -199,8 +199,8 @@ type translator struct {
 // to join against.
 func (t *translator) declare(kind Kind, name string, owner ElementID, sc *scope) (id ElementID, ok bool) {
 	if name == "" {
-		// An anonymous usage (e.g. "constraint { ... }", Phase 3) has
-		// nothing to deduplicate against or address by name -- skip the
+		// An anonymous usage (e.g. "constraint { ... }") has nothing to
+		// deduplicate against or address by name -- skip the
 		// scope-uniqueness check (there's no name to compare) and give it
 		// a synthetic ID instead of the empty-name one every anonymous
 		// usage in the same scope would otherwise collide on. t.anonCount

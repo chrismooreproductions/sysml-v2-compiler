@@ -20,8 +20,8 @@ package metamodel
 // and its symbolic names aren't single-quoted the way real KerML concrete
 // syntax would write them (e.g. this model's "+" where upstream writes
 // '+') since nothing needs the two to round-trip through KerML notation.
-// Swapping this for a real KerML-parsed library, once one exists, is
-// planned future work -- see the project plan.
+// Swapping this for a real KerML-parsed library is a known improvement
+// this project hasn't undertaken yet.
 var stdlib = newStdlib()
 
 // scalarValueTypes are the ScalarValues datatypes this project models as
@@ -34,8 +34,8 @@ var scalarValueTypes = []string{"Boolean", "String", "Real", "Rational", "Intege
 // of) the real library's own ScalarFunctions.kerml -- notably excluding
 // '==' and '!=' there (equality lives elsewhere upstream, likely at the
 // more generic Base/Occurrences level) which this stub includes anyway
-// under ScalarFunctions for simplicity, a known deviation Phase X's real
-// library would correct.
+// under ScalarFunctions for simplicity, a known deviation a real,
+// fully KerML-parsed library would correct.
 var scalarFunctionOperators = []string{
 	"+", "-", "*", "/", "%", "**",
 	"<", ">", "<=", ">=", "==", "!=",
@@ -90,10 +90,10 @@ var stdlibOperators = func() map[string]bool {
 // stdlibOperatorPath returns the qualified path a binary/unary expression
 // operator (e.g. "+") resolves to in the standard library (e.g.
 // "ScalarFunctions::+"), and whether op is one this project recognizes as
-// a resolvable operator at all. Used by the expression subsystem (see the
-// project plan's Phase 1) to build a pendingReference for an operator the
-// same way a Usage's type reference already is, without needing bare-name
-// visibility for operator symbols.
+// a resolvable operator at all. Used by the expression subsystem to build
+// a pendingReference for an operator the same way a Usage's type
+// reference already is, without needing bare-name visibility for
+// operator symbols.
 func stdlibOperatorPath(op string) (path string, ok bool) {
 	if !stdlibOperators[op] {
 		return "", false

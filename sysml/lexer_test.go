@@ -293,10 +293,10 @@ func firstNonTrivia(tokens []sysml.Token) (sysml.Token, bool) {
 	return sysml.Token{}, false
 }
 
-// TestLexerOperators checks that each new punctuation-based operator token
-// (added for Phase 1's expression subsystem) lexes correctly, including
-// each two-character form's one-character fallback ("<" without a
-// following "=", etc.).
+// TestLexerOperators checks that each punctuation-based operator token
+// the expression subsystem uses lexes correctly, including each
+// two-character form's one-character fallback ("<" without a following
+// "=", etc.).
 func TestLexerOperators(t *testing.T) {
 	cases := map[string]struct {
 		source string
@@ -339,7 +339,8 @@ func TestLexerOperators(t *testing.T) {
 }
 
 // TestLexerKeywordOperators checks the word-spelled operators/literals
-// Phase 1 adds: true/false (boolean literals), not, and xor.
+// the expression subsystem uses: true/false (boolean literals), not, and
+// xor.
 func TestLexerKeywordOperators(t *testing.T) {
 	cases := map[string]sysml.Kind{
 		"true":  sysml.TrueKw,
@@ -422,8 +423,8 @@ func TestLexerRestrictedName(t *testing.T) {
 // Identifier-kind token (matching how "5" already worked for multiplicity
 // bounds), that a decimal point followed by more digits extends it into a
 // real literal ("3.14"), and that a '.' NOT followed by a digit is left as
-// its own separate token -- needed so a feature chain like "a.b" (Phase 2)
-// never has its '.' mistaken for part of a number.
+// its own separate token -- needed so a feature chain like "a.b" never
+// has its '.' mistaken for part of a number.
 func TestLexerNumericLiteral(t *testing.T) {
 	cases := map[string]struct {
 		source    string
@@ -453,8 +454,8 @@ func TestLexerNumericLiteral(t *testing.T) {
 }
 
 // TestLexerDot checks that a bare '.' (not doubled into "..") lexes as its
-// own Dot token -- needed for Phase 2's feature chains (e.g. "a.b") -- and
-// that "::" and ".." are unaffected.
+// own Dot token -- needed for feature chains (e.g. "a.b") -- and that
+// "::" and ".." are unaffected.
 func TestLexerDot(t *testing.T) {
 	tokens, err := sysml.NewModel("a.b").Lex()
 	if err != nil {

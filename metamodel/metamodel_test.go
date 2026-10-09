@@ -593,12 +593,11 @@ func TestFromASTFeatureChainErrors(t *testing.T) {
 // TestFromASTInheritedFeatureResolution checks that a name only declared
 // inside a usage's own *type* -- not reachable via ordinary containment
 // climbing -- is still visible from inside that usage's own nested body,
-// the same way real KerML feature inheritance works. This is the central
-// mechanism requirement derivation depends on ("subject :>> mass = ...;"
-// inside a requirement usage redefines the "mass" its own requirement def
-// declares), found missing by an audit before this test existed: lookupChild
-// used to climb containment only, never typing, so every one of these cases
-// failed with "unresolved ..." even though they parsed fine.
+// the same way real KerML feature inheritance works: lookupChild climbs
+// both containment and typing, not containment alone. This is the
+// central mechanism requirement derivation depends on ("subject :>> mass
+// = ...;" inside a requirement usage redefines the "mass" its own
+// requirement def declares).
 func TestFromASTInheritedFeatureResolution(t *testing.T) {
 	cases := map[string]string{
 		"redefines": `package Vehicle {
@@ -638,13 +637,11 @@ func TestFromASTInheritedFeatureResolution(t *testing.T) {
 
 // TestFromASTFeatureChainThroughUntypedInlineBody checks that a feature
 // chain's non-first segment can also step through an untyped usage's own
-// inline body (general usage bodies, Phase 7) when there's no TypedBy
-// relationship to walk instead -- e.g. "vehicle.mass" where "vehicle" is
-// declared as "part vehicle { attribute mass : Mass; }", not
-// "part vehicle : SomeType;". This is the shape the real
-// VehicleRequirementDerivation.sysml fixture itself uses throughout
-// ("vehicle.chassis.mass"), found missing by the same audit as
-// TestFromASTInheritedFeatureResolution.
+// inline body when there's no TypedBy relationship to walk instead --
+// e.g. "vehicle.mass" where "vehicle" is declared as "part vehicle {
+// attribute mass : Mass; }", not "part vehicle : SomeType;". This is the
+// shape the real VehicleRequirementDerivation.sysml fixture itself uses
+// throughout ("vehicle.chassis.mass").
 func TestFromASTFeatureChainThroughUntypedInlineBody(t *testing.T) {
 	ns, err := sysml.NewModel(`package Vehicle {
 		attribute def Mass;
@@ -924,7 +921,7 @@ func TestFromASTBareMemberSubsetsRedefinesReferences(t *testing.T) {
 	}
 }
 
-// TestFromASTCaseAnalysisVerificationObjectiveVerify checks Phase 9's
+// TestFromASTCaseAnalysisVerificationObjectiveVerify checks the
 // Case/VerificationCase mechanism end to end: "analysis"/"verification"
 // translate exactly like "case" (a CalculationBody-shaped DefKind, same
 // machinery constraint/calc already use), "objective" exactly like
@@ -991,8 +988,8 @@ func TestFromASTCaseAnalysisVerificationObjectiveVerify(t *testing.T) {
 	}
 }
 
-// TestFromASTUseCaseAndInclude checks Phase 11's "use case"/"include" end
-// to end: "use case" translates exactly like "case"/"analysis"/
+// TestFromASTUseCaseAndInclude checks "use case"/"include" end to end:
+// "use case" translates exactly like "case"/"analysis"/
 // "verification" (a CalculationBody-shaped DefUseCase), and "include"
 // resolves its bare-reference form through the same References
 // relationship "verify"/"satisfy" already use.
@@ -1037,10 +1034,9 @@ func TestFromASTUseCaseAndInclude(t *testing.T) {
 }
 
 // TestFromASTAnonymousUsage checks that an anonymous usage (no name --
-// Phase 3's "constraint { ... }" form) still translates to its own
-// distinct Element, and that two anonymous usages in the same scope don't
-// collide with each other despite neither having a name to deduplicate
-// against.
+// the "constraint { ... }" form) still translates to its own distinct
+// Element, and that two anonymous usages in the same scope don't collide
+// with each other despite neither having a name to deduplicate against.
 func TestFromASTAnonymousUsage(t *testing.T) {
 	ns, err := sysml.NewModel(`package Vehicle {
 		attribute def Real;
@@ -3129,9 +3125,9 @@ func TestFromASTVehicleMultiPackage(t *testing.T) {
 // redefining that inherited subject with a different feature-chain value
 // (see TestFromASTInheritedFeatureResolution), satisfy statements (bare
 // and feature-chain "by" targets), and a metadata-tagged derivation
-// connection with "end"/"::>" body members. This is the proof that Phase
-// 6/7's machinery holds up on a coherent scenario, not just isolated
-// constructs.
+// connection with "end"/"::>" body members. Exercises requirement
+// derivation's machinery together on one coherent scenario, not just on
+// isolated constructs.
 func TestFromASTVehicleMassRequirementDerivation(t *testing.T) {
 	source := `package VehicleMassRequirements {
 		attribute def Mass;

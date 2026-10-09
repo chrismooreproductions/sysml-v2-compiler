@@ -23,66 +23,60 @@ func TestModelParseSpecExamples(t *testing.T) {
 		wantErr string
 	}{
 		// "constant" (a prefix modifier, alongside "derived"/"readonly"/
-		// "nonunique"/"ordered") now parses as a keyword-less member's own
-		// bare name instead of being rejected outright -- real KerML lets
-		// any Usage omit its keyword, and "constant" isn't one this
-		// project recognizes as a prefix, so it's swept up as "the name of
-		// an anonymous-keyword attribute" instead, advancing one token
-		// further before rejecting "attribute" (another keyword) where a
-		// type/value/body/';' was expected.
+		// "nonunique"/"ordered") isn't a keyword this project recognizes
+		// as a prefix, so it parses as a keyword-less member's own bare
+		// name instead of being rejected outright -- real KerML lets any
+		// Usage omit its keyword, and this project's parser takes "the
+		// name of an anonymous-keyword attribute" as the fallback,
+		// advancing one token further before rejecting "attribute"
+		// (another keyword) where a type/value/body/';' was expected.
 		{"PartTest.sysml", `line 8: unexpected 'attribute', want ';'`},
 		// "as" casts ("(vehicles as VehiclePart).m") aren't supported --
 		// a new Expression variant, plus extending postfix "."-chaining to
 		// apply after a parenthesized/cast result (today it only ever
 		// follows a bare name) -- deliberately out of scope for this
 		// project's expression subsystem (see sysml.Expression's doc
-		// comment). Sequence expressions are fixed now, so this fixture
-		// advances to its next gap.
+		// comment).
 		{"CalculationTest.sysml", `line 28: unexpected identifier "as", want ')'`},
-		// SuccessionAsUsage ("first a then b;", "succession s first a
-		// then b;") is supported now (Phase 10), clearing this fixture's
-		// entire middle section. Its next (genuinely different) blocker
-		// is "flow def" (FlowDefinition) -- a structurally separate
-		// feature (Clause 8.2.2.16), not yet supported.
+		// "flow def" (FlowDefinition) isn't supported -- a structurally
+		// separate feature from connections (Clause 8.2.2.16).
 		{"ConnectionTest.sysml", `line 57: unexpected 'def', want ';'`},
-		// "enum def" (EnumerationDefinition) isn't supported. Its own body
-		// (e.g. "uncl : ClassificationLevel = 0;") is exactly the
-		// keyword-less-member shape this phase just added -- but "enum
-		// def" the construct itself still isn't a recognized keyword, so
-		// (like "constant"/"first" above) it's swept up as a keyword-less
-		// member's own bare name first, advancing one token further
-		// before rejecting "def" where a terminator was expected.
+		// "enum def" (EnumerationDefinition) isn't a recognized keyword,
+		// so it parses as a keyword-less member's own bare name (see
+		// PartTest.sysml's own comment above for why) before rejecting
+		// "def" where a terminator was expected -- even though its body
+		// shape itself (e.g. "uncl : ClassificationLevel = 0;") is
+		// exactly what keyword-less members already support.
 		{"MetadataTest.sysml", `line 6: unexpected 'def', want ';'`},
 		// "doc" annotations aren't supported -- this project's parser
 		// drops comments entirely before seeing them (newParser filters
 		// every Comment token out up front), so there's nowhere to hang
-		// the text that follows "doc". Like "constant"/"first"/"enum"
-		// above, "doc" now parses as a keyword-less member's own bare
-		// name first, advancing one token further (past the dropped
-		// comment) before rejecting "requirement" (another keyword) where
-		// a terminator was expected.
+		// the text that follows "doc". Like "constant"/"enum" above,
+		// "doc" parses as a keyword-less member's own bare name first,
+		// advancing one token further (past the dropped comment) before
+		// rejecting "requirement" (another keyword) where a terminator
+		// was expected.
 		{"RequirementTest.sysml", `line 9: unexpected 'requirement', want ';'`},
-		// Both of these hit the exact same pre-existing "doc" gap
-		// RequirementTest.sysml above also hits (a "doc /* ... */"
-		// comment, dropped entirely before the parser ever sees it,
-		// swept up as a keyword-less member's own bare name before
-		// rejecting the next keyword) at the same early line, before
-		// ever reaching the "analysis"/"verification"/"objective"/
-		// "verify" constructs each is actually vendored to exercise --
-		// Phase 9's own hand-crafted parser/metamodel tests cover those
-		// directly instead (see TestModelParseCaseAnalysisVerification
-		// DefKeywords, TestModelParseObjectiveDefKeyword,
-		// TestModelParseVerify).
+		// Both of these hit the exact same "doc" gap RequirementTest.sysml
+		// above also hits (a "doc /* ... */" comment, dropped entirely
+		// before the parser ever sees it, swept up as a keyword-less
+		// member's own bare name before rejecting the next keyword) at
+		// the same early line, before ever reaching the "analysis"/
+		// "verification"/"objective"/"verify" constructs each is actually
+		// vendored to exercise -- covered directly instead by dedicated
+		// hand-crafted parser/metamodel tests (see
+		// TestModelParseCaseAnalysisVerificationDefKeywords,
+		// TestModelParseObjectiveDefKeyword, TestModelParseVerify).
 		{"AnalysisTest.sysml", `line 11: unexpected '}', want ';'`},
 		{"VerificationTest.sysml", `line 11: unexpected '}', want ';'`},
-		// "use case"/"include" (Phase 11) are both fully supported --
-		// this fixture parses cleanly through subject/actor/objective/
+		// This fixture parses cleanly through subject/actor/objective/
 		// include/nested-use-case-usage before tripping on "perform"
-		// (PerformActionUsage, Phase 12 territory, not yet supported):
-		// "perform" isn't a recognized keyword, so it's swept up as a
-		// keyword-less member's own bare name (like "constant"/"doc"
-		// elsewhere), advancing one token further before rejecting "u"
-		// (another identifier) where a terminator was expected.
+		// (PerformActionUsage, not yet supported -- part of behavioral
+		// modeling, which hasn't been started): "perform" isn't a
+		// recognized keyword, so it's swept up as a keyword-less member's
+		// own bare name (like "constant"/"doc" elsewhere), advancing one
+		// token further before rejecting "u" (another identifier) where a
+		// terminator was expected.
 		{"UseCaseTest.sysml", `line 34: unexpected identifier "u", want ';'`},
 	}
 
@@ -111,34 +105,30 @@ func TestModelParseSpecExamples(t *testing.T) {
 // per that test's own doc comment.
 func TestModelParseSpecExamplesSuccess(t *testing.T) {
 	files := []string{
-		// Exercises every increment-6 addition at once: untyped usages,
-		// multiplicity before or after a type, name-valued bounds ("[n]"),
-		// and an assigned integer value ("= 5").
+		// Exercises untyped usages, multiplicity before or after a type,
+		// name-valued bounds ("[n]"), and an assigned integer value
+		// ("= 5") together.
 		"MultiplicityTest.sysml",
-		// Exercises increment-7's wildcard import syntax ("P1::*").
+		// Exercises the wildcard import syntax ("P1::*").
 		"QualifiedNameImportTest.sysml",
-		// Exercises increment-8's subsetting keyword ("subsets"), the last
-		// of this plan's three target fixtures to go green.
+		// Exercises the subsetting keyword ("subsets").
 		"RootPackageTest.sysml",
-		// Exercises Phase 7's general usage bodies (increment A),
-		// references/"::>" (increment B), and "end" body members
-		// (increment C) all at once -- the first Requirements Examples
-		// fixture (not from "Simple Tests") to fully parse.
+		// Exercises general usage bodies, references/"::>", and "end"
+		// body members together -- a Requirements Examples fixture (not
+		// one of the "Simple Tests"), denser and more realistic than
+		// anything else in this table.
 		"VehicleRequirementDerivation.sysml",
-		// Exercises the "abstract" prefix modifier, the only thing it was
-		// missing after Phase 7.
+		// Exercises the "abstract" prefix modifier.
 		"InterfaceTest.sysml",
 		// Exercises Satisfy's inline "requirement req1 : Req1" declaration
-		// form, the only thing it was missing.
+		// form.
 		"RequirementDerivationExample.sysml",
 		// Exercises restricted names and short names together
-		// ("<'UR1.1'> Load"), the only things it was missing.
+		// ("<'UR1.1'> Load").
 		"HSUVRequirements.sysml",
-		// Exercises Phase 8's sequence expressions (increment A),
-		// AssertConstraintUsage (increment B), and keyword-less/bare
-		// members (increment C) all at once -- the first fixture whose
-		// own subject matter (constraint/parameter input) this whole
-		// phase was aimed at.
+		// Exercises sequence expressions, AssertConstraintUsage, and
+		// keyword-less/bare members together -- a fixture whose own
+		// subject matter is specifically constraint/parameter input.
 		"ConstraintTest.sysml",
 	}
 
