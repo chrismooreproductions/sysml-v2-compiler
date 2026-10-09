@@ -149,6 +149,19 @@ const (
 	// directly, since the lexer never merges "use"+"case" into a single
 	// token.
 	DefUseCase
+	// DefAction tags "action"/"action def" -- an ordinary defKeywords
+	// entry, but with its own distinct body shape (ActionBody, see
+	// parseActionBody) -- neither CalculationBody-shaped (no trailing
+	// result) nor a plain member list, since a bare "then X;" member
+	// threads an implicit predecessor through the body.
+	DefAction
+	// DefPerform tags "perform" (PerformActionUsage) -- a bare reference
+	// to an existing action ("perform u;") or an inline declaration
+	// ("perform action a : A;"), the same duality
+	// AssertConstraintUsage/verify/include already have. Its own body is
+	// an ordinary ActionBody too. Not a defKeywords entry -- "perform"
+	// is dispatched from parseMember directly.
+	DefPerform
 )
 
 func (k DefKind) String() string {
@@ -213,6 +226,10 @@ func (k DefKind) String() string {
 		return "succession"
 	case DefUseCase:
 		return "use case"
+	case DefAction:
+		return "action"
+	case DefPerform:
+		return "perform"
 	default:
 		return "unknown"
 	}

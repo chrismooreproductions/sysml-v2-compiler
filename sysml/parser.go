@@ -126,6 +126,7 @@ var defKeywords = map[Kind]DefKind{
 	InOutKw:        DefInOut,
 	ReturnKw:       DefReturn,
 	RefKw:          DefRef,
+	ActionKw:       DefAction,
 }
 
 // isConnectorKind reports whether kind's usage form can carry an explicit
@@ -395,6 +396,21 @@ func (p *parser) parseMember() (Member, error) {
 		return inc, nil
 	}
 
+	if tok.Kind == PerformKw {
+		// The bare "'perform' ..." prefix: no preceding usage
+		// declaration at all, same split "end"/"verify" have ahead of
+		// their own dedicated parse functions.
+		p.pos++
+		perf, err := p.parsePerform()
+		if err != nil {
+			return nil, err
+		}
+		perf.Visibility = vis
+		perf.Metadata = metadata
+		perf.Abstract = abstract
+		return perf, nil
+	}
+
 	if tok.Kind == UseKw {
 		// "use case" is a two-word keyword -- the lexer never merges it
 		// into one token, so this dispatch consumes both itself, then
@@ -599,6 +615,16 @@ func (p *parser) parseDefinition(kind DefKind) (*Definition, error) {
 
 	case OpenBrace:
 		p.pos++
+		if kind == DefAction {
+			members, err := p.parseActionBody()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(CloseBrace); err != nil {
+				return nil, err
+			}
+			return &Definition{Kind: kind, Name: string(name.Value), Members: members, Specializes: specializes, ShortName: shortName}, nil
+		}
 		if hasCalculationBody(kind) {
 			members, result, err := p.parseCalculationBody()
 			if err != nil {
@@ -771,6 +797,17 @@ func (p *parser) parseUsage(kind DefKind) (Member, error) {
 
 	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
 		p.pos++
+		if kind == DefAction || kind == DefPerform {
+			members, err := p.parseActionBody()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(CloseBrace); err != nil {
+				return nil, err
+			}
+			usage.Members = members
+			return usage, nil
+		}
 		if hasCalculationBody(kind) {
 			members, result, err := p.parseCalculationBody()
 			if err != nil {
@@ -913,12 +950,21 @@ func (p *parser) parseBindPart(name, typ string) (*Connection, error) {
 // caller, already parsed (both "" for the bare "'first' ... 'then' ..."
 // shorthand). The caller has already consumed "first".
 func (p *parser) parseSuccessionPart(name, typ string) (*Connection, error) {
-	conn := &Connection{Kind: DefSuccession, Name: name, Type: typ}
-
 	first, err := p.parseConnectorEnd()
 	if err != nil {
 		return nil, err
 	}
+	return p.parseSuccessionTail(first, name, typ)
+}
+
+// parseSuccessionTail parses the "'then' ConnectorEndMember" half of a
+// succession shared by every succession-shaped construct -- the second
+// half of a standalone SuccessionAsUsage (see parseSuccessionPart above)
+// and an ActionBody's own bare "then X;"/"first X then Y;" members (see
+// parseActionBody) -- plus the trailing usage body any of them can
+// carry. first is the already-parsed first end; the caller has not yet
+// consumed "then".
+func (p *parser) parseSuccessionTail(first Expression, name, typ string) (*Connection, error) {
 	if _, err := p.expect(ThenKw); err != nil {
 		return nil, err
 	}
@@ -926,7 +972,7 @@ func (p *parser) parseSuccessionPart(name, typ string) (*Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn.Ends = []Expression{first, second}
+	conn := &Connection{Kind: DefSuccession, Name: name, Type: typ, Ends: []Expression{first, second}}
 
 	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
 		p.pos++
@@ -945,6 +991,147 @@ func (p *parser) parseSuccessionPart(name, typ string) (*Connection, error) {
 		return nil, err
 	}
 	return conn, nil
+}
+
+// parseActionBody parses an ActionBody (a DefAction/DefPerform usage or
+// definition's own body shape): like a plain member-list body, but a
+// bare "then X;" member implicitly connects from whatever the previous
+// chain link was -- the target of the most recently parsed "first X;"/
+// "first X then Y;" member, or the name of the most recently parsed
+// action/perform member -- to X, without repeating the "from" end the
+// way a standalone SuccessionAsUsage always does. Each "then X;"
+// desugars into an ordinary Connection{Kind: DefSuccession, Ends: [prev,
+// X]}, reusing SuccessionAsUsage's own machinery (parseSuccessionTail);
+// "first X;" alone (no "then") instead just records X as the chain's
+// starting point, emitting no member of its own.
+//
+// Deliberately narrow, matching DefAction's own doc comment: "X"/"Y" are
+// always a plain or dotted feature reference (parseConnectorEnd), never
+// an inline node declaration the way real SysML's implicit
+// "then <declaration>;" sugar allows -- a separate, deferred mechanism
+// (as are control nodes, structured control, and accept/send/assign/
+// terminate's own dedicated sub-grammars). Only a nested DefAction/
+// DefPerform member becomes the new chain link for a following bare
+// "then" -- an ordinary attribute/part member parses fine inside an
+// action body (reusing parseMember directly) but doesn't itself become
+// something later chain, matching real ActionBehaviorMember's own
+// narrower scope (not every ActionBodyItem).
+func (p *parser) parseActionBody() ([]Member, error) {
+	var members []Member
+	var prev Expression
+
+	for {
+		tok, ok := p.current()
+		if !ok {
+			return nil, fmt.Errorf("unexpected end of input, want %s", CloseBrace)
+		}
+		if tok.Kind == CloseBrace {
+			return members, nil
+		}
+
+		if tok.Kind == FirstKw {
+			p.pos++
+			first, err := p.parseConnectorEnd()
+			if err != nil {
+				return nil, err
+			}
+			if next, ok := p.current(); ok && next.Kind == ThenKw {
+				conn, err := p.parseSuccessionTail(first, "", "")
+				if err != nil {
+					return nil, err
+				}
+				members = append(members, conn)
+				prev = conn.Ends[1]
+				continue
+			}
+			if _, err := p.expect(Semicolon); err != nil {
+				return nil, err
+			}
+			prev = first
+			continue
+		}
+
+		if tok.Kind == ThenKw {
+			if prev == nil {
+				return nil, fmt.Errorf("line %d: 'then' with no preceding action to chain from", tok.Pos.Line)
+			}
+			conn, err := p.parseSuccessionTail(prev, "", "")
+			if err != nil {
+				return nil, err
+			}
+			members = append(members, conn)
+			prev = conn.Ends[1]
+			continue
+		}
+
+		member, err := p.parseMember()
+		if err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+		switch m := member.(type) {
+		case *Usage:
+			if (m.Kind == DefAction || m.Kind == DefPerform) && m.Name != "" {
+				prev = &NameRef{Path: m.Name}
+			}
+		case *Definition:
+			if m.Kind == DefAction && m.Name != "" {
+				prev = &NameRef{Path: m.Name}
+			}
+		}
+	}
+}
+
+// parsePerform parses a PerformActionUsage ("perform u;" or "perform
+// action a : A;") -- the same bare-reference-vs-inline-declaration
+// duality AssertConstraintUsage/verify/include already have: a bare
+// reference to an existing action, stored via Usage.References as
+// always, or the "action" keyword followed by an ordinary usage
+// declaration. Either way followed by an ordinary ActionBody. The
+// caller has already consumed "perform".
+func (p *parser) parsePerform() (*Usage, error) {
+	var usage *Usage
+	if tok, ok := p.current(); ok && tok.Kind == ActionKw {
+		// "action" here is just a disambiguating prefix token, not a
+		// declaration of a new DefAction -- PerformActionUsage is its
+		// own distinct kind in the real grammar (unlike
+		// AssertConstraintUsage/verify, it's never literally typed as
+		// the thing it names), so the resulting Usage.Kind is DefPerform
+		// either way.
+		p.pos++
+		decl, err := p.parseUsageDeclaration(DefPerform)
+		if err != nil {
+			return nil, err
+		}
+		usage = decl
+	} else {
+		name, err := p.parseQualifiedName()
+		if err != nil {
+			return nil, err
+		}
+		usage = &Usage{Kind: DefPerform, References: name}
+	}
+
+	if err := p.parseValuePart(usage); err != nil {
+		return nil, err
+	}
+
+	if tok, ok := p.current(); ok && tok.Kind == OpenBrace {
+		p.pos++
+		members, err := p.parseActionBody()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(CloseBrace); err != nil {
+			return nil, err
+		}
+		usage.Members = members
+		return usage, nil
+	}
+	if _, err := p.expect(Semicolon); err != nil {
+		return nil, err
+	}
+	return usage, nil
 }
 
 // peekKind returns the Kind of the token offset positions ahead of the
@@ -1303,7 +1490,7 @@ func (p *parser) parseCalculationBody() (members []Member, result Expression, er
 // bare name or a unary 'not'.
 func startsMember(kind Kind) bool {
 	if kind == Pkg || kind == ImportKw || kind == AssertKw || kind == SatisfyKw || kind == VerifyKw ||
-		kind == IncludeKw || kind == UseKw {
+		kind == IncludeKw || kind == UseKw || kind == PerformKw {
 		return true
 	}
 	if kind == Subsets || kind == Redefines || kind == References {

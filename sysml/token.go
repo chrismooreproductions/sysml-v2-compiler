@@ -39,6 +39,8 @@ const (
 	SuccessionKw
 	UseKw
 	IncludeKw
+	ActionKw
+	PerformKw
 	InKw
 	OutKw
 	InOutKw
@@ -166,6 +168,10 @@ func (k Kind) String() string {
 		return "'use'"
 	case IncludeKw:
 		return "'include'"
+	case ActionKw:
+		return "'action'"
+	case PerformKw:
+		return "'perform'"
 	case InKw:
 		return "'in'"
 	case OutKw:
@@ -311,6 +317,8 @@ var kinds = map[string]Kind{
 	"succession":   SuccessionKw,
 	"use":          UseKw,
 	"include":      IncludeKw,
+	"action":       ActionKw,
+	"perform":      PerformKw,
 	"in":           InKw,
 	"out":          OutKw,
 	"inout":        InOutKw,

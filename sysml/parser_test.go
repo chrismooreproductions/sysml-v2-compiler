@@ -2426,6 +2426,213 @@ func TestModelParseInclude(t *testing.T) {
 	})
 }
 
+// TestModelParseActionDefKeyword checks that "action"/"action def" is an
+// ordinary defKeywords entry, with its own ActionBody shape -- a plain
+// member-list body works exactly like any other kind's, since none of
+// its members use "first"/"then" (that disambiguation is checked
+// separately below).
+func TestModelParseActionDefKeyword(t *testing.T) {
+	t.Run("definition with a plain body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			action def A {
+				attribute x : Real;
+			}
+		}`)
+
+		def, ok := pkg.Members[0].(*sysml.Definition)
+		if !ok {
+			t.Fatalf("member 0 is %T, want *sysml.Definition", pkg.Members[0])
+		}
+		if def.Kind != sysml.DefAction || len(def.Members) != 1 {
+			t.Errorf("member 0 = %+v, want a DefAction definition with 1 member", def)
+		}
+	})
+
+	t.Run("usage, named and typed, no body", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle { action def A; action a : A; }`)
+
+		usage, ok := pkg.Members[1].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("member 1 is %T, want *sysml.Usage", pkg.Members[1])
+		}
+		if usage.Kind != sysml.DefAction || usage.Name != "a" || usage.Type != "A" {
+			t.Errorf("member 1 = %+v, want Usage{Kind: DefAction, Name: a, Type: A}", usage)
+		}
+	})
+}
+
+// TestModelParsePerform checks "perform"'s own bare-reference-vs-inline-
+// declaration duality: a bare reference to an existing action, stored
+// via Usage.References as always, or the "action" keyword followed by
+// an ordinary usage declaration -- either way producing a
+// *sysml.Usage{Kind: DefPerform}, never DefAction, since
+// PerformActionUsage is its own distinct kind in the real grammar
+// (unlike AssertConstraintUsage/verify, "action" here is just a
+// disambiguating prefix, not a declaration of a new action type).
+func TestModelParsePerform(t *testing.T) {
+	t.Run("bare reference", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			action def A;
+			action u : A;
+			action a {
+				perform u;
+			}
+		}`)
+
+		act := pkg.Members[2].(*sysml.Usage)
+		perf, ok := act.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("perform member is %T, want *sysml.Usage", act.Members[0])
+		}
+		if perf.Kind != sysml.DefPerform || perf.Name != "" || perf.References != "u" {
+			t.Errorf("perform member = %+v, want an anonymous DefPerform usage referencing u", perf)
+		}
+	})
+
+	t.Run("inline declaration", func(t *testing.T) {
+		pkg := parseTopLevelPackage(t, `package Vehicle {
+			action def P;
+			action a {
+				perform action p : P;
+			}
+		}`)
+
+		act := pkg.Members[1].(*sysml.Usage)
+		perf, ok := act.Members[0].(*sysml.Usage)
+		if !ok {
+			t.Fatalf("perform member is %T, want *sysml.Usage", act.Members[0])
+		}
+		if perf.Kind != sysml.DefPerform || perf.Name != "p" || perf.Type != "P" {
+			t.Errorf("perform member = %+v, want a DefPerform usage p : P", perf)
+		}
+	})
+}
+
+// TestModelParseActionFirstThenChaining checks the heart of Phase 12's
+// ActionBody mechanism: "first X;" alone records X as the chain's
+// starting point without emitting a member of its own, and a following
+// bare "then Y;" desugars into an ordinary
+// Connection{Kind: DefSuccession, Ends: [X, Y]}.
+func TestModelParseActionFirstThenChaining(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		action def A;
+		action a : A {
+			action b : A;
+			action c : A;
+			first b;
+			then c;
+		}
+	}`)
+
+	act := pkg.Members[1].(*sysml.Usage)
+	if len(act.Members) != 3 {
+		t.Fatalf("got %d members, want 3 (b, c, and the succession -- 'first b;' emits nothing)", len(act.Members))
+	}
+	if _, ok := act.Members[0].(*sysml.Usage); !ok {
+		t.Errorf("member 0 is %T, want *sysml.Usage (action b)", act.Members[0])
+	}
+	if _, ok := act.Members[1].(*sysml.Usage); !ok {
+		t.Errorf("member 1 is %T, want *sysml.Usage (action c)", act.Members[1])
+	}
+	conn, ok := act.Members[2].(*sysml.Connection)
+	if !ok {
+		t.Fatalf("member 2 is %T, want *sysml.Connection (the 'then c;' succession)", act.Members[2])
+	}
+	if conn.Kind != sysml.DefSuccession {
+		t.Errorf("Kind = %v, want DefSuccession", conn.Kind)
+	}
+	left, ok := conn.Ends[0].(*sysml.NameRef)
+	if !ok || left.Path != "b" {
+		t.Errorf("Ends[0] = %+v, want NameRef{Path: b}", conn.Ends[0])
+	}
+	right, ok := conn.Ends[1].(*sysml.NameRef)
+	if !ok || right.Path != "c" {
+		t.Errorf("Ends[1] = %+v, want NameRef{Path: c}", conn.Ends[1])
+	}
+}
+
+// TestModelParseActionImplicitChainFromPreviousAction checks that an
+// ordinary nested action/perform member becomes the chain's current
+// link on its own, with no preceding "first" needed at all -- "an
+// ordinary nested action member is itself a valid link" (see
+// parseActionBody's own doc comment).
+func TestModelParseActionImplicitChainFromPreviousAction(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		action def A;
+		action a : A {
+			action b : A;
+			then c;
+		}
+	}`)
+
+	act := pkg.Members[1].(*sysml.Usage)
+	if len(act.Members) != 2 {
+		t.Fatalf("got %d members, want 2 (b, and the succession)", len(act.Members))
+	}
+	conn, ok := act.Members[1].(*sysml.Connection)
+	if !ok {
+		t.Fatalf("member 1 is %T, want *sysml.Connection", act.Members[1])
+	}
+	left, ok := conn.Ends[0].(*sysml.NameRef)
+	if !ok || left.Path != "b" {
+		t.Errorf("Ends[0] = %+v, want NameRef{Path: b} (from the preceding 'action b;', with no 'first' at all)", conn.Ends[0])
+	}
+}
+
+// TestModelParseActionFirstThenTwoEnded checks that "first X then Y;" --
+// both ends spelled out on one member, the same shape a standalone
+// SuccessionAsUsage has -- parses as a single Connection member (not
+// "first" bookkeeping plus a separate "then"), and that it still updates
+// the chain's current link, so a later bare "then Z;" continues from Y.
+func TestModelParseActionFirstThenTwoEnded(t *testing.T) {
+	pkg := parseTopLevelPackage(t, `package Vehicle {
+		action def A;
+		action a : A {
+			action b : A;
+			action c : A;
+			action d : A;
+			first b then c;
+			then d;
+		}
+	}`)
+
+	act := pkg.Members[1].(*sysml.Usage)
+	if len(act.Members) != 5 {
+		t.Fatalf("got %d members, want 5 (b, c, d, and two successions)", len(act.Members))
+	}
+	bc, ok := act.Members[3].(*sysml.Connection)
+	if !ok {
+		t.Fatalf("member 3 is %T, want *sysml.Connection (the 'first b then c;' succession)", act.Members[3])
+	}
+	if left, ok := bc.Ends[0].(*sysml.NameRef); !ok || left.Path != "b" {
+		t.Errorf("Ends[0] = %+v, want NameRef{Path: b}", bc.Ends[0])
+	}
+	if right, ok := bc.Ends[1].(*sysml.NameRef); !ok || right.Path != "c" {
+		t.Errorf("Ends[1] = %+v, want NameRef{Path: c}", bc.Ends[1])
+	}
+	cd, ok := act.Members[4].(*sysml.Connection)
+	if !ok {
+		t.Fatalf("member 4 is %T, want *sysml.Connection (the 'then d;' succession)", act.Members[4])
+	}
+	if left, ok := cd.Ends[0].(*sysml.NameRef); !ok || left.Path != "c" {
+		t.Errorf("Ends[0] = %+v, want NameRef{Path: c} (continuing from the two-ended succession's own target)", cd.Ends[0])
+	}
+}
+
+// TestModelParseActionThenWithoutPrecedingLink checks that a bare
+// "then X;" with no preceding "first"/action/perform member to chain
+// from is a real parse error, not silently misparsed.
+func TestModelParseActionThenWithoutPrecedingLink(t *testing.T) {
+	_, err := sysml.NewModel(`package Vehicle {
+		action a {
+			then c;
+		}
+	}`).Parse()
+	if err == nil {
+		t.Fatal("expected an error for a bare 'then' with no preceding link, got nil")
+	}
+}
+
 // TestModelParseIgnoresComments checks that line and block comments can
 // appear anywhere insignificant whitespace can -- between members, inside a
 // member's body, even splitting a declaration across lines -- without

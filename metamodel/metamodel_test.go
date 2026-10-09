@@ -1033,6 +1033,67 @@ func TestFromASTUseCaseAndInclude(t *testing.T) {
 	}
 }
 
+// TestFromASTActionFirstThenChaining checks Phase 12's ActionBody
+// mechanism end to end: "action"/"perform" translate like any ordinary
+// DefKind (declareUsage/declareMembers need no special-casing for
+// either), and a "first X; then Y;" pair's synthesized
+// Connection{Kind: DefSuccession} resolves its Connects exactly the way
+// a standalone SuccessionAsUsage already does -- confirming the
+// implicit-predecessor bookkeeping is purely a parser-level concern,
+// invisible to translation.
+func TestFromASTActionFirstThenChaining(t *testing.T) {
+	ns, err := sysml.NewModel(`package Vehicle {
+		action def A;
+		action a : A {
+			action b : A;
+			action c : A;
+			first b;
+			then c;
+			perform action p : A;
+		}
+	}`).Parse()
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	model, err := metamodel.FromAST(ns)
+	if err != nil {
+		t.Fatalf("unexpected translate error: %v", err)
+	}
+
+	b, ok := model.Elements["Vehicle::a::b"]
+	if !ok {
+		t.Fatal("missing element Vehicle::a::b")
+	}
+	if b.DefKind != metamodel.DefAction {
+		t.Errorf("b.DefKind = %v, want DefAction", b.DefKind)
+	}
+	p, ok := model.Elements["Vehicle::a::p"]
+	if !ok {
+		t.Fatal("missing element Vehicle::a::p")
+	}
+	if p.DefKind != metamodel.DefPerform {
+		t.Errorf("p.DefKind = %v, want DefPerform", p.DefKind)
+	}
+	if target, ok := typeOf(model, p.ID); !ok || target != "Vehicle::A" {
+		t.Errorf("p typed by %q, want Vehicle::A", target)
+	}
+
+	var succession *metamodel.Element
+	for _, el := range model.Elements {
+		if el.Owner == "Vehicle::a" && el.DefKind == metamodel.DefSuccession {
+			succession = el
+		}
+	}
+	if succession == nil {
+		t.Fatal("no DefSuccession element found under Vehicle::a")
+	}
+	want := []metamodel.ElementID{"Vehicle::a::b", "Vehicle::a::c"}
+	if !reflect.DeepEqual(succession.Connects, want) {
+		t.Errorf("Connects = %v, want %v", succession.Connects, want)
+	}
+}
+
 // TestFromASTAnonymousUsage checks that an anonymous usage (no name --
 // the "constraint { ... }" form) still translates to its own distinct
 // Element, and that two anonymous usages in the same scope don't collide

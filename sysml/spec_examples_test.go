@@ -70,14 +70,13 @@ func TestModelParseSpecExamples(t *testing.T) {
 		{"AnalysisTest.sysml", `line 11: unexpected '}', want ';'`},
 		{"VerificationTest.sysml", `line 11: unexpected '}', want ';'`},
 		// This fixture parses cleanly through subject/actor/objective/
-		// include/nested-use-case-usage before tripping on "perform"
-		// (PerformActionUsage, not yet supported -- part of behavioral
-		// modeling, which hasn't been started): "perform" isn't a
-		// recognized keyword, so it's swept up as a keyword-less member's
-		// own bare name (like "constant"/"doc" elsewhere), advancing one
-		// token further before rejecting "u" (another identifier) where a
-		// terminator was expected.
-		{"UseCaseTest.sysml", `line 34: unexpected identifier "u", want ';'`},
+		// include/nested-use-case-usage/perform before tripping on
+		// "include system.uc1;" -- include's own bare-reference form
+		// only accepts a plain or qualified name (parseQualifiedName),
+		// not a dotted feature chain, so it rejects the "." where a
+		// terminator was expected. "include u;" just above it, a plain
+		// bare name with no dots, parses fine.
+		{"UseCaseTest.sysml", `line 40: unexpected '.', want ';'`},
 	}
 
 	for _, tt := range cases {

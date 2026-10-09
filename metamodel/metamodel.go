@@ -122,6 +122,10 @@ const (
 	DefSuccession
 	// DefUseCase mirrors sysml.DefUseCase: "use case"/"use case def".
 	DefUseCase
+	// DefAction mirrors sysml.DefAction: "action"/"action def".
+	DefAction
+	// DefPerform mirrors sysml.DefPerform: "perform" (PerformActionUsage).
+	DefPerform
 )
 
 func (k DefKind) String() string {
@@ -186,6 +190,10 @@ func (k DefKind) String() string {
 		return "succession"
 	case DefUseCase:
 		return "use case"
+	case DefAction:
+		return "action"
+	case DefPerform:
+		return "perform"
 	default:
 		return "unknown"
 	}

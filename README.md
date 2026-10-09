@@ -231,6 +231,33 @@ directly.
   bare-reference-vs-inline-declaration duality `verify` has.
 - `actor` (see Requirements and concerns) doubles as a use case's actor.
 
+### Actions (a narrow start)
+
+A deliberately small slice of SysML's behavioral half — enough to
+declare actions, nest them, and chain them explicitly; everything else
+behavioral (see **Known gaps**) is still open.
+
+- `action`/`action def` — an ordinary definition/usage keyword family,
+  but with its own body shape (`ActionBody`): a plain member-list body,
+  *except* that a bare `then X;` member implicitly connects from
+  whatever the previous chain link was.
+- `first X;` records `X` (an already-declared sibling action) as the
+  chain's starting point, emitting no member of its own. `then X;`
+  connects from that link — or from the most recently declared
+  `action`/`perform` member, if no `first` came first — to `X`,
+  desugaring into an ordinary `SuccessionAsUsage`-shaped connection
+  (see **Connections, interfaces, bindings, successions**). `first X
+  then Y;`, both ends spelled out on one member, works too, and
+  continues the chain from `Y`.
+- `perform u;` / `perform action a : A;` (`PerformActionUsage`) — the
+  same bare-reference-vs-inline-declaration duality `verify`/`include`
+  have. Unlike those, the resulting usage's kind is always `DefPerform`,
+  never `DefAction` — `PerformActionUsage` is its own distinct kind in
+  the real grammar, not literally typed as the thing it names.
+- `X`/`Y` above are always a plain or dotted feature reference, never an
+  inline node declaration the way real SysML's implicit
+  `then <declaration>;` sugar allows — see **Known gaps**.
+
 ### Standard library stub
 
 `metamodel/stdlib.go` hand-builds a small stand-in for a slice of the
@@ -244,12 +271,25 @@ the stub's own doc comment for the full reasoning).
 
 ## Known gaps
 
-The biggest one by far: **behavioral modeling — Actions and States —
-hasn't been started at all.** Everything above is the *structural* half
-of the language (what things are and how they relate); the *behavioral*
-half (`action`, `accept`/`perform`/`assign`/`send`, control nodes,
-structured control, state machines and transitions) is a currently-open,
-multi-phase effort — see the active plan for exactly what's staged next.
+The biggest one by far: **behavioral modeling is only just started, and
+states haven't been touched at all.** Actions (above) cover declaring
+and chaining action nodes explicitly; still open within Actions:
+
+- Implicit `start`/`done` pseudo-nodes (referenced without ever being
+  declared, the way real examples lean on heavily).
+- Control nodes (`decide`/`merge`/`fork`/`join`).
+- Structured control (`if`/`else if`/`else`, `while`/`until`,
+  `loop`/`until`, `for`/`in`).
+- `accept`/`send`/`assign`/`terminate`'s own dedicated sub-grammars
+  (trigger values, payloads, `via`/`to`, `:=`).
+- `flow`.
+- The implicit `then <declaration>;` sugar (declaring a brand-new node
+  and connecting to it in one step) — this project only ever supports
+  `then` connecting to an *existing*, already-declared reference.
+
+**State machines haven't been started at all**: `state def`/`state`,
+`entry`/`do`/`exit`, `TransitionUsage` (trigger/guard/effect clauses),
+parallel states, action/state redefinition.
 
 Everything else still open, each its own small, named gap:
 
