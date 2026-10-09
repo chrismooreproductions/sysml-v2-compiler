@@ -5,7 +5,7 @@ is implemented; this file is about *how* to work on it.
 
 ## Module
 
-`github.com/chrismooreproductions/sysml-v2-compiler`, Go 1.25. Two packages:
+`github.com/chrismooreproductions/sysml-v2-compiler`, Go 1.27. Two packages:
 `sysml` (lexer/parser, produces an AST) and `metamodel` (translates that
 AST into a flat, KerML-shaped Element/Relationship graph). `main.go` is a
 placeholder — this is a library, not a CLI, today.
@@ -82,6 +82,22 @@ far more often than not in this project:
 
 Re-derive the real grammar (the OMG `.kebnf` files, not memory or a
 summary) before assuming a construct needs new machinery.
+
+## Versioning
+
+Semantic versioning, delivered the Go-module way: the version *is* the git
+tag (`vMAJOR.MINOR.PATCH`); there is no version constant in the code to
+keep in sync.
+
+- While the version is `v0.x.y` the API is unstable: a breaking change to
+  `sysml` or `metamodel` exported identifiers bumps MINOR, a new construct
+  or backward-compatible addition bumps MINOR, a fix bumps PATCH. From
+  `v1.0.0` on, breaking changes bump MAJOR (and need a `/v2` module path).
+- Every user-visible change adds a line under `## [Unreleased]` in
+  `CHANGELOG.md` in the same commit.
+- Releasing: move the Unreleased entries under a new `## [x.y.z] - date`
+  heading, commit, then `git tag -a vX.Y.Z -m "vX.Y.Z"`. Tagging and
+  pushing a tag are the user's call, never done unprompted.
 
 ## Plan file
 

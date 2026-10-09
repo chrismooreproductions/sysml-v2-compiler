@@ -304,6 +304,13 @@ Everything else still open, each its own small, named gap:
   — a separate compliance axis from parsing-and-resolving, not attempted
   anywhere in this project.
 
+## Versioning
+
+Releases follow [Semantic Versioning](https://semver.org/) and are git tags
+(`vMAJOR.MINOR.PATCH`); see [CHANGELOG.md](CHANGELOG.md). Until `v1.0.0`
+the API is unstable and minor versions may include breaking changes. Pin a
+version with `go get github.com/chrismooreproductions/sysml-v2-compiler@v0.1.0`.
+
 ## References
 
 This project follows the OMG specifications for the language it
