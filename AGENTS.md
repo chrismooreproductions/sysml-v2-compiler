@@ -98,6 +98,12 @@ keep in sync.
 - Releasing: move the Unreleased entries under a new `## [x.y.z] - date`
   heading, commit, then `git tag -a vX.Y.Z -m "vX.Y.Z"`. Tagging and
   pushing a tag are the user's call, never done unprompted.
+- Every pushed tag also gets a GitHub Release, so releases are visible
+  beyond the Tags list: `git push origin vX.Y.Z`, then
+  `gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes "<that
+  version's CHANGELOG section>"`. Use the changelog text for the notes
+  (not `--generate-notes`), and add `--prerelease` for any `-rc`/`-beta`
+  tag.
 
 ## Plan file
 
