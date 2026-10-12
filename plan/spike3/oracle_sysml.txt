@@ -1,0 +1,128 @@
+grammar: 549 productions, 129 keywords, 44 symbols; ecore: 182 classes
+OK      Parts.sysml                                   235 tokens, 123 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      SysML.sysml                                   4594 tokens, 2697 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      VerificationCases.sysml                       226 tokens, 145 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      AnalysisCases.sysml                           100 tokens, 47 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      States.sysml                                  316 tokens, 209 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Flows.sysml                                   491 tokens, 307 nodes, 0 ecore mismatches, 0 guards
+        oracle: 12 differences
+OK      Views.sysml                                   354 tokens, 237 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Requirements.sysml                            380 tokens, 230 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Interfaces.sysml                              270 tokens, 164 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      Actions.sysml                                 1271 tokens, 881 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      UseCases.sysml                                135 tokens, 72 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Items.sysml                                   484 tokens, 366 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      Metadata.sysml                                75 tokens, 33 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Allocations.sysml                             64 tokens, 32 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      Calculations.sysml                            90 tokens, 40 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Constraints.sysml                             91 tokens, 42 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Attributes.sysml                              36 tokens, 13 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Ports.sysml                                   110 tokens, 69 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      StandardViewDefinitions.sysml                 98 tokens, 40 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Connections.sysml                             196 tokens, 69 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      Cases.sysml                                   156 tokens, 90 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      RequirementDerivation.sysml                   111 tokens, 68 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      DerivationConnections.sysml                   119 tokens, 93 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      SI.sysml                                      4534 tokens, 3595 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQBase.sysml                                 638 tokens, 499 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Quantities.sysml                              319 tokens, 187 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQLight.sysml                                4982 tokens, 3957 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQElectromagnetism.sysml                     8238 tokens, 6633 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQCondensedMatter.sysml                      2437 tokens, 1882 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      MeasurementRefCalculations.sysml              258 tokens, 177 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      USCustomaryUnits.sysml                        4284 tokens, 3273 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQMechanics.sysml                            4911 tokens, 3844 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      VectorCalculations.sysml                      523 tokens, 402 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      SIPrefixes.sysml                              618 tokens, 528 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQSpaceTime.sysml                            2973 tokens, 2144 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQAcoustics.sysml                            1089 tokens, 814 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQ.sysml                                     173 tokens, 79 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      MeasurementReferences.sysml                   1193 tokens, 839 nodes, 0 ecore mismatches, 0 guards
+        oracle: 1 differences
+OK      TensorCalculations.sysml                      400 tokens, 304 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQCharacteristicNumbers.sysml                2047 tokens, 1282 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQInformation.sysml                          1893 tokens, 1286 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      Time.sysml                                    567 tokens, 376 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQChemistryMolecular.sysml                   4223 tokens, 3411 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      QuantityCalculations.sysml                    856 tokens, 650 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQAtomicNuclear.sysml                        6504 tokens, 4969 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ISQThermodynamics.sysml                       4322 tokens, 3523 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      AnalysisTooling.sysml                         43 tokens, 23 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      TradeStudies.sysml                            254 tokens, 190 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      SampledFunctions.sysml                        514 tokens, 448 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      StateSpaceRepresentation.sysml                377 tokens, 239 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      CauseAndEffect.sysml                          190 tokens, 115 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      CausationConnections.sysml                    207 tokens, 169 nodes, 0 ecore mismatches, 0 guards
+        oracle: 2 differences
+OK      SpatialItems.sysml                            637 tokens, 461 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ShapeItems.sysml                              5117 tokens, 4986 nodes, 0 ecore mismatches, 0 guards
+        oracle: 52 differences
+OK      RiskMetadata.sysml                            197 tokens, 154 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ParametersOfInterestMetadata.sysml            90 tokens, 60 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ModelingMetadata.sysml                        177 tokens, 115 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+OK      ImageMetadata.sysml                           106 tokens, 80 nodes, 0 ecore mismatches, 0 guards
+        oracle: EXACT MATCH
+58/58 parsed
+
+oracle comparison: 58 files compared, 48 exact matches, 0 without an oracle file
+79 differences in 7 categories; top 400:
+      60  attr-missing:isConstant @ ReferenceUsage
+      10  attr-missing:isConstant @ OccurrenceUsage
+       3  kids-count:ownedRelationship oracle-only:OwningMembership>Multiplicity @ AttributeUsage
+       2  attr-missing:isConstant @ ItemUsage
+       2  attr-missing:isConstant @ PortUsage
+       1  attr-missing:declaredName @ ReferenceUsage
+       1  kids-count:ownedRelationship oracle-only:FeatureMembership>ReferenceUsage @ TransitionUsage

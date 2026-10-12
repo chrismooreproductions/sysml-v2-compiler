@@ -1,0 +1,18 @@
+grammar: 549 productions, 129 keywords, 44 symbols; ecore: 182 classes
+OK      RequirementTest.sysml                         140 tokens, 109 nodes, 0 ecore mismatches, 0 guards
+OK      MultiplicityTest.sysml                        91 tokens, 78 nodes, 0 ecore mismatches, 0 guards
+OK      ConstraintTest.sysml                          414 tokens, 379 nodes, 0 ecore mismatches, 0 guards
+OK      HSUVRequirements.sysml                        100 tokens, 53 nodes, 0 ecore mismatches, 0 guards
+OK      PartTest.sysml                                238 tokens, 144 nodes, 0 ecore mismatches, 0 guards
+OK      InterfaceTest.sysml                           86 tokens, 61 nodes, 0 ecore mismatches, 0 guards
+OK      RequirementDerivationExample.sysml            136 tokens, 98 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleRequirementDerivation.sysml            138 tokens, 97 nodes, 0 ecore mismatches, 0 guards
+OK      MetadataTest.sysml                            131 tokens, 96 nodes, 0 ecore mismatches, 0 guards
+OK      CalculationTest.sysml                         147 tokens, 117 nodes, 0 ecore mismatches, 0 guards
+OK      AnalysisTest.sysml                            85 tokens, 56 nodes, 0 ecore mismatches, 0 guards
+OK      UseCaseTest.sysml                             114 tokens, 72 nodes, 0 ecore mismatches, 0 guards
+OK      ConnectionTest.sysml                          236 tokens, 195 nodes, 0 ecore mismatches, 0 guards
+OK      RootPackageTest.sysml                         38 tokens, 17 nodes, 0 ecore mismatches, 0 guards
+OK      QualifiedNameImportTest.sysml                 33 tokens, 15 nodes, 0 ecore mismatches, 0 guards
+OK      VerificationTest.sysml                        96 tokens, 63 nodes, 0 ecore mismatches, 0 guards
+16/16 parsed

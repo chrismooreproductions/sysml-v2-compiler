@@ -1,0 +1,73 @@
+grammar: 558 productions, 129 keywords, 44 symbols; ecore: 182 classes
+FAIL    Parts.sysml                                   line 51:75 got "as" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+OK      SysML.sysml                                   4594 tokens, 2700 nodes, 1 ecore mismatches, 3 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    VerificationCases.sysml                       line 22:3 got "return" expected ['#' '$' '(' '*' '+' '-' '.' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'accept' 'action' 'actor' 'alias' 'all' 'allocate' 'allocation' 'analysis' 'as' 'assert' 'assign' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'decide' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'false' 'first' 'flow' 'for' 'fork' 'hastype' 'if' 'in' 'include' 'individual' 'inout' 'interface' 'istype' 'item' 'join' 'language' 'locale' 'loop' 'merge' 'message' 'metadata' 'new' 'nonunique' 'not' 'null' 'objective' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'send' 'snapshot' 'standard' 'state' 'subject' 'subsets' 'succession' 'terminate' 'then' 'timeslice' 'true' 'use' 'variant' 'variation' 'verification' 'view' 'viewpoint' 'while' '{' '}' '~' DECIMAL_VALUE EXPONENTIAL_VALUE NAME REGULAR_COMMENT STRING_VALUE]
+OK      AnalysisCases.sysml                           100 tokens, 52 nodes, 1 ecore mismatches, 23 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    States.sysml                                  line 77:48 got "implies" expected ['}']
+FAIL    Flows.sysml                                   line 50:74 got "{" expected ['(' '.' '::']
+FAIL    Views.sysml                                   line 37:3 got "satisfy" expected ['#' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'action' 'alias' 'allocate' 'allocation' 'analysis' 'assert' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'filter' 'first' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'language' 'locale' 'message' 'metadata' 'nonunique' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'render' 'rendering' 'rep' 'requirement' 'snapshot' 'standard' 'state' 'subsets' 'succession' 'then' 'timeslice' 'use' 'variant' 'variation' 'verification' 'view' 'viewpoint' '{' '}' NAME REGULAR_COMMENT]
+FAIL    Requirements.sysml                            line 41:42 got "implies" expected [';' '{']
+FAIL    Interfaces.sysml                              line 29:53 got ".." expected [')' ',' '.']
+FAIL    Actions.sysml                                 line 63:82 got "as" expected ['(' ')' ',' '.' '::' '@@' 'meta']
+OK      UseCases.sysml                                135 tokens, 74 nodes, 1 ecore mismatches, 40 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    Items.sysml                                   line 57:28 got "==" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'locale' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}' REGULAR_COMMENT]
+OK      Metadata.sysml                                75 tokens, 37 nodes, 1 ecore mismatches, 4 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    Allocations.sysml                             line 11:13 got "def" expected [':' '::>' ':>' ':>>' ';' '<' '=>' '[' 'allocate' 'crosses' 'defined' 'nonunique' 'ordered' 'redefines' 'references' 'subsets' '{' NAME]
+OK      Calculations.sysml                            90 tokens, 44 nodes, 1 ecore mismatches, 20 guards
+        mismatches: [prop:Subclassification.superClassifier]
+OK      Constraints.sysml                             91 tokens, 46 nodes, 1 ecore mismatches, 22 guards
+        mismatches: [prop:Subclassification.superClassifier]
+OK      Attributes.sysml                              36 tokens, 15 nodes, 0 ecore mismatches, 2 guards
+OK      Ports.sysml                                   110 tokens, 71 nodes, 2 ecore mismatches, 2 guards
+        mismatches: [prop:PortDefinition.conjugatedPortDefinition.ownedPortConjugator.originalPortDefinition prop:Subclassification.superClassifier]
+OK      StandardViewDefinitions.sysml                 98 tokens, 41 nodes, 1 ecore mismatches, 1 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    Connections.sysml                             line 43:58 got ";" expected ['#' ',' '.' ':' '::' '::>' ':>' ':>>' '=>' '[' 'attribute' 'bind' 'binding' 'crosses' 'defined' 'enum' 'first' 'nonunique' 'ordered' 'redefines' 'ref' 'references' 'subsets' 'succession']
+FAIL    Cases.sysml                                   line 49:3 got "return" expected ['#' '$' '(' '*' '+' '-' '.' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'accept' 'action' 'actor' 'alias' 'all' 'allocate' 'allocation' 'analysis' 'as' 'assert' 'assign' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'decide' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'false' 'first' 'flow' 'for' 'fork' 'hastype' 'if' 'in' 'include' 'individual' 'inout' 'interface' 'istype' 'item' 'join' 'language' 'locale' 'loop' 'merge' 'message' 'metadata' 'new' 'nonunique' 'not' 'null' 'objective' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'send' 'snapshot' 'standard' 'state' 'subject' 'subsets' 'succession' 'terminate' 'then' 'timeslice' 'true' 'use' 'variant' 'variation' 'verification' 'view' 'viewpoint' 'while' '{' '}' '~' DECIMAL_VALUE EXPONENTIAL_VALUE NAME REGULAR_COMMENT STRING_VALUE]
+FAIL    SI.sysml                                      line 28:28 got "/" expected ['.' ';' '{']
+FAIL    ISQBase.sysml                                 line 36:82 got ";" expected ['(' '.' '::']
+FAIL    Quantities.sysml                              line 31:51 got ";" expected ['(' '.' '::']
+FAIL    ISQLight.sysml                                line 44:82 got ";" expected ['(' '.' '::']
+FAIL    ISQElectromagnetism.sysml                     line 49:84 got ";" expected ['(' '.' '::']
+FAIL    ISQCondensedMatter.sysml                      line 91:82 got ";" expected ['(' '.' '::']
+OK      MeasurementRefCalculations.sysml              258 tokens, 195 nodes, 1 ecore mismatches, 61 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    USCustomaryUnits.sysml                        line 13:127 got "^" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    ISQMechanics.sysml                            line 47:82 got ";" expected ['(' '.' '::']
+FAIL    VectorCalculations.sysml                      line 18:46 got ";" expected ['(' '.' '::']
+FAIL    SIPrefixes.sysml                              line 41:100 got "^" expected ['.' ';' '{']
+FAIL    ISQSpaceTime.sysml                            line 181:45 got "#" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    ISQAcoustics.sysml                            line 184:82 got ";" expected ['(' '.' '::']
+FAIL    ISQ.sysml                                     line 39:103 got ";" expected ['(' '.' '::']
+FAIL    MeasurementReferences.sysml                   line 134:70 got "==" expected ['(' '.' '::']
+FAIL    TensorCalculations.sysml                      line 19:46 got ";" expected ['(' '.' '::']
+OK      ISQCharacteristicNumbers.sysml                2047 tokens, 1286 nodes, 1 ecore mismatches, 4 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    ISQInformation.sysml                          line 170:84 got ";" expected ['(' '.' '::']
+OK      Time.sysml                                    567 tokens, 459 nodes, 1 ecore mismatches, 144 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    ISQChemistryMolecular.sysml                   line 85:80 got ";" expected ['(' '.' '::']
+FAIL    QuantityCalculations.sysml                    line 20:63 got ")" expected ['(' '.' '::']
+FAIL    ISQAtomicNuclear.sysml                        line 235:82 got ";" expected ['(' '.' '::']
+FAIL    ISQThermodynamics.sysml                       line 51:103 got ";" expected ['(' '.' '::']
+OK      AnalysisTooling.sysml                         43 tokens, 24 nodes, 0 ecore mismatches, 1 guards
+FAIL    TradeStudies.sysml                            line 77:50 got "==" expected ['}']
+FAIL    SampledFunctions.sysml                        line 42:6 got ".." expected [')' ',' '.']
+FAIL    StateSpaceRepresentation.sysml                line 66:39 got "==" expected ['(' '.' '::']
+FAIL    CauseAndEffect.sysml                          line 16:29 got "as" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    CausationConnections.sysml                    line 71:21 got "occurrence" expected ['#' ':' '::>' ':>' ':>>' '=>' 'attribute' 'bind' 'binding' 'crosses' 'defined' 'enum' 'first' 'nonunique' 'ordered' 'redefines' 'ref' 'references' 'subsets' 'succession']
+FAIL    SpatialItems.sysml                            line 78:84 got "as" expected ['(' ')' ',' '.' '::' '@@' 'meta']
+FAIL    ShapeItems.sysml                              line 34:53 got "&" expected ['}']
+FAIL    RiskMetadata.sysml                            line 15:28 got ">=" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}']
+OK      ParametersOfInterestMetadata.sysml            90 tokens, 71 nodes, 3 ecore mismatches, 5 guards
+        mismatches: [class:ResultParameterMembership prop:ResultParameterMembership.ownedMemberFeature prop:Subclassification.superClassifier]
+OK      ModelingMetadata.sysml                        177 tokens, 118 nodes, 0 ecore mismatches, 3 guards
+OK      ImageMetadata.sysml                           106 tokens, 81 nodes, 0 ecore mismatches, 1 guards
+OK      RequirementDerivation.sysml                   111 tokens, 85 nodes, 3 ecore mismatches, 8 guards
+        mismatches: [class:ResultParameterMembership prop:ResultParameterMembership.ownedMemberFeature prop:Subclassification.superClassifier]
+FAIL    DerivationConnections.sysml                   line 46:23 got "->" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'locale' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}' REGULAR_COMMENT]
+17/58 parsed

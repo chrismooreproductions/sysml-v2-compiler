@@ -1,0 +1,108 @@
+grammar: 558 productions, 129 keywords, 44 symbols; ecore: 182 classes
+FAIL    Turbojet Stage Analysis.sysml                 line 8:22 got "*" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    Dynamics.sysml                                line 9:35 got "-" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    Vehicle Analysis Demo.sysml                   line 17:82 got ";" expected ['(' '.' '::']
+OK      AnalysisAnnotation.sysml                      179 tokens, 144 nodes, 0 ecore mismatches, 27 guards
+FAIL    ProductSelection_UnownedEnds.sysml            line 14:7 got "item" expected ['#' ':' '::>' ':>' ':>>' '<' '=>' '[' 'abstract' 'attribute' 'bind' 'binding' 'constant' 'crosses' 'defined' 'derived' 'enum' 'first' 'in' 'inout' 'nonunique' 'ordered' 'out' 'redefines' 'ref' 'references' 'subsets' 'succession' 'variation' NAME]
+FAIL    ProductSelection_N_ary.sysml                  line 9:14 got "item" expected ['#' ':' '::>' ':>' ':>>' '=>' 'attribute' 'bind' 'binding' 'crosses' 'defined' 'enum' 'first' 'nonunique' 'ordered' 'redefines' 'ref' 'references' 'subsets' 'succession']
+FAIL    ProductSelection_OwnedEnds.sysml              line 11:14 got "item" expected ['#' ':' '::>' ':>' ':>>' '=>' 'attribute' 'bind' 'binding' 'crosses' 'defined' 'enum' 'first' 'nonunique' 'ordered' 'redefines' 'ref' 'references' 'subsets' 'succession']
+FAIL    AnalysisIndividualExample.sysml               line 11:82 got ";" expected ['(' '.' '::']
+FAIL    JohnIndividualExample.sysml                   line 45:31 got ">=" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}']
+OK      RiskMetadataExample.sysml                     55 tokens, 57 nodes, 2 ecore mismatches, 12 guards
+        mismatches: [class:Real prop:LiteralExpression.value]
+FAIL    VerificationMetadataExample.sysml             line 7:43 got "demo" expected [')']
+FAIL    RationaleMetadataExample.sysml                line 18:59 got "engine6cyl" expected [')']
+OK      RequirementMetadataExample.sysml              120 tokens, 118 nodes, 3 ecore mismatches, 20 guards
+        mismatches: [class:ResultParameterMembership prop:ResultParameterMembership.ownedMemberFeature prop:Subclassification.superClassifier]
+FAIL    IssueMetadataExample.sysml                    line 7:100 got "+" expected [';' '{']
+OK      HSUVRequirements.sysml                        100 tokens, 54 nodes, 0 ecore mismatches, 1 guards
+FAIL    RequirementDerivationExample.sysml            line 27:3 got "satisfy" expected ['#' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'action' 'alias' 'allocate' 'allocation' 'analysis' 'assert' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'first' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'language' 'locale' 'message' 'metadata' 'nonunique' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'snapshot' 'standard' 'state' 'subsets' 'succession' 'then' 'timeslice' 'use' 'variant' 'variation' 'verification' 'view' 'viewpoint' '{' '}' NAME REGULAR_COMMENT]
+FAIL    VehicleRequirementDerivation.sysml            line 19:29 got "<=" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}']
+OK      PrivateImportTest.sysml                       70 tokens, 32 nodes, 0 ecore mismatches, 5 guards
+OK      CircularImport.sysml                          86 tokens, 41 nodes, 0 ecore mismatches, 4 guards
+OK      AliasImport.sysml                             32 tokens, 15 nodes, 0 ecore mismatches, 1 guards
+OK      QualifiedNameImportTest.sysml                 33 tokens, 16 nodes, 0 ecore mismatches, 1 guards
+FAIL    ServerSequenceOutsideRealization-3.sysml      line 44:5 got "{" expected ['.' '::']
+FAIL    ServerSequenceOutsideRealization-2.sysml      line 23:20 got "send" expected [':' '::>' ':=' ':>' ':>>' ';' '=' '=>' '[' 'accept' 'assign' 'crosses' 'default' 'defined' 'for' 'if' 'loop' 'nonunique' 'ordered' 'redefines' 'references' 'subsets' 'terminate' 'while' '{']
+FAIL    ServerSequenceModelOutside.sysml              line 6:54 got ";" expected ['(' '.' '::']
+FAIL    ServerSequenceRealization-2.sysml             line 19:20 got "send" expected [':' '::>' ':=' ':>' ':>>' ';' '=' '=>' '[' 'accept' 'assign' 'crosses' 'default' 'defined' 'for' 'if' 'loop' 'nonunique' 'ordered' 'redefines' 'references' 'subsets' 'terminate' 'while' '{']
+FAIL    ServerSequenceRealization-3.sysml             line 41:89 got ";" expected ['.' '::']
+OK      ServerSequenceModel.sysml                     138 tokens, 109 nodes, 0 ecore mismatches, 2 guards
+FAIL    Flashlight Example.sysml                      line 18:41 got ";" expected ['(' '.' '::']
+FAIL    SimpleQuadcopter.sysml                        line 16:29 got "[" expected ['.' ';' '{']
+FAIL    CarWithEnvelopingShape.sysml                  line 12:22 got "[" expected ['.' ';' '{']
+FAIL    ExternalShapeRefExample.sysml                 line 26:20 got "[" expected ['.' ';' '{']
+FAIL    VehicleGeometryAndCoordinateFrames.sysml      line 24:39 got "[" expected [')' ',' '.']
+FAIL    CarWithShapeAndCSG.sysml                      line 18:42 got "[" expected [')' ',' '.']
+OK      Packets.sysml                                 113 tokens, 57 nodes, 1 ecore mismatches, 2 guards
+        mismatches: [prop:Subclassification.superClassifier]
+OK      PacketUsage.sysml                             48 tokens, 25 nodes, 0 ecore mismatches, 2 guards
+FAIL    AHFSequences.sysml                            line 12:55 got "{" expected ['(' '.' '::']
+FAIL    AHFProfileLib.sysml                           line 1:1 got "library" expected ['#' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'action' 'alias' 'allocate' 'allocation' 'analysis' 'assert' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'filter' 'first' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'language' 'locale' 'message' 'metadata' 'nonunique' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'snapshot' 'standard' 'state' 'subsets' 'succession' 'timeslice' 'use' 'variation' 'verification' 'view' 'viewpoint' '{' NAME REGULAR_COMMENT]
+FAIL    AHFCoreLib.sysml                              line 2:1 got "library" expected ['#' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'action' 'alias' 'allocate' 'allocation' 'analysis' 'assert' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'filter' 'first' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'language' 'locale' 'message' 'metadata' 'nonunique' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'snapshot' 'standard' 'state' 'subsets' 'succession' 'timeslice' 'use' 'variation' 'verification' 'view' 'viewpoint' '{' NAME REGULAR_COMMENT]
+FAIL    AHFNorwayTopics.sysml                         line 60:70 got ";" expected ['(' '.' '::']
+OK      Comments.sysml                                33 tokens, 24 nodes, 0 ecore mismatches, 0 guards
+FAIL    VehicleDefinitions.sysml                      line 52:36 got "to" expected ['.' '::']
+FAIL    VehicleIndividuals.sysml                      line 14:36 got "[" expected ['.' ';' '{']
+FAIL    VehicleUsages.sysml                           line 14:12 got "[" expected [';' '{']
+FAIL    SysML v2 Spec Annex A SimpleVehicleModel.sysml line 51:56 got "<=" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}']
+FAIL    VehicleVariabilityModel.sysml                 line 89:26 got "==" expected ['(' ')' ',' '.' '::' '@@' 'meta']
+FAIL    Vehicles.sysml                                line 26:25 got "[" expected ['.' ';' '{']
+FAIL    MassRollup.sysml                              line 17:9 got "+" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    MassConstraintExample.sysml                   line 15:35 got "+" expected ['(' '.' '::']
+FAIL    StructuredControlTest.sysml                   line 7:8 got "<" expected ['(' '.' '::' '@@' 'action' 'meta' '{']
+OK      DependencyTest.sysml                          52 tokens, 25 nodes, 0 ecore mismatches, 1 guards
+FAIL    RequirementTest.sysml                         line 21:3 got "satisfy" expected ['#' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'action' 'alias' 'allocate' 'allocation' 'analysis' 'assert' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'first' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'language' 'locale' 'message' 'metadata' 'nonunique' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'snapshot' 'standard' 'state' 'subsets' 'succession' 'then' 'timeslice' 'use' 'variant' 'variation' 'verification' 'view' 'viewpoint' '{' '}' NAME REGULAR_COMMENT]
+FAIL    ConjugationTest.sysml                         line 10:7 got "port" expected ['#' ':' '::>' ':>' ':>>' '<' '=>' '[' 'abstract' 'attribute' 'bind' 'binding' 'constant' 'crosses' 'defined' 'derived' 'enum' 'first' 'in' 'inout' 'nonunique' 'ordered' 'out' 'redefines' 'ref' 'references' 'subsets' 'succession' 'variation' NAME]
+OK      IndividualTest.sysml                          130 tokens, 77 nodes, 1 ecore mismatches, 0 guards
+        mismatches: [prop:Subclassification.superClassifier]
+OK      MultiplicityTest.sysml                        91 tokens, 90 nodes, 0 ecore mismatches, 2 guards
+OK      EnumerationTest.sysml                         130 tokens, 95 nodes, 3 ecore mismatches, 18 guards
+        mismatches: [class:Real prop:LiteralExpression.value prop:Subclassification.superClassifier]
+FAIL    ConstraintTest.sysml                          line 10:13 got "==" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}']
+FAIL    PartTest.sysml                                line 25:23 got "to" expected ['.' '::']
+OK      CommentTest.sysml                             49 tokens, 38 nodes, 0 ecore mismatches, 0 guards
+OK      AliasTest.sysml                               71 tokens, 53 nodes, 0 ecore mismatches, 1 guards
+OK      DefaultValueTest.sysml                        54 tokens, 41 nodes, 1 ecore mismatches, 18 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    ControlNodeTest.sysml                         line 10:12 got "to" expected ['.' '::']
+OK      ImportTest.sysml                              69 tokens, 27 nodes, 1 ecore mismatches, 4 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    AllocationTest.sysml                          line 22:13 got "def" expected [':' '::>' ':>' ':>>' ';' '<' '=>' '[' 'allocate' 'crosses' 'defined' 'nonunique' 'ordered' 'redefines' 'references' 'subsets' '{' NAME]
+OK      OccurrenceTest.sysml                          101 tokens, 64 nodes, 0 ecore mismatches, 0 guards
+OK      VariabilityTest.sysml                         123 tokens, 64 nodes, 1 ecore mismatches, 8 guards
+        mismatches: [prop:Subclassification.superClassifier]
+FAIL    MetadataTest.sysml                            line 4:2 got "library" expected ['#' ':' '::>' ':=' ':>' ':>>' ';' '<' '=' '=>' '@' '[' 'abstract' 'action' 'alias' 'allocate' 'allocation' 'analysis' 'assert' 'attribute' 'bind' 'binding' 'calc' 'case' 'comment' 'concern' 'connect' 'connection' 'constant' 'constraint' 'crosses' 'default' 'defined' 'dependency' 'derived' 'doc' 'end' 'enum' 'event' 'exhibit' 'filter' 'first' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'language' 'locale' 'message' 'metadata' 'nonunique' 'occurrence' 'ordered' 'out' 'package' 'part' 'perform' 'port' 'private' 'protected' 'public' 'redefines' 'ref' 'references' 'rendering' 'rep' 'requirement' 'snapshot' 'standard' 'state' 'subsets' 'succession' 'timeslice' 'use' 'variation' 'verification' 'view' 'viewpoint' '{' '}' NAME REGULAR_COMMENT]
+OK      ParameterTest.sysml                           97 tokens, 103 nodes, 0 ecore mismatches, 44 guards
+FAIL    TradeStudyTest.sysml                          line 10:38 got "engine2" expected [')']
+FAIL    DecisionTest.sysml                            line 5:7 got "==" expected ['(' '.' '::' '@@' 'action' 'meta' 'then' '{']
+OK      TextualRepresentationTest.sysml               48 tokens, 26 nodes, 0 ecore mismatches, 5 guards
+FAIL    CalculationTest.sysml                         line 14:33 got ";" expected ['(' '.' '::']
+OK      ItemTest.sysml                                72 tokens, 44 nodes, 1 ecore mismatches, 0 guards
+        mismatches: [prop:PortDefinition.conjugatedPortDefinition.ownedPortConjugator.originalPortDefinition]
+FAIL    AnalysisTest.sysml                            line 21:2 got "}" expected ['(' '.' '::']
+OK      UseCaseTest.sysml                             114 tokens, 78 nodes, 0 ecore mismatches, 34 guards
+FAIL    ConnectionTest.sysml                          line 33:11 got ";" expected ['#' ':' '::>' ':>' ':>>' '=>' '[' 'attribute' 'bind' 'binding' 'crosses' 'defined' 'enum' 'first' 'nonunique' 'ordered' 'redefines' 'ref' 'references' 'subsets' 'succession']
+FAIL    StateTest.sysml                               line 13:15 got "S1" expected ['#' '[' 'abstract' 'action' 'allocate' 'allocation' 'analysis' 'assert' 'calc' 'case' 'concern' 'connect' 'connection' 'constant' 'constraint' 'derived' 'event' 'exhibit' 'flow' 'in' 'include' 'individual' 'inout' 'interface' 'item' 'message' 'occurrence' 'out' 'part' 'perform' 'port' 'private' 'protected' 'public' 'ref' 'rendering' 'requirement' 'snapshot' 'state' 'succession' 'then' 'timeslice' 'use' 'variation' 'verification' 'view' 'viewpoint']
+FAIL    FeaturePathTest.sysml                         line 9:17 got ";" expected ['(' '.' '::']
+OK      RootPackageTest.sysml                         38 tokens, 6 nodes, 0 ecore mismatches, 2 guards
+OK      ViewTest.sysml                                121 tokens, 72 nodes, 0 ecore mismatches, 1 guards
+FAIL    AssignmentTest.sysml                          line 7:26 got "+" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    VerificationTest.sysml                        line 21:33 got "==" expected ['(' '.' '::']
+FAIL    ActionTest.sysml                              line 18:27 got "[" expected ['.' ';' 'via' '{']
+FAIL    TimeVaryingAttribute.sysml                    line 12:58 got "+" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    EVSample.sysml                                line 6:64 got "*" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    CartSample.sysml                              line 42:57 got "/" expected ['(' '.' '::']
+OK      Camera.sysml                                  40 tokens, 28 nodes, 0 ecore mismatches, 1 guards
+FAIL    PictureTaking.sysml                           line 9:36 got "to" expected ['.' '::']
+OK      RoomModel.sysml                               274 tokens, 216 nodes, 2 ecore mismatches, 6 guards
+        mismatches: [prop:ConjugatedPortTyping.originalPortDefinition prop:PortDefinition.conjugatedPortDefinition.ownedPortConjugator.originalPortDefinition]
+OK      CauseAndEffectExample.sysml                   233 tokens, 204 nodes, 3 ecore mismatches, 5 guards
+        mismatches: [class:Boolean class:Real prop:LiteralExpression.value]
+OK      MedicalDeviceFailure.sysml                    74 tokens, 62 nodes, 0 ecore mismatches, 1 guards
+FAIL    Wheel Package - Updated.sysml                 line 11:19 got "/" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    Wheel Package.sysml                           line 9:19 got "/" expected ['(' '.' '::' ';' '@@' 'meta' '{']
+FAIL    HSUVDynamics.sysml                            line 21:6 got "==" expected ['(' '.' ':' '::' '::>' ':=' ':>' ':>>' ';' '=' '=>' '@@' '[' 'crosses' 'default' 'defined' 'meta' 'nonunique' 'ordered' 'redefines' 'references' 'send' 'subsets' '{' '}']
+FAIL    Vehicle Decomposition - Updated.sysml         line 53:30 got ";" expected ['(' '.' '::']
+FAIL    Vehicle Decomposition.sysml                   line 18:30 got ";" expected ['(' '.' '::']
+32/95 parsed

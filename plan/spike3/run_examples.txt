@@ -1,0 +1,97 @@
+grammar: 549 productions, 129 keywords, 44 symbols; ecore: 182 classes
+OK      Turbojet Stage Analysis.sysml                 415 tokens, 331 nodes, 0 ecore mismatches, 0 guards
+OK      Dynamics.sysml                                508 tokens, 483 nodes, 0 ecore mismatches, 0 guards
+OK      Vehicle Analysis Demo.sysml                   1143 tokens, 889 nodes, 0 ecore mismatches, 0 guards
+OK      AnalysisAnnotation.sysml                      179 tokens, 131 nodes, 0 ecore mismatches, 0 guards
+OK      ProductSelection_UnownedEnds.sysml            171 tokens, 146 nodes, 0 ecore mismatches, 0 guards
+OK      ProductSelection_N_ary.sysml                  113 tokens, 103 nodes, 0 ecore mismatches, 0 guards
+OK      ProductSelection_OwnedEnds.sysml              231 tokens, 208 nodes, 0 ecore mismatches, 0 guards
+OK      AnalysisIndividualExample.sysml               415 tokens, 247 nodes, 0 ecore mismatches, 0 guards
+OK      JohnIndividualExample.sysml                   112 tokens, 82 nodes, 0 ecore mismatches, 0 guards
+OK      RiskMetadataExample.sysml                     55 tokens, 44 nodes, 0 ecore mismatches, 0 guards
+OK      VerificationMetadataExample.sysml             53 tokens, 35 nodes, 0 ecore mismatches, 0 guards
+OK      RationaleMetadataExample.sysml                72 tokens, 51 nodes, 0 ecore mismatches, 0 guards
+OK      RequirementMetadataExample.sysml              120 tokens, 94 nodes, 0 ecore mismatches, 0 guards
+OK      IssueMetadataExample.sysml                    83 tokens, 62 nodes, 0 ecore mismatches, 0 guards
+OK      HSUVRequirements.sysml                        100 tokens, 53 nodes, 0 ecore mismatches, 0 guards
+OK      RequirementDerivationExample.sysml            136 tokens, 98 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleRequirementDerivation.sysml            138 tokens, 97 nodes, 0 ecore mismatches, 0 guards
+OK      PrivateImportTest.sysml                       70 tokens, 28 nodes, 0 ecore mismatches, 0 guards
+OK      CircularImport.sysml                          86 tokens, 37 nodes, 0 ecore mismatches, 0 guards
+OK      AliasImport.sysml                             32 tokens, 14 nodes, 0 ecore mismatches, 0 guards
+OK      QualifiedNameImportTest.sysml                 33 tokens, 15 nodes, 0 ecore mismatches, 0 guards
+OK      ServerSequenceOutsideRealization-3.sysml      787 tokens, 812 nodes, 0 ecore mismatches, 0 guards
+OK      ServerSequenceOutsideRealization-2.sysml      412 tokens, 429 nodes, 0 ecore mismatches, 0 guards
+OK      ServerSequenceModelOutside.sysml              88 tokens, 84 nodes, 0 ecore mismatches, 0 guards
+OK      ServerSequenceRealization-2.sysml             459 tokens, 478 nodes, 0 ecore mismatches, 0 guards
+OK      ServerSequenceRealization-3.sysml             744 tokens, 780 nodes, 0 ecore mismatches, 0 guards
+OK      ServerSequenceModel.sysml                     138 tokens, 113 nodes, 0 ecore mismatches, 0 guards
+OK      Flashlight Example.sysml                      191 tokens, 156 nodes, 0 ecore mismatches, 0 guards
+OK      SimpleQuadcopter.sysml                        1329 tokens, 1142 nodes, 0 ecore mismatches, 0 guards
+OK      CarWithEnvelopingShape.sysml                  58 tokens, 41 nodes, 0 ecore mismatches, 0 guards
+OK      ExternalShapeRefExample.sysml                 107 tokens, 72 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleGeometryAndCoordinateFrames.sysml      786 tokens, 636 nodes, 0 ecore mismatches, 0 guards
+OK      CarWithShapeAndCSG.sysml                      442 tokens, 367 nodes, 0 ecore mismatches, 0 guards
+OK      Packets.sysml                                 113 tokens, 55 nodes, 0 ecore mismatches, 0 guards
+OK      PacketUsage.sysml                             48 tokens, 23 nodes, 0 ecore mismatches, 0 guards
+OK      AHFSequences.sysml                            575 tokens, 646 nodes, 0 ecore mismatches, 0 guards
+OK      AHFProfileLib.sysml                           395 tokens, 262 nodes, 0 ecore mismatches, 0 guards
+OK      AHFCoreLib.sysml                              147 tokens, 128 nodes, 0 ecore mismatches, 0 guards
+OK      AHFNorwayTopics.sysml                         584 tokens, 677 nodes, 0 ecore mismatches, 0 guards
+OK      Comments.sysml                                33 tokens, 24 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleDefinitions.sysml                      158 tokens, 91 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleIndividuals.sysml                      238 tokens, 149 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleUsages.sysml                           345 tokens, 270 nodes, 0 ecore mismatches, 0 guards
+OK      SysML v2 Spec Annex A SimpleVehicleModel.sysml 6971 tokens, 5554 nodes, 0 ecore mismatches, 0 guards
+OK      VehicleVariabilityModel.sysml                 540 tokens, 363 nodes, 0 ecore mismatches, 0 guards
+OK      Vehicles.sysml                                113 tokens, 68 nodes, 0 ecore mismatches, 0 guards
+OK      MassRollup.sysml                              108 tokens, 82 nodes, 0 ecore mismatches, 0 guards
+OK      MassConstraintExample.sysml                   393 tokens, 276 nodes, 0 ecore mismatches, 0 guards
+OK      StructuredControlTest.sysml                   138 tokens, 222 nodes, 0 ecore mismatches, 0 guards
+OK      DependencyTest.sysml                          52 tokens, 24 nodes, 0 ecore mismatches, 0 guards
+OK      RequirementTest.sysml                         102 tokens, 74 nodes, 0 ecore mismatches, 0 guards
+OK      ConjugationTest.sysml                         132 tokens, 76 nodes, 0 ecore mismatches, 0 guards
+OK      IndividualTest.sysml                          130 tokens, 77 nodes, 0 ecore mismatches, 0 guards
+OK      MultiplicityTest.sysml                        91 tokens, 78 nodes, 0 ecore mismatches, 0 guards
+OK      EnumerationTest.sysml                         130 tokens, 85 nodes, 0 ecore mismatches, 0 guards
+OK      ConstraintTest.sysml                          414 tokens, 379 nodes, 0 ecore mismatches, 0 guards
+OK      PartTest.sysml                                230 tokens, 140 nodes, 0 ecore mismatches, 0 guards
+OK      CommentTest.sysml                             49 tokens, 40 nodes, 0 ecore mismatches, 0 guards
+OK      AliasTest.sysml                               71 tokens, 52 nodes, 0 ecore mismatches, 0 guards
+OK      DefaultValueTest.sysml                        54 tokens, 37 nodes, 0 ecore mismatches, 0 guards
+OK      ControlNodeTest.sysml                         94 tokens, 119 nodes, 0 ecore mismatches, 0 guards
+OK      ImportTest.sysml                              69 tokens, 23 nodes, 0 ecore mismatches, 0 guards
+OK      AllocationTest.sysml                          114 tokens, 86 nodes, 0 ecore mismatches, 0 guards
+OK      OccurrenceTest.sysml                          101 tokens, 57 nodes, 0 ecore mismatches, 0 guards
+OK      VariabilityTest.sysml                         123 tokens, 61 nodes, 0 ecore mismatches, 0 guards
+OK      MetadataTest.sysml                            131 tokens, 96 nodes, 0 ecore mismatches, 0 guards
+OK      ParameterTest.sysml                           97 tokens, 84 nodes, 0 ecore mismatches, 0 guards
+OK      TradeStudyTest.sysml                          74 tokens, 46 nodes, 0 ecore mismatches, 0 guards
+OK      DecisionTest.sysml                            74 tokens, 126 nodes, 0 ecore mismatches, 0 guards
+OK      TextualRepresentationTest.sysml               48 tokens, 23 nodes, 0 ecore mismatches, 0 guards
+OK      CalculationTest.sysml                         147 tokens, 117 nodes, 0 ecore mismatches, 0 guards
+OK      ItemTest.sysml                                72 tokens, 36 nodes, 0 ecore mismatches, 0 guards
+OK      AnalysisTest.sysml                            85 tokens, 56 nodes, 0 ecore mismatches, 0 guards
+OK      UseCaseTest.sysml                             114 tokens, 72 nodes, 0 ecore mismatches, 0 guards
+OK      ConnectionTest.sysml                          236 tokens, 195 nodes, 0 ecore mismatches, 0 guards
+OK      StateTest.sysml                               192 tokens, 237 nodes, 0 ecore mismatches, 0 guards
+OK      FeaturePathTest.sysml                         142 tokens, 122 nodes, 0 ecore mismatches, 0 guards
+OK      RootPackageTest.sysml                         38 tokens, 17 nodes, 0 ecore mismatches, 0 guards
+OK      ViewTest.sysml                                121 tokens, 70 nodes, 0 ecore mismatches, 0 guards
+OK      AssignmentTest.sysml                          178 tokens, 264 nodes, 0 ecore mismatches, 0 guards
+OK      VerificationTest.sysml                        96 tokens, 63 nodes, 0 ecore mismatches, 0 guards
+OK      ActionTest.sysml                              195 tokens, 265 nodes, 0 ecore mismatches, 0 guards
+OK      TimeVaryingAttribute.sysml                    152 tokens, 118 nodes, 0 ecore mismatches, 0 guards
+OK      EVSample.sysml                                1246 tokens, 853 nodes, 0 ecore mismatches, 0 guards
+OK      CartSample.sysml                              226 tokens, 153 nodes, 0 ecore mismatches, 0 guards
+OK      Camera.sysml                                  40 tokens, 27 nodes, 0 ecore mismatches, 0 guards
+OK      PictureTaking.sysml                           60 tokens, 48 nodes, 0 ecore mismatches, 0 guards
+OK      RoomModel.sysml                               274 tokens, 204 nodes, 0 ecore mismatches, 0 guards
+OK      CauseAndEffectExample.sysml                   233 tokens, 201 nodes, 0 ecore mismatches, 0 guards
+OK      MedicalDeviceFailure.sysml                    74 tokens, 61 nodes, 0 ecore mismatches, 0 guards
+OK      Wheel Package - Updated.sysml                 302 tokens, 225 nodes, 0 ecore mismatches, 0 guards
+OK      Wheel Package.sysml                           318 tokens, 234 nodes, 0 ecore mismatches, 0 guards
+OK      HSUVDynamics.sysml                            497 tokens, 379 nodes, 0 ecore mismatches, 0 guards
+OK      Vehicle Decomposition - Updated.sysml         210 tokens, 159 nodes, 0 ecore mismatches, 0 guards
+OK      Vehicle Decomposition.sysml                   225 tokens, 176 nodes, 0 ecore mismatches, 0 guards
+95/95 parsed
