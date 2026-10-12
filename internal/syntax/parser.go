@@ -13,10 +13,18 @@ import (
 
 // Parse parses a SysML v2 or KerML document. It returns the root Namespace.
 //
-// The grammars are ambiguous in places, so the parser keeps every way a rule
-// can match and chooses a complete parse by trying alternatives in grammar
-// order. When there is none, the error reports the furthest position reached
-// and what could have continued the input there.
+// Ambiguity. The Xtext grammars are written for a backtracking parser and are
+// ambiguous in places, so the parser explores alternatives and, for each rule
+// and start position, keeps one match per distinct end position: the first one
+// in grammar order. The parse it returns is the first complete one found by
+// that rule. This is a policy, not a proof of uniqueness: a backtracking
+// search abandons many speculative branches that differ from the one it keeps
+// (a count of them is not a measure of ambiguity), and what matters is that the
+// parse chosen equals the pilot implementation's. The conformance suite checks
+// that against the pilot's own serialization of the standard library.
+//
+// When no complete parse exists, the error reports the furthest position
+// reached and the tokens that could have continued the input there.
 func Parse(lang grammar.Language, file, src string) (*Node, error) {
 	g, err := grammar.Load(lang)
 	if err != nil {
