@@ -15,6 +15,7 @@ import (
 // children, built from either our node tree or the oracle XMI so the two
 // can be diffed structurally.
 type cn struct {
+	chain  []*cn // a feature chain the pilot generates: its chaining features, in order
 	id     string
 	key    string // position in the file: role[index] path, with the file name
 	file   string

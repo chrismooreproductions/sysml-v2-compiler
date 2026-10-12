@@ -30,6 +30,7 @@ type world struct {
 	libCache     map[string]*cn    // library elements by qualified name
 	implMemo     map[*cn][]ig
 	implBusy     map[*cn]bool
+	chains       map[[2]*cn]*cn // generated feature chains, by their two features
 	impliedByKey map[string]*cn // the implied serialization\'s plain elements by position
 }
 
@@ -344,7 +345,7 @@ func (w *world) generalTypes(t *cn) []*cn {
 		}
 	}
 	if w.is(t, "Feature") {
-		if ch := w.rels(t, "FeatureChaining"); len(ch) > 0 {
+		if ch := w.rels(t, "FeatureChaining"); len(ch) > 0 || len(t.chain) > 0 {
 			if f := w.basicFeature(t); f != nil {
 				out = append(out, f)
 			}
@@ -783,6 +784,9 @@ func (w *world) basicFeature(f *cn) *cn {
 	if f == nil {
 		return nil
 	}
+	if len(f.chain) > 0 {
+		return f.chain[len(f.chain)-1]
+	}
 	if ch := w.rels(f, "FeatureChaining"); len(ch) > 0 {
 		last := ch[len(ch)-1]
 		for i, k := range last.kids {
@@ -912,7 +916,7 @@ func worldMain() {
 	sort.Strings(files)
 
 	w := &world{mineByKey: map[string]*cn{}, oracleByKey: map[string]*cn{}, oracleByID: map[string]*cn{},
-		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}, implMemo: map[*cn][]ig{}, implBusy: map[*cn]bool{}, impliedByKey: map[string]*cn{}}
+		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}, implMemo: map[*cn][]ig{}, implBusy: map[*cn]bool{}, chains: map[[2]*cn]*cn{}, impliedByKey: map[string]*cn{}}
 	oracleRoots := map[string]*cn{}
 	impliedRoots := map[string]*cn{}
 	impliedByID := map[string]*cn{}

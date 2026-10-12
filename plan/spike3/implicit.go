@@ -45,6 +45,16 @@ func (w *world) implicit(t *cn) []ig {
 		}
 		out = append(out, ig{kind, g})
 	}
+	if src := w.chainSourceTarget(t); src != nil {
+		// FeatureChainExpressionAdapter.addTargetRedefinition: the source target
+		// redefines the library target and the chain's own target, and gets no
+		// other implicit general type.
+		add("Redefinition", w.libraryElement(implicitKind("FeatureChainExpression", "target")))
+		add("Redefinition", w.chainTarget(src))
+		w.implMemo[t] = out
+		delete(w.implBusy, t)
+		return out
+	}
 	if w.is(t, "Type") && len(w.rels(t, "Conjugation")) == 0 {
 		// OperatorExpressionAdapter.computeImplicitGeneralTypes
 		if w.is(t, "OperatorExpression") {
@@ -86,6 +96,10 @@ func (w *world) implicit(t *cn) []ig {
 		// FeatureAdapter.addRedefinitions
 		if w.is(t, "Feature") {
 			w.addRedefinitions(t, add)
+		}
+		if w.is(t, "Feature") {
+			w.addBoundValue(t, add)
+			w.addPushedByOwner(t, add)
 		}
 		out = w.removeUnnecessary(t, out)
 	}
@@ -428,4 +442,131 @@ func (w *world) defaultKind(t *cn, soFar []ig) string {
 		}
 	}
 	return "base"
+}
+
+// chainFeatures mirrors FeatureUtil.chainFeatures: a feature the pilot
+// generates, chaining two features. It has no source position.
+func (w *world) chainFeatures(a, b *cn) *cn {
+	k := [2]*cn{a, b}
+	if c, ok := w.chains[k]; ok {
+		return c
+	}
+	c := &cn{class: "Feature", attrs: map[string]string{}, chain: []*cn{a, b}}
+	w.chains[k] = c
+	return c
+}
+
+// resultOf is an expression's result parameter (Expression.result).
+func (w *world) resultOf(e *cn) *cn {
+	if !w.is(e, "Expression") {
+		return nil
+	}
+	return w.resultParameterOf(e, map[*cn]bool{})
+}
+
+// addBoundValue mirrors FeatureAdapter.addBoundValueSubsetting: a feature with
+// a value subsets the chain of the value expression and its result, unless
+// it already specializes something or has a direction.
+func (w *world) addBoundValue(f *cn, add func(string, *cn)) {
+	if f.attrs["direction"] != "" || len(w.rels(f, "Specialization")) > 0 {
+		return
+	}
+	for _, fv := range w.rels(f, "FeatureValue") {
+		if fv.attrs["isDefault"] == "true" {
+			return
+		}
+		if value := first1(w.ownedRelated(fv)); value != nil {
+			if res := w.resultOf(value); res != nil {
+				add("Subsetting", w.chainFeatures(value, res))
+			}
+		}
+		return
+	}
+}
+
+func (w *world) isFunctionType(t *cn) bool {
+	if w.is(t, "Function") {
+		return true
+	}
+	if w.is(t, "Feature") {
+		for _, r := range w.rels(t, "FeatureTyping") {
+			for i, k := range r.kids {
+				if k.n == nil && k.role == "type" {
+					if g := w.resolveKid(r, i); g != nil && w.is(g, "Function") {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// addPushedByOwner covers the rules an expression's adapter applies to its
+// own result parameter: reference subsetting, invocation result typing and
+// the feature-chain result.
+func (w *world) addPushedByOwner(f *cn, add func(string, *cn)) {
+	if !w.isResultParameter(f) {
+		return
+	}
+	e := w.featureOwningType(f)
+	if e == nil || w.resultOf(e) != f {
+		return
+	}
+	switch {
+	case w.is(e, "FeatureReferenceExpression"):
+		for _, m := range w.rels(e, "Membership") {
+			if w.is(m, "ParameterMembership") {
+				continue
+			}
+			if r := w.memberElement(m); r != nil && w.is(r, "Feature") {
+				add("Subsetting", r)
+			}
+			break
+		}
+	case w.is(e, "FeatureChainExpression"):
+		var src *cn
+		for _, m := range w.rels(e, "ParameterMembership") {
+			if !w.is(m, "ReturnParameterMembership") {
+				if p := first1(w.ownedRelated(m)); p != nil && p.attrs["direction"] == "in" {
+					src = p
+					break
+				}
+			}
+		}
+		if src != nil {
+			if fs := w.ownedFeatures(src); len(fs) > 0 {
+				add("Subsetting", w.chainFeatures(src, fs[0]))
+			}
+		}
+	case w.is(e, "InvocationExpression"):
+		if inst := w.instantiatedType(e); inst != nil && !w.isFunctionType(inst) {
+			if w.is(inst, "Feature") {
+				add("Subsetting", inst)
+			} else {
+				add("FeatureTyping", inst)
+			}
+		}
+	}
+}
+
+// chainSourceTarget returns the FeatureChainExpression for which f is the
+// anonymous source-target feature (the first owned feature of the source
+// parameter), or nil.
+func (w *world) chainSourceTarget(f *cn) *cn {
+	if !w.is(f, "Feature") || f.attrs["declaredName"] != "" {
+		return nil
+	}
+	param := w.featureOwningType(f)
+	if param == nil || !w.is(param, "Feature") || param.attrs["direction"] != "in" {
+		return nil
+	}
+	e := w.featureOwningType(param)
+	if e == nil || !w.is(e, "FeatureChainExpression") {
+		return nil
+	}
+	if fs := w.ownedFeatures(param); len(fs) == 0 || fs[0] != f {
+		return nil
+	}
+	return e
 }
