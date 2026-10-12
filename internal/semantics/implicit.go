@@ -794,6 +794,11 @@ func (w *Workspace) usageDefaultKind(t *el) string {
 	isSubrequirement := t.IsTrue("isComposite") && w.owningTypeIs(t, "RequirementDefinition", "RequirementUsage") &&
 		!t.Owner.IsA("RequirementConstraintMembership")
 	switch {
+	case t.IsA("ConnectionUsage") && !t.IsA("FlowUsage"):
+		// ConnectionUsageAdapter
+		if w.ownedEndCount(t) == 2 {
+			return "binary"
+		}
 	case t.IsA("AssertConstraintUsage"), t.IsA("SatisfyRequirementUsage"):
 		if t.IsTrue("isNegated") {
 			return "negated"
@@ -912,7 +917,7 @@ func (w *Workspace) occurrenceUsageKinds(t *el, emit func(string), soFar func() 
 		if w.isStructureOwnedComposite(t) {
 			emit("subobject")
 		}
-	case t.IsA("RenderingUsage"), t.IsA("ViewUsage"):
+	case t.IsA("RenderingUsage"), t.IsA("ViewUsage"), t.IsA("ConnectionUsage"):
 		if w.isSubitem(t) {
 			emit("subpart")
 		}
