@@ -36,6 +36,7 @@ go install github.com/chrismooreproductions/sysml-v2-compiler/cmd/sysmlc@latest
 
 sysmlc check   [-nolib] <file or directory>...   syntax errors and unresolved names
 sysmlc resolve [-nolib] <file or directory>...   each reference and its target
+sysmlc implied [-nolib] <file or directory>...   the relationships the specification implies
 sysmlc dump    [-spans] <file>...                the model as a tree
 ```
 
@@ -51,16 +52,19 @@ Exit status: 0 nothing to report, 1 problems in the models, 2 usage or I/O error
   parameters, default multiplicities).
 - **Names:** the KerML/SysML scoping rules, including imports, redefinition,
   feature chains and the standard library.
-- **Not yet:** the implied relationships (implicit specializations, binding
-  connectors for values) are not added to the tree; the specification's
-  validation constraints are not checked; there are no typed accessors per
-  metaclass. See `plan/ROADMAP.md`.
+- **Implied relationships:** the default supertypes, cross features, featuring
+  types and binding connectors the specification adds are computed on request
+  (`ImpliedGeneralizations`, `ImpliedFeaturingTypes`, `ImpliedBindings`,
+  `sysmlc implied`) and match the pilot for 99.79% of the 99,685 in the standard
+  library. They are not yet written into the tree.
+- **Not yet:** the specification's validation constraints are not checked; there
+  are no typed accessors per metaclass. See `plan/ROADMAP.md`.
 
 ## Conformance
 
 The tests compare against the pilot implementation's XMI for the standard
-library (pinned in `UPSTREAM`): 93 of 94 library files match structurally
-exactly, and 99.71% of the 19,119 name references resolve to the same element
+library (pinned in `UPSTREAM`): all 94 library files match structurally
+exactly, and 99.81% of the 19,119 name references resolve to the same element
 the pilot chooses. The remaining differences are listed and ratcheted in
 `internal/conformance`. The XMI files (25 MB and 120 MB) are fetched by
 `tools/fetch-oracle.sh` into `.oracle/`; tests that need them skip when absent
