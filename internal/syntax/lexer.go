@@ -64,11 +64,15 @@ type Token struct {
 	Span Span
 }
 
-// Error is a lexical or syntax error at a position.
+// Error is a lexical or syntax error at a position. For a syntax error, Got
+// and Expected say what was found and what could have continued the input.
 type Error struct {
 	File string
 	Pos  Pos
 	Msg  string
+
+	Got      string   // the unexpected token, or "" at the end of the input
+	Expected []string // sorted: kinds of token ("a name") first, then literals
 }
 
 func (e *Error) Error() string {
