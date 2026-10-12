@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: EPL-2.0
+//
+// Portions derived from the SysML v2 Pilot Implementation (org.omg.sysml.logic adapters and util),
+// Copyright (c) 2018-2025 Model Driven Solutions, Inc. and others, EPL-2.0.
+// See NOTICE.
+
 package main
 
 // The semantic layer: structure the pilot implementation adds after parsing

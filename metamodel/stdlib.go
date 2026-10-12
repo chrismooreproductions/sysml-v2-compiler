@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 package metamodel
 
 // stdlib is a minimal stand-in for a slice of the real OMG Kernel Data

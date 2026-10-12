@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 // spike2 parses the pilot implementation's Xtext grammars into an IR and
 // compares them against the kebnf IR from spike0, to find where the two
 // sources of truth disagree.

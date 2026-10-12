@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 // spike0 parses the OMG .kebnf grammar files into an IR and reports what a
 // grammar-driven parser would have to cope with.
 package main

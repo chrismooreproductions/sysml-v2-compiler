@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 package sysml
 
 // Namespace is the root of a parsed model: an unnamed collection of

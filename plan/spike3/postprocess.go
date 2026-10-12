@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: EPL-2.0
+//
+// Portions derived from the SysML v2 Pilot Implementation (org.omg.kerml.xtext and org.omg.sysml.xtext postprocessing),
+// Copyright (c) 2018-2025 Model Driven Solutions, Inc. and others, EPL-2.0.
+// See NOTICE.
+
 package main
 
 // Tier 1 of the semantic layer: the parser post-processors in the pilot

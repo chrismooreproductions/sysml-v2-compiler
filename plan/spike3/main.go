@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 // spike3 interprets the Xtext grammar IR (from spike2) with a memoizing
 // backtracking matcher and builds a generic node tree. It is spike1 with the
 // Xtext semantics: fragment rules, {Type.prop += current} actions, enum rules

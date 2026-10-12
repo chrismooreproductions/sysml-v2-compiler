@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 // spike1 interprets the kebnf grammar IR with a memoizing backtracking
 // matcher and builds a generic node tree, to test whether a grammar-driven
 // parser is workable.

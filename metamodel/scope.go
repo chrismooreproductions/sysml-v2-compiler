@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 package metamodel
 
 // scope is a per-namespace guard against declaring the same name twice

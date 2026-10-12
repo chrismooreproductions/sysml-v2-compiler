@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 package main
 
 // main is a placeholder: this project is a library (sysml, metamodel) with

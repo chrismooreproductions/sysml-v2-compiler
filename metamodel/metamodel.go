@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 // Package metamodel is the platform's generic model representation: a
 // flat, KerML-shaped element graph. sysml parses SysML source into a
 // syntax-shaped AST; this package translates that AST into Elements

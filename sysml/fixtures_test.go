@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: EPL-2.0
+
 package sysml_test
 
 // vehicleModel is the canonical fixture shared by the lexer and parser
