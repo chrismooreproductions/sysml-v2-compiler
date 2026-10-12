@@ -91,7 +91,7 @@ Each phase ends with a test that can fail.
 
 ### P1. Syntax: parse into a node tree
 
-Port `spike1`/`spike3` into `kerml/syntax` as a clean package.
+Port `spike1`/`spike3` into `internal/syntax` as a clean package.
 
 | # | Item | Done when |
 |---|---|---|
