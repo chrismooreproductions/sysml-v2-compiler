@@ -58,7 +58,7 @@ Exit status: 0 nothing to report, 1 problems in the models, 2 usage or I/O error
   `sysmlc implied`) and match the pilot for 99.79% of the 99,685 in the standard
   library. They are not yet written into the tree.
 - **Not yet:** the specification's validation constraints are not checked; there
-  are no typed accessors per metaclass. See `plan/ROADMAP.md`.
+  are no typed accessors per metaclass.
 
 ## Conformance
 
@@ -82,7 +82,6 @@ and run in CI.
 | `internal/semantics` | structure, implicit types, scoping and resolution |
 | `internal/library` | the embedded standard library |
 | `internal/conformance` | comparison with the pilot's output |
-| `plan/` | roadmap and feasibility spikes |
 
 ## Licence
 

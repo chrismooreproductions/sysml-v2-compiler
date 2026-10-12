@@ -25,9 +25,9 @@ SysML v2 Pilot Implementation
   internal/grammar/xtext, SysML.ecore under internal/schema, and ImplicitGeneralizationMap.java under internal/semantics/upstream, at the tag pinned in UPSTREAM
   (tools/vendor-upstream.sh). The Xtext grammars, the SysML.ecore metamodel and the Java logic under
   org.omg.sysml.logic are the reference for this project's grammar data
-  (plan/spike2/xtext-ir.json, plan/spike3/implicit_table.go) and for the
-  semantic rules ported in plan/spike3 (postprocess.go, semantic.go,
-  implicit.go, resolve.go). Each ported file names the Java it follows.
+  (internal/grammar, internal/schema, internal/semantics) and for the
+  semantic rules ported in internal/postprocess and internal/semantics. Each
+  ported file names the Java it follows.
 
 The Kernel Modeling Language and Systems Modeling Language specifications
 are published by the Object Management Group.

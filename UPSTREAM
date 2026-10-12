@@ -17,7 +17,7 @@ PILOT_COMMIT=692170b71867353b8f90341e61556f49a5beb0e5
 # - The release repo supplies the standard library sources, the examples and
 #   the XMI oracles (sysml.library.xmi, sysml.library.xmi.implied). Its tag
 #   and the pilot's tag are the same release.
-# - The grammar data, ecore and the Java behaviour ported under plan/ were
+# - The grammar data, ecore and the Java behaviour ported into internal/ were
 #   read at the pilot's master (e7a57ab, after this tag). Between the tag and
 #   that commit, none of the files ported so far changed (only
 #   ResourceSetModelLibraryProvider, SysMLLogicStandaloneSetup and

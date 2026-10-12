@@ -8,8 +8,8 @@ is implemented; this file is about *how* to work on it.
 `github.com/chrismooreproductions/sysml-v2-compiler`, Go 1.27. The public API
 is the single package `sysml`; everything else lives under `internal/`
 (grammar, syntax, schema, model, postprocess, semantics, library,
-conformance). `cmd/sysmlc` is the command. `plan/ROADMAP.md` is the plan and
-its status; update the item you finish in the same commit.
+conformance). `cmd/sysmlc` is the command. The roadmap is kept locally in
+`plan/` (git-ignored, not published).
 
 ## Before every commit
 
@@ -93,7 +93,7 @@ without asking, and add vendored sources to `NOTICE`.
 
 ## Plan and README
 
-`plan/ROADMAP.md` tracks phases and is updated with the work. The README's
+`plan/ROADMAP.md` (local only, git-ignored) tracks phases and is updated with the work. The README's
 "covered / not covered" claims must be checked against the current code, not
 left stale.
 

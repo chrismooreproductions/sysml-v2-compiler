@@ -24,13 +24,6 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: Test
         run: go test ./...
-      # The spikes under plan/ are separate modules, so the commands above do
-      # not see them.
-      - name: Vet the spikes
-        run: |
-          for d in plan/spike*/; do
-            (cd "$d" && go vet ./...)
-          done
 
   # Compares the pipeline with the pilot implementation's serialization of the
   # standard library. The oracle is large, so it is downloaded and cached
