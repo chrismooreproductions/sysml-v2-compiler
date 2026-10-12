@@ -6,8 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the hand-written parser, the simplified metamodel and the
+  `metamodel` package are removed. The `sysml` package is new: `Parse`,
+  `Workspace`, `Document`, `Diagnostic`, and a generic model typed by the
+  specification's metaclasses with source spans. The grammar is the OMG pilot
+  implementation's Xtext grammar, so all of SysML v2 and KerML parses.
+- Names resolve across files and the bundled standard library using the pilot's
+  scoping rules; unresolved names report file, position and the scope searched.
+
 ### Added
 
+- `sysmlc` command with `check`, `resolve` and `dump`.
+- Conformance tests against the pilot's XMI for the standard library.
 - `LICENSE` (Eclipse Public License 2.0) and `NOTICE`, crediting the OMG SysML
   v2 release and pilot implementation the project draws on. Every Go file now
   carries an SPDX identifier.

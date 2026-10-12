@@ -5,10 +5,11 @@ is implemented; this file is about *how* to work on it.
 
 ## Module
 
-`github.com/chrismooreproductions/sysml-v2-compiler`, Go 1.27. Two packages:
-`sysml` (lexer/parser, produces an AST) and `metamodel` (translates that
-AST into a flat, KerML-shaped Element/Relationship graph). `main.go` is a
-placeholder — this is a library, not a CLI, today.
+`github.com/chrismooreproductions/sysml-v2-compiler`, Go 1.27. The public API
+is the single package `sysml`; everything else lives under `internal/`
+(grammar, syntax, schema, model, postprocess, semantics, library,
+conformance). `cmd/sysmlc` is the command. `plan/ROADMAP.md` is the plan and
+its status; update the item you finish in the same commit.
 
 ## Before every commit
 
@@ -28,29 +29,16 @@ is the user's to commit, not yours to sweep in.
 
 ## Verify, never guess
 
-This project's single most important habit: when you add parsing
-support, run the parser against the actual input (a real fixture or a
-hand-written snippet) and read the actual output before writing down
-what it does. Do not predict error text, predict which fixture advances
-how far, or write a test assertion from memory of what "should" happen.
-This applies doubly to updating a pinned `wantErr` in
-`spec_examples_test.go` — copy the real error string from a real run.
-
-After any change that *widens* what the parser accepts (a new fallback,
-a new dispatch branch checked broadly), re-run `TestModelParseErrors` in
-full and read every case — confirm nothing that used to correctly fail
-now silently parses.
+Run the code on real input and read the real output before writing down what
+it does. Do not predict error text or a count and pin it from memory; copy it
+from a run. Conformance numbers are ratchets in `internal/conformance`: run
+with the oracle (`tools/fetch-oracle.sh`, or `ORACLE_DIR`), and only raise a
+ratchet to the measured value.
 
 ## Fixtures
 
-`sysml/testdata/spec_examples/` vendors real example files from the OMG
-SysML-v2-Release repo, unmodified (see that directory's own README for
-the license/attribution). Don't edit their contents. `TestModelParseSpec
-Examples` pins each one's current parse blocker verbatim; move a fixture
-to `TestModelParseSpecExamplesSuccess` once it fully parses. When adding
-a new fixture, fetch it from the real repo (`raw.githubusercontent.com/
-Systems-Modeling/SysML-v2-Release/master/sysml/src/examples/...`) and
-diff/compare rather than retype it from memory or an earlier paraphrase.
+`testdata/upstream`, `internal/library` and the xtext/ecore files are copied
+unmodified from the pinned release; never edit them.
 
 ### Upstream sources
 
@@ -64,36 +52,13 @@ downloads them into `.oracle/` (ignored by git). To move to a new release,
 change `UPSTREAM`, re-run the vendoring script and the conformance run, and
 record behaviour changes in `CHANGELOG.md`.
 
-## The DefKind mirroring trap
+## Porting from the pilot
 
-`sysml.DefKind` and `metamodel.DefKind` are two separate Go types kept in
-sync *purely by shared iota ordering* — `translate.go` does a direct
-`DefKind(m.Kind)` numeric cast, not a lookup table. **A new `DefKind`
-constant must always be appended at the end of both packages' const
-blocks, in the same relative order, never inserted in the middle of
-either one alone.** Inserting in the middle silently shifts every later
-constant's value with no compiler error — this has actually happened and
-broke several existing tests before being caught by the full suite. The
-same shared-ordering trap applies to `sysml.Visibility`/
-`metamodel.Visibility`.
-
-## Design pattern: look for structural reuse first
-
-Before writing new AST types or parsing functions for a new grammar
-construct, check whether it's structurally identical to something
-already implemented, just with different keywords. This has been true
-far more often than not in this project:
-
-- `AssertConstraintUsage` and `verify` both turned out to be a plain
-  `Usage` reached a different way (the bare-reference-vs-inline-
-  declaration duality), not a new Member type.
-- `SuccessionAsUsage` (`first a then b;`) is structurally identical to
-  `BindingConnectorAsUsage` (`bind a = b;`), just different keywords.
-- `use case` is just another `CalculationBody`-shaped `DefKind`, like
-  `case`/`analysis`/`verification`.
-
-Re-derive the real grammar (the OMG `.kebnf` files, not memory or a
-summary) before assuming a construct needs new machinery.
+Semantic behaviour is ported from the pilot's Java (adapters, scope
+providers), guided by the oracle diff rather than memory. The generic tree
+means a fix is usually a rule about metaclass and property names; check them
+against `internal/schema`. Prefer the smallest rule that closes a diff, and
+record what remains in the roadmap.
 
 ## Versioning
 
@@ -102,7 +67,7 @@ tag (`vMAJOR.MINOR.PATCH`); there is no version constant in the code to
 keep in sync.
 
 - While the version is `v0.x.y` the API is unstable: a breaking change to
-  `sysml` or `metamodel` exported identifiers bumps MINOR, a new construct
+  `sysml` exported identifiers bumps MINOR, a new construct
   or backward-compatible addition bumps MINOR, a fix bumps PATCH. From
   `v1.0.0` on, breaking changes bump MAJOR (and need a `/v2` module path).
 - Every user-visible change adds a line under `## [Unreleased]` in
@@ -122,37 +87,21 @@ keep in sync.
 The project is EPL-2.0 (`LICENSE`, `NOTICE`). Every Go file starts with
 `// SPDX-License-Identifier: EPL-2.0`. A file that ports or derives from the
 pilot implementation's Java or Xtext also carries the upstream copyright
-notice (see the existing ports under `plan/spike3`) and names the Java it
+notice (see the existing ports under `internal/semantics`) and names the Java it
 follows. Do not vendor anything whose license is not EPL-2.0 or compatible
 without asking, and add vendored sources to `NOTICE`.
 
-## Plan file
+## Plan and README
 
-Multi-phase work is tracked via Claude Code's plan-mode plan file
-(`~/.claude/plans/...`), not in this repo. When starting a genuinely new
-chunk of work (not a continuation of the current phase), prefer a fresh
-plan file over letting one file accumulate unbounded history — but keep
-enough of a "what's already done" summary that the user can tell old
-context from new additions at a glance.
-
-## README
-
-`README.md`'s body is a capability description for consumers, grown
-incrementally — one paragraph (or edit to an existing one) per phase,
-describing the construct and what it deliberately leaves out. Keep it
-honest: a "not yet supported" claim must be checked against the current
-code, not left stale from an earlier phase (this has gone stale at least
-once already).
+`plan/ROADMAP.md` tracks phases and is updated with the work. The README's
+"covered / not covered" claims must be checked against the current code, not
+left stale.
 
 ## Tests
 
-Table-driven (`map[string]struct{...}`) for a family of similar cases,
-plain `func Test...(t *testing.T)` for a single scenario — follow
-whichever style the surrounding tests in the same file already use.
-`parseTopLevelPackage(t, source)` (`sysml/parser_test.go`) is the shared
-helper for parser tests. `relationshipTarget`/`relationshipTargets`/
-`typeOf` (`metamodel/metamodel_test.go`) are the shared helpers for
-walking a translated `*metamodel.Model` in tests.
+Plain `func Test...` for a scenario, table-driven for a family. Tests that
+need the oracle skip when it is absent; CI runs them. The CLI is tested
+in-process through `run(args, stdout, stderr)`.
 
 ## Scratch files
 
