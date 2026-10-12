@@ -22,7 +22,7 @@ import (
 	"strings"
 )
 
-var decl = regexp.MustCompile(`public static val (INVALID_\w+?)(_MSG(?:_\d+)?)? = "([^"]*)"`)
+var decl = regexp.MustCompile(`public static val (INVALID_\w+?)(_MSG(?:_\d+)?)?\s*=\s*(?:"([^"]*)"|'([^']*)')`)
 
 func main() {
 	if len(os.Args) != 2 {
@@ -42,7 +42,11 @@ func main() {
 		}
 		for _, m := range decl.FindAllStringSubmatch(string(b), -1) {
 			if m[2] == "_MSG" {
-				msgs[strings.TrimPrefix(m[1], "INVALID_")] = m[3]
+				msg := m[3]
+				if msg == "" {
+					msg = m[4]
+				}
+				msgs[strings.TrimPrefix(m[1], "INVALID_")] = msg
 			}
 		}
 	}

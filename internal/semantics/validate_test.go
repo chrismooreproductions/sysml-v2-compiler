@@ -144,3 +144,141 @@ func TestEveryCheckHasAMessage(t *testing.T) {
 		}
 	}
 }
+
+// node builds an element of a class with owned relationships.
+func node(class string, attrs map[string]model.Value, rels ...*model.Element) *model.Element {
+	e := &model.Element{Class: class}
+	for k, v := range attrs {
+		e.Set(k, v)
+	}
+	for _, r := range rels {
+		e.Add("ownedRelationship", "+=", r)
+	}
+	return e
+}
+
+// member wraps an element in a membership of a class.
+func member(class string, e *model.Element) *model.Element {
+	m := &model.Element{Class: class}
+	m.Add("ownedRelatedElement", "+=", e)
+	return m
+}
+
+// with sets an attribute of an element.
+func with(e *model.Element, name string, v model.Value) *model.Element {
+	e.Set(name, v)
+	return e
+}
+
+// violations validates a one-element model and returns the constraints reported.
+func violations(e *model.Element) []string {
+	root := node("Namespace", nil, member("OwningMembership", e))
+	w := NewWorkspace()
+	w.Add(root)
+	var out []string
+	for _, is := range w.Validate(root) {
+		out = append(out, is.Constraint)
+	}
+	return out
+}
+
+func hasConstraint(l []string, c string) bool {
+	for _, x := range l {
+		if x == c {
+			return true
+		}
+	}
+	return false
+}
+
+func TestCountAndFlagConstraints(t *testing.T) {
+	yes := model.Bool(true)
+	self := func(class, role string) func() *model.Element {
+		return func() *model.Element {
+			c := node("Classifier", nil)
+			r := node(class, nil)
+			r.Add(role, "=", &model.Ref{Name: "A", Target: c})
+			c.Add("ownedRelationship", "+=", r)
+			return c
+		}
+	}
+	cases := []struct {
+		constraint string
+		bad, good  func() *model.Element
+	}{
+		{"validateTypeOwnedDifferencingNotOne",
+			func() *model.Element { return node("Classifier", nil, node("Differencing", nil)) },
+			func() *model.Element {
+				return node("Classifier", nil, node("Differencing", nil), node("Differencing", nil))
+			}},
+		{"validateTypeOwnedUnioningNotOne",
+			func() *model.Element { return node("Classifier", nil, node("Unioning", nil)) },
+			func() *model.Element { return node("Classifier", nil) }},
+		{"validateDifferencingTypesNotSelf", self("Differencing", "differencingType"), func() *model.Element { return node("Classifier", nil) }},
+		{"validateFeatureOwnedCrossSubsetting",
+			func() *model.Element {
+				return node("Feature", nil, node("CrossSubsetting", nil), node("CrossSubsetting", nil))
+			},
+			func() *model.Element { return node("Feature", nil, node("CrossSubsetting", nil)) }},
+		{"validateFunctionResultParameterMembership",
+			func() *model.Element {
+				return node("Function", nil, member("ReturnParameterMembership", node("Feature", nil)), member("ReturnParameterMembership", node("Feature", nil)))
+			},
+			func() *model.Element {
+				return node("Function", nil, member("ReturnParameterMembership", node("Feature", nil)))
+			}},
+		{"validateFeatureValueIsInitial",
+			func() *model.Element {
+				return node("Feature", nil, with(member("FeatureValue", node("LiteralInteger", nil)), "isInitial", yes))
+			},
+			func() *model.Element {
+				return node("Feature", nil, member("FeatureValue", node("LiteralInteger", nil)))
+			}},
+		{"validateOccurrenceUsageIsPortion",
+			func() *model.Element {
+				return node("OccurrenceUsage", map[string]model.Value{"portionKind": model.Text("snapshot")})
+			},
+			func() *model.Element {
+				return node("OccurrenceUsage", map[string]model.Value{"portionKind": model.Text("snapshot"), "isPortion": yes})
+			}},
+		{"validateRequirementVerificationMembershipKind",
+			func() *model.Element {
+				return node("RequirementUsage", nil, with(member("RequirementVerificationMembership", node("RequirementUsage", nil)), "kind", model.Text("assumption")))
+			},
+			func() *model.Element {
+				return node("RequirementUsage", nil, with(member("RequirementVerificationMembership", node("RequirementUsage", nil)), "kind", model.Text("requirement")))
+			}},
+		{"validateExposeOwningNamespace",
+			func() *model.Element {
+				return node("PartUsage", nil, node("Expose", map[string]model.Value{"isImportAll": yes}))
+			},
+			func() *model.Element {
+				return node("ViewUsage", nil, node("Expose", map[string]model.Value{"isImportAll": yes}))
+			}},
+		{"validateExposeIsImportAll",
+			func() *model.Element { return node("ViewUsage", nil, node("Expose", nil)) },
+			func() *model.Element {
+				return node("ViewUsage", nil, node("Expose", map[string]model.Value{"isImportAll": yes}))
+			}},
+		{"validateObjectiveMembershipIsComposite",
+			func() *model.Element {
+				return node("CaseDefinition", nil, member("ObjectiveMembership", node("RequirementUsage", nil)))
+			},
+			func() *model.Element {
+				return node("CaseDefinition", nil, member("ObjectiveMembership", node("RequirementUsage", map[string]model.Value{"isComposite": yes})))
+			}},
+		{"validateAcceptActionUsageParameters",
+			func() *model.Element { return node("AcceptActionUsage", nil) },
+			func() *model.Element {
+				return node("AcceptActionUsage", nil, member("FeatureMembership", node("ReferenceUsage", map[string]model.Value{"direction": model.Text("in")})))
+			}},
+	}
+	for _, c := range cases {
+		if got := violations(c.bad()); !hasConstraint(got, c.constraint) {
+			t.Errorf("%s: not reported, got %v", c.constraint, got)
+		}
+		if got := violations(c.good()); hasConstraint(got, c.constraint) {
+			t.Errorf("%s: reported on a valid model", c.constraint)
+		}
+	}
+}
