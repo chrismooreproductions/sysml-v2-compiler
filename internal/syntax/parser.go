@@ -40,6 +40,10 @@ type compiled struct {
 	lx    *lexer
 	rules []*crule
 	root  *crule
+
+	// hints maps a keyword that the grammar only uses after a required element
+	// to that element's first tokens, for error messages.
+	hints map[string][]string
 }
 
 // lexSpec says which token kind implements a terminal rule.
@@ -181,6 +185,7 @@ func compile(g *grammar.Grammar) *compiled {
 		cr.body = build(cr.r.Body)
 	}
 	c.root = byName[g.Root]
+	c.hints = g.Predecessors(6)
 	return c
 }
 
@@ -781,11 +786,26 @@ func (ps *parser) syntaxError() error {
 	for e := range ps.expected {
 		exp = append(exp, e)
 	}
+	// A keyword that can only follow a required element is most often
+	// unexpected because that element is missing: say so, and list those
+	// tokens first.
+	hint := ps.hints[got]
+	hinted := map[string]bool{}
+	for _, h := range hint {
+		hinted["'"+h+"'"] = true
+	}
+	rank := func(s string) int {
+		switch {
+		case hinted[s]:
+			return 0
+		case strings.HasPrefix(s, "a "): // a kind of token, such as "a name"
+			return 1
+		}
+		return 2
+	}
 	sort.Slice(exp, func(i, j int) bool {
-		// descriptions of kinds of token ("a name") before literals
-		ai, aj := strings.HasPrefix(exp[i], "a "), strings.HasPrefix(exp[j], "a ")
-		if ai != aj {
-			return ai
+		if ri, rj := rank(exp[i]), rank(exp[j]); ri != rj {
+			return ri < rj
 		}
 		return exp[i] < exp[j]
 	})
@@ -801,6 +821,13 @@ func (ps *parser) syntaxError() error {
 			shown = shown[:8]
 		}
 		msg += ", expected " + strings.Join(shown, ", ") + more
+	}
+	if len(hint) > 0 {
+		quoted := make([]string, len(hint))
+		for i, h := range hint {
+			quoted[i] = "'" + h + "'"
+		}
+		msg += fmt.Sprintf(" (%q must follow %s)", got, strings.Join(quoted, ", "))
 	}
 	return &Error{File: ps.file, Pos: pos, Msg: msg, Got: got, Expected: exp}
 }

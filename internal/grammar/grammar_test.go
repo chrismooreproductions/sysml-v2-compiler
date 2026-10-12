@@ -120,3 +120,15 @@ func TestParseFileErrors(t *testing.T) {
 		}
 	}
 }
+
+// Only `import` is always preceded by a required, small set of keywords (its
+// visibility); the computation must find it and no false positives.
+func TestPredecessors(t *testing.T) {
+	for _, l := range []Language{SysML, KerML} {
+		g, _ := Load(l)
+		got := g.Predecessors(6)
+		if len(got) != 1 || strings.Join(got["import"], " ") != "private protected public" {
+			t.Errorf("%v: Predecessors = %v", l, got)
+		}
+	}
+}

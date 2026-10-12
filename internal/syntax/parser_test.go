@@ -183,6 +183,25 @@ func TestSyntaxErrors(t *testing.T) {
 		"package P { connection c connect a to ; }": {1, 39, ";", []string{"a name"}},
 		"package P {\n  part x;\n  part y\n}":       {4, 1, "}", []string{"';'"}},
 		"part def A;;":                              {1, 12, ";", nil},
+		"part def A { attribute x : ; }":            {1, 28, ";", []string{"a name"}},
+		"package P { part x : A[1.. }":              {1, 28, "}", []string{"a number", "'*'"}},
+		"package P { part def A :> ; }":             {1, 27, ";", []string{"a name"}},
+		"package P { port def Q { in x } }":         {1, 31, "}", []string{"';'", "':'"}},
+		"package P { action a { perform ; } }":      {1, 32, ";", []string{"a name", "'action'"}},
+		"package P { calc c { return ; } }":         {1, 29, ";", []string{"a name"}},
+		"package P { view v { expose ; } }":         {1, 29, ";", []string{"a name"}},
+		"package P { comment about ; }":             {1, 27, ";", []string{"a name"}},
+		"package P { attribute a = if ; }":          {1, 32, "}", nil},
+		"package P { attribute a = x.; }":           {1, 31, "}", nil},
+		"package P { attribute a = (1 + 2; }":       {1, 33, ";", []string{"')'"}},
+		"package P { part x { part y } }":           {1, 29, "}", []string{"';'"}},
+		"package P { flow of x from a; }":           {1, 29, ";", []string{"'to'"}},
+		"package P { enum def E { a; b } }":         {1, 31, "}", []string{"';'"}},
+		"package P { allocate a to ; }":             {1, 27, ";", []string{"a name"}},
+		"package P { satisfy r by ; }":              {1, 26, ";", []string{"a name"}},
+		"package P { use case u { include ; } }":    {1, 34, ";", []string{"'use'"}},
+		"package P { item def I { ref } }":          {1, 30, "}", []string{"a name"}},
+		"standard library package L { part x }":     {1, 37, "}", []string{"';'"}},
 		"package P { doc /* ok */ part x; } extra":  {1, 41, "", []string{"';'"}},
 	}
 	for src, w := range cases {
@@ -209,6 +228,36 @@ func TestSyntaxErrors(t *testing.T) {
 				t.Errorf("%q: %s is not among the %d expected tokens", src, x, len(e.Expected))
 			}
 		}
+	}
+}
+
+func TestSyntaxErrorsInKerML(t *testing.T) {
+	cases := map[string][3]any{ // line, column, got
+		"classifier A specializes ; ": {1, 26, ";"},
+		"feature f: ; ":               {1, 12, ";"},
+	}
+	for src, w := range cases {
+		_, err := Parse(grammar.KerML, "f.kerml", src)
+		e, ok := err.(*Error)
+		if !ok || e.Pos.Line != w[0].(int) || e.Pos.Column != w[1].(int) || e.Got != w[2].(string) {
+			t.Errorf("%q: %v, want %v:%v got %q", src, err, w[0], w[1], w[2])
+		}
+	}
+}
+
+// A keyword the grammar only uses after a required element gets a hint, and
+// the tokens that may precede it come first in the list.
+func TestMissingRequiredPrefixIsExplained(t *testing.T) {
+	_, err := Parse(grammar.SysML, "f.sysml", "package P { import A::*; }")
+	e, ok := err.(*Error)
+	if !ok {
+		t.Fatalf("got %v", err)
+	}
+	if got := strings.Join(e.Expected[:3], " "); got != "'private' 'protected' 'public'" {
+		t.Errorf("first expected tokens = %s", got)
+	}
+	if !strings.Contains(e.Msg, `"import" must follow 'private', 'protected', 'public'`) {
+		t.Errorf("message lacks the hint: %s", e.Msg)
 	}
 }
 
