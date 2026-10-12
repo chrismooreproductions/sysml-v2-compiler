@@ -1,0 +1,24 @@
+# The upstream releases this project is derived from and tested against.
+# Read by tools/vendor-upstream.sh and tools/fetch-oracle.sh (shell syntax).
+#
+# To move to a new release: change the tag and commit here, run
+# tools/vendor-upstream.sh, run the conformance suite, and record any
+# behaviour changes in the pilot's logic and grammars in CHANGELOG.md.
+
+RELEASE_REPO=https://github.com/Systems-Modeling/SysML-v2-Release
+RELEASE_TAG=2026-08
+RELEASE_COMMIT=fb97b754f29588b8e9c7a35f370880cd15eb29e7
+
+PILOT_REPO=https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation
+PILOT_TAG=2026-08
+PILOT_COMMIT=692170b71867353b8f90341e61556f49a5beb0e5
+
+# Notes:
+# - The release repo supplies the standard library sources, the examples and
+#   the XMI oracles (sysml.library.xmi, sysml.library.xmi.implied). Its tag
+#   and the pilot's tag are the same release.
+# - The grammar data, ecore and the Java behaviour ported under plan/ were
+#   read at the pilot's master (e7a57ab, after this tag). Between the tag and
+#   that commit, none of the files ported so far changed (only
+#   ResourceSetModelLibraryProvider, SysMLLogicStandaloneSetup and
+#   SysMLValidator differ in the directories read).
