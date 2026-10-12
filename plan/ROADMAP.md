@@ -114,14 +114,15 @@ Port `spike1`/`spike3` into `internal/syntax` as a clean package.
 
 ### P3. Tier 1: post-processing and structure
 
-Port `postprocess.go` and `semantic.go`.
+Ported from `plan/spike3` onto the new `internal/model` (elements with owners,
+resolved references and a generated mark).
 
 | # | Item | Done when |
 |---|---|---|
-| 3.1 | Parser post-processors | the rules in `postprocess.go`, each citing the Java it mirrors |
-| 3.2 | Expression structure and chain source-target | operands as parameters, result parameters |
-| 3.3 | Structural conformance test | against the oracle: ≥ 93/94 files exact (today's number), tracked in CI; the transition-usage difference is an open item |
-| 3.4 | Remaining tier-1 rules not needed by the library | string unescaping, comment bodies, `PortConjugation` |
+| 3.1 | Parser post-processors | **Done:** `internal/postprocess`: relationship ends (including the owner back-references the spike skipped), `isEnd`, parameter `direction`, `isComposite` defaults, abstract variations and enumerations, filter-package imports, `PortConjugation`; each rule names the Java it follows and has a unit test |
+| 3.2 | Expression structure and chain source-target | **Done:** `internal/semantics`: operands as private `in` parameters, result parameters, the chain's anonymous target feature, the default multiplicity (without the clause that needs resolution); generated elements are marked |
+| 3.3 | Structural conformance test | **Done, with a ratchet:** `internal/conformance` loads the pilot's XMI and our model into one canonical form and diffs them. 84 of 94 library files match exactly (79 differences, all in files that need P4 or the transition adapter); the test fails if either number gets worse. A CI job downloads and caches the 25 MB oracle. The earlier target of 93/94 is reached by P4: the 74 `isConstant` and 3 multiplicity differences need name resolution |
+| 3.4 | Remaining tier-1 rules not needed by the library | **Done:** names and strings are unescaped and comment bodies cleaned exactly as `ElementUtil.unescapeString` and `processCommentBody` do (including their quirks), and `PortConjugation` is ported |
 
 ### P4. Workspace and name resolution
 

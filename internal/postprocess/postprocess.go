@@ -34,6 +34,7 @@ func process(e *model.Element) {
 			e.Props[i].Name = schema.EffectiveRole(e.Class, p.Name)
 		}
 	}
+	text(e)
 	if e.IsA("Relationship") {
 		relationship(e)
 	}
