@@ -40,18 +40,25 @@ API and no tests of their own beyond the oracle comparison.
 ## Target shape
 
 ```
-kerml/                  public: parse, workspace, model
-  grammar/              the Xtext grammars as data, with NOTICE
+sysml/                  the public API: Parse, Workspace, Model, and the
+                        generated metaclass types with typed accessors
+                        (replaces today's package at the cutover, item 7.3)
+internal/
+  grammar/              the Xtext grammars as data, with UPSTREAM
   schema/               generated from SysML.ecore: metaclasses, features,
                         supertypes, redefinitions, defaults
   syntax/               lexer + grammar interpreter -> node tree (with positions)
   postprocess/          tier 1: parser post-processors
   semantics/            tier 2: adapters, implied relationships
   resolve/              name resolution
-  library/              the standard library, embedded, with NOTICE
+  library/              the standard library sources, embedded with go:embed
+  conformance/          oracle comparison, run against the pinned release
 cmd/sysmlc/             CLI: check, dump, resolve
-internal/conformance/   oracle comparison, run against a pinned release
 ```
+
+Everything is built under `internal/` first, so the existing `sysml` and
+`metamodel` packages keep working untouched until the cutover. Only `sysml`
+is public, which keeps the surface that has to stay stable small.
 
 Decisions behind it:
 
@@ -65,8 +72,9 @@ Decisions behind it:
 - **Engine.** Ship the interpreter first. Emit Go from the grammar IR only if
   profiling says it matters (it is about 5 s for 153 files including
   resolution, so probably later).
-- **Versioning.** The new API replaces `sysml` and `metamodel`. That is a
-  breaking change, so it releases as `v0.2.0` per `AGENTS.md`.
+- **Versioning.** Decided: the new API *replaces* `sysml` and `metamodel`
+  (no compatibility layer, no two parsers kept in step). That is a breaking
+  change, so it releases as `v0.2.0` per `AGENTS.md`.
 
 ## Phases
 
@@ -79,7 +87,7 @@ Each phase ends with a test that can fail.
 | 0.1 | Add CI: build, vet, gofmt, test | a workflow runs on every PR |
 | 0.2 | Choose the repository license | **Done:** EPL-2.0 (`LICENSE`, `NOTICE`, SPDX headers on every Go file; rule recorded in `AGENTS.md`) |
 | 0.3 | Pin the upstream release | `UPSTREAM` records the tag (`2026-08`) for grammar, ecore and library |
-| 0.4 | Conformance fixtures policy | the library sources (1.6 MB) are vendored; the XMI oracles (25 MB, 120 MB) are fetched at the pinned tag by a script, not committed |
+| 0.4 | Conformance fixtures policy | **Decided.** Vendored, pinned to the release tag in `UPSTREAM`: the library sources (1.6 MB, under `internal/library`) and the release examples, training and validation models plus the KerML examples (about 1.4 MB, as test data). Fetched by script in CI, never committed: the XMI oracles (25 MB, and 120 MB for `.implied`). Unit tests run offline; only the conformance run needs the download |
 
 ### P1. Syntax: parse into a node tree
 
@@ -122,7 +130,7 @@ library loaded on demand.
 | # | Item | Done when |
 |---|---|---|
 | 4.1 | `Workspace` type: add files, resolve, query | multi-file models resolve against each other and the library |
-| 4.2 | Embedded standard library, loaded lazily | importing `ScalarValues` or `Parts` works with no setup |
+| 4.2 | Embedded standard library, loaded lazily | `go:embed` of `internal/library`; importing `ScalarValues` or `Parts` works with no setup |
 | 4.3 | Port the resolution operations | ≥ 99.7% of the oracle's reference targets (today's number) |
 | 4.4 | Close the long tail | `$` qualification, filter imports, distinguishability, the pilot's `skip` rule, result-type inference for operator and index chain sources: target 99.95% |
 | 4.5 | Diagnostics | an unresolved reference reports its name, position and the scope searched |
@@ -155,9 +163,9 @@ the rest.
 
 | # | Item | Done when |
 |---|---|---|
-| 7.1 | Public API review | a short doc comment on every exported identifier; one example per entry point |
+| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types, built over `internal/`; a doc comment on every exported identifier; one example per entry point |
 | 7.2 | `sysmlc` | `check`, `dump`, `resolve` over files and directories, exit codes for CI use |
-| 7.3 | Retire `sysml` and `metamodel` | the old fixtures and tests either pass on the new API or are removed on purpose; `AGENTS.md` and the README rewritten |
+| 7.3 | Cutover: delete `metamodel`, replace the old `sysml` package with the new one | the 16 vendored spec fixtures and any old test still worth keeping pass on the new API, the rest are removed on purpose; `AGENTS.md` and the README rewritten |
 | 7.4 | Release `v0.2.0` | CHANGELOG entry, tag, GitHub Release, as `AGENTS.md` requires |
 
 ### P8. Later
@@ -216,12 +224,15 @@ What makes an issue safe to give to an agent here:
   nothing is indexed; fine for a library, not for an editor. Caching name
   tables per namespace is the first fix if it matters.
 
-## Decisions needed from you
+## Decisions
 
-1. ~~The repository license~~ — decided: EPL-2.0.
-2. That replacing the `sysml` and `metamodel` APIs, with a `v0.2.0` break, is
-   acceptable.
-3. Package naming: `kerml/...` as above, or something under the existing
-   module root.
-4. Whether the library files and examples should be vendored in full (1.6 MB
-   of source) or fetched in CI like the oracles.
+All settled.
+
+1. **License:** EPL-2.0 (`LICENSE`, `NOTICE`, SPDX headers).
+2. **API break:** replace `sysml` and `metamodel` and release `v0.2.0`.
+3. **Layout:** one public `sysml` package over `internal/` subpackages.
+4. **Vendoring:** the library source and the release examples are vendored at
+   the pinned tag; only the XMI oracles are fetched in CI.
+
+What is left is to start: P0.1 (CI), 0.3 (`UPSTREAM`, the pin) and 0.4 (the
+vendoring), then P1.
