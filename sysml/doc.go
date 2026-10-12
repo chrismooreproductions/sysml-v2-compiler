@@ -28,6 +28,9 @@
 // computed on request: Workspace.ImpliedGeneralizations,
 // Workspace.ImpliedFeaturingTypes and Workspace.ImpliedBindings, after Resolve.
 //
-// What it does not do yet: put those implied relationships into the tree
-// itself, or check the specification's validation constraints.
+// Workspace.Materialize writes them into the tree, as elements marked Generated
+// with isImplied set.
+//
+// What it does not do yet: check every one of the specification's validation
+// constraints; Workspace.Validate checks the structural ones.
 package sysml

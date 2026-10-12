@@ -224,6 +224,7 @@ func dump(args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("sysmlc dump", flag.ContinueOnError)
 	fl.SetOutput(stderr)
 	spans := fl.Bool("spans", false, "show the source span of each element")
+	withImplied := fl.Bool("implied", false, "include the relationships the specification implies")
 	if err := fl.Parse(args); err != nil {
 		return 2
 	}
@@ -237,16 +238,40 @@ func dump(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	status := 0
-	for i, f := range files {
+	var w *sysml.Workspace
+	if *withImplied {
+		if w, err = sysml.NewWorkspace(); err != nil {
+			fmt.Fprintln(stderr, "sysmlc:", err)
+			return 2
+		}
+	}
+	var docs []*sysml.Document
+	for _, f := range files {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			fmt.Fprintln(stderr, "sysmlc:", err)
 			return 2
 		}
-		doc, err := sysml.Parse(f, src)
+		var doc *sysml.Document
+		if w != nil {
+			doc, err = w.Add(f, src)
+		} else {
+			doc, err = sysml.Parse(f, src)
+		}
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			status = 1
+			docs = append(docs, nil)
+			continue
+		}
+		docs = append(docs, doc)
+	}
+	if w != nil {
+		w.Materialize()
+	}
+	for i, f := range files {
+		doc := docs[i]
+		if doc == nil {
 			continue
 		}
 		if len(files) > 1 {
@@ -286,8 +311,11 @@ func dumpElement(out io.Writer, e *sysml.Element, indent string, spans bool) {
 			fmt.Fprintf(out, "%s  %s ", indent, p.Name)
 			dumpElement(out, v, indent+"  ", spans)
 		case *sysml.Ref:
-			if v.Name != "" {
+			switch {
+			case v.Name != "":
 				fmt.Fprintf(out, "%s  %s -> @%s\n", indent, p.Name, v.Name)
+			case v.Target != nil && e.Generated:
+				fmt.Fprintf(out, "%s  %s -> @%s\n", indent, p.Name, describe(v.Target))
 			}
 		}
 	}

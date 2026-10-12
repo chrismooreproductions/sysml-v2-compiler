@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.Materialize` writes the implied relationships into the trees of the
+  documents, as elements marked Generated with `isImplied` set, with the
+  features the specification makes up as their targets. `sysmlc dump -implied`
+  shows them.
+
 ## [0.6.0] - 2026-10-12
 
 ### Added

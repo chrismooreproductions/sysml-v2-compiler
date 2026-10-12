@@ -278,3 +278,34 @@ package Fleet {
 		t.Errorf("TypesOf(rig) = %v", ts)
 	}
 }
+
+func TestMaterializeAddsTheImpliedRelationshipsToTheTree(t *testing.T) {
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := w.Add("m.sysml", []byte("package P { part def A; part a : A; }"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := func() (n int) {
+		doc.Root.Walk(func(e *Element) {
+			if e.IsTrue("isImplied") {
+				n++
+			}
+		})
+		return
+	}
+	if count() != 0 {
+		t.Fatal("implied relationships in the tree before Materialize")
+	}
+	w.Materialize()
+	n := count()
+	if n != 2 {
+		t.Errorf("%d implied relationships, want 2 (A's supertype, a's subsetting)", n)
+	}
+	w.Materialize()
+	if count() != n {
+		t.Error("Materialize is not idempotent")
+	}
+}

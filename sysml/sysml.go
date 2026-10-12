@@ -298,6 +298,20 @@ func (w *Workspace) Validate() []Diagnostic {
 	return out
 }
 
+// Materialize writes the relationships the specification implies into the
+// trees of the documents added to the workspace, as elements marked Generated
+// with isImplied set: the implied general types and featuring types of each
+// type and the binding connectors the transformation adds. Without it they are
+// available from ImpliedGeneralizations, ImpliedFeaturingTypes and
+// ImpliedBindings but not in the tree. It resolves the workspace first, and
+// does nothing for a document already materialized.
+func (w *Workspace) Materialize() {
+	w.w.Resolve()
+	for _, d := range w.docs {
+		w.w.Materialize(d.Root)
+	}
+}
+
 // Lookup finds an element by its qualified name from the global scope, such as
 // "ScalarValues::Real" or "Fleet::'Heavy Truck'", searching the documents and
 // the standard library. It returns nil if there is no such element. Call it

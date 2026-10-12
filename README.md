@@ -56,7 +56,8 @@ Exit status: 0 nothing to report, 1 problems in the models, 2 usage or I/O error
   types and binding connectors the specification adds are computed on request
   (`ImpliedGeneralizations`, `ImpliedFeaturingTypes`, `ImpliedBindings`,
   `sysmlc implied`) and match the pilot for 99.79% of the 99,685 in the standard
-  library. They are not yet written into the tree.
+  library. `Materialize` writes them into the tree as elements marked
+  `isImplied`; `sysmlc dump -implied` shows them.
 - **Not yet:** the specification's validation constraints are not checked; there
   are no typed accessors per metaclass.
 

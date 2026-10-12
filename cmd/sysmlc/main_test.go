@@ -188,3 +188,21 @@ func TestCheckReportsEverySyntaxErrorInAFile(t *testing.T) {
 		t.Errorf("status %d, stderr:\n%s", status, errs)
 	}
 }
+
+func TestDumpImpliedShowsWhatTheSpecificationAdds(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "m.sysml", "package P { part def A; part a : A; }")
+	status, out, errs := invoke("dump", "-implied", f)
+	if status != 0 || errs != "" {
+		t.Fatalf("status %d, stderr %q", status, errs)
+	}
+	for _, want := range []string{"Subclassification* isImplied=true\n", "superclassifier -> @Parts::Part\n", "Subsetting* isImplied=true\n", "subsettedFeature -> @Parts::parts\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	_, plain, _ := invoke("dump", f)
+	if strings.Contains(plain, "isImplied") {
+		t.Errorf("plain dump shows implied relationships:\n%s", plain)
+	}
+}
