@@ -1,14 +1,17 @@
 #!/bin/sh
-# Copies the standard library sources and the release's example models from a
-# checkout of SysML-v2-Release into this repository, at the tag pinned in
-# UPSTREAM. Only .sysml and .kerml files are copied; nothing is modified.
+# Copies upstream sources into this repository at the tags pinned in
+# UPSTREAM, unmodified:
+#   - from a SysML-v2-Release checkout: the standard library sources and the
+#     example, training and validation models (.sysml and .kerml files only);
+#   - from a SysML-v2-Pilot-Implementation checkout: the three Xtext grammars.
 #
-#   tools/vendor-upstream.sh /path/to/SysML-v2-Release
+#   tools/vendor-upstream.sh /path/to/SysML-v2-Release /path/to/SysML-v2-Pilot-Implementation
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 . "$root/UPSTREAM"
-src=${1:?usage: tools/vendor-upstream.sh /path/to/SysML-v2-Release}
+src=${1:?usage: tools/vendor-upstream.sh <SysML-v2-Release checkout> <Pilot-Implementation checkout>}
+pilot=${2:?usage: tools/vendor-upstream.sh <SysML-v2-Release checkout> <Pilot-Implementation checkout>}
 
 git -C "$src" fetch --depth 1 origin tag "$RELEASE_TAG" >/dev/null 2>&1 || true
 commit=$(git -C "$src" rev-parse "$RELEASE_TAG^{commit}")
@@ -33,3 +36,20 @@ copy sysml/src/validation testdata/upstream/sysml/validation 3
 copy kerml/src/examples testdata/upstream/kerml/examples 3
 
 echo "vendored release $RELEASE_TAG ($commit)"
+
+git -C "$pilot" fetch --depth 1 origin tag "$PILOT_TAG" >/dev/null 2>&1 || true
+pcommit=$(git -C "$pilot" rev-parse "$PILOT_TAG^{commit}")
+if [ "$pcommit" != "$PILOT_COMMIT" ]; then
+	echo "tag $PILOT_TAG is $pcommit in $pilot, but UPSTREAM pins $PILOT_COMMIT" >&2
+	exit 1
+fi
+gdest="$root/internal/grammar/xtext"
+rm -rf "$gdest"
+mkdir -p "$gdest"
+for f in \
+	org.omg.kerml.expressions.xtext/src/org/omg/kerml/expressions/xtext/KerMLExpressions.xtext \
+	org.omg.kerml.xtext/src/org/omg/kerml/xtext/KerML.xtext \
+	org.omg.sysml.xtext/src/org/omg/sysml/xtext/SysML.xtext; do
+	git -C "$pilot" show "$PILOT_TAG:$f" >"$gdest/$(basename "$f")"
+done
+echo "vendored pilot grammars $PILOT_TAG ($pcommit)"
