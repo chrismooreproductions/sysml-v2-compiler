@@ -298,6 +298,45 @@ func (w *Workspace) Validate() []Diagnostic {
 	return out
 }
 
+// Lookup finds an element by its qualified name from the global scope, such as
+// "ScalarValues::Real" or "Fleet::'Heavy Truck'", searching the documents and
+// the standard library. It returns nil if there is no such element. Call it
+// after Resolve.
+func (w *Workspace) Lookup(qualifiedName string) *Element { return w.w.Lookup(qualifiedName) }
+
+// Member finds the member of a namespace with the given name among those
+// visible from outside it: owned, inherited and public imported members. It
+// returns nil if there is none.
+func (w *Workspace) Member(namespace *Element, name string) *Element {
+	return w.w.Member(namespace, name)
+}
+
+// Members lists the elements visible from outside a namespace: owned,
+// inherited and public imported, less any that another redefines.
+func (w *Workspace) Members(namespace *Element) []*Element { return w.w.Members(namespace) }
+
+// OwnedMembers lists the elements a namespace owns, in source order.
+func (w *Workspace) OwnedMembers(namespace *Element) []*Element { return w.w.OwnedMembers(namespace) }
+
+// EffectiveName is the name of an element: its declared name, or for a feature
+// without one the name of the feature it redefines.
+func (w *Workspace) EffectiveName(e *Element) string { return w.w.EffectiveName(e) }
+
+// Supertypes lists the types a type specializes directly, whether the source
+// says so or the specification implies it.
+func (w *Workspace) Supertypes(t *Element) []*Element { return w.w.Supertypes(t) }
+
+// Specializes reports whether t is, or directly or indirectly specializes,
+// general.
+func (w *Workspace) Specializes(t, general *Element) bool { return w.w.Specializes(t, general) }
+
+// Features lists the features of a type, owned then inherited, less any that
+// another of them redefines.
+func (w *Workspace) Features(t *Element) []*Element { return w.w.Features(t) }
+
+// TypesOf lists the types of a feature: its own, implied and inherited types.
+func (w *Workspace) TypesOf(f *Element) []*Element { return w.w.TypesOf(f) }
+
 // QualifiedName names an element by the declared names along its ownership
 // chain, such as "Vehicles::Car::engine". It is "" for an element with no
 // named owner. A name that is not a plain identifier is quoted.

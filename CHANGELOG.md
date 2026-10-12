@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Queries over a resolved workspace: `Lookup` by qualified name, `Member`,
+  `Members`, `OwnedMembers`, `EffectiveName`, `Supertypes`, `Specializes`,
+  `Features` and `TypesOf`.
+
 ## [0.5.0] - 2026-10-12
 
 ### Added

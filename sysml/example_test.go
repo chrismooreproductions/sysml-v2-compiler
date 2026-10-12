@@ -104,3 +104,30 @@ package Fleet {
 	// Output:
 	// Subsetting Parts::parts
 }
+
+func ExampleWorkspace_Lookup() {
+	w, err := sysml.NewWorkspace()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if _, err := w.Add("fleet.sysml", []byte(`
+package Fleet {
+	part def Vehicle { attribute mass : ScalarValues::Real; }
+	part def Truck :> Vehicle { attribute payload : ScalarValues::Real; }
+}`)); err != nil {
+		fmt.Println(err)
+		return
+	}
+	w.Resolve()
+	truck := w.Lookup("Fleet::Truck")
+	// Truck has payload of its own, mass from Vehicle, and the features every part has.
+	features := w.Features(truck)
+	fmt.Println(w.EffectiveName(features[0]), w.EffectiveName(features[1]), len(features) > 2)
+	fmt.Println(w.Member(truck, "mass").Class)
+	fmt.Println(w.Specializes(truck, w.Lookup("Fleet::Vehicle")))
+	// Output:
+	// payload mass true
+	// AttributeUsage
+	// true
+}

@@ -221,3 +221,60 @@ func TestAddRecoveringKeepsTheStatementsThatParse(t *testing.T) {
 		t.Errorf("names %s, want P,A,B", got)
 	}
 }
+
+func TestQueries(t *testing.T) {
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Add("fleet.sysml", []byte(`
+package Fleet {
+	part def Vehicle { attribute mass : ScalarValues::Real; }
+	part def Truck :> Vehicle { attribute payload : ScalarValues::Real; }
+	part rig : Truck;
+}`)); err != nil {
+		t.Fatal(err)
+	}
+	if d := w.Resolve(); len(d) != 0 {
+		t.Fatal(d)
+	}
+	truck := w.Lookup("Fleet::Truck")
+	vehicle := w.Lookup("Fleet::Vehicle")
+	if truck == nil || vehicle == nil || w.Lookup("Fleet::Nope") != nil || w.Lookup("Nope::Truck") != nil {
+		t.Fatalf("Lookup: truck %v, vehicle %v", truck, vehicle)
+	}
+	if got := w.Lookup("ScalarValues::Real"); got == nil || got.Class != "DataType" {
+		t.Errorf("Lookup of a library element: %v", got)
+	}
+	if !w.Specializes(truck, vehicle) || w.Specializes(vehicle, truck) {
+		t.Error("Specializes")
+	}
+	var supers []string
+	for _, s := range w.Supertypes(truck) {
+		supers = append(supers, QualifiedName(s))
+	}
+	if strings.Join(supers, ",") != "Fleet::Vehicle" {
+		t.Errorf("Supertypes = %v", supers)
+	}
+	var feats []string
+	for _, f := range w.Features(truck) {
+		feats = append(feats, w.EffectiveName(f))
+	}
+	if !strings.Contains(strings.Join(feats, ","), "payload") || !strings.Contains(strings.Join(feats, ","), "mass") {
+		t.Errorf("Features = %v", feats)
+	}
+	var owned []string
+	for _, m := range w.OwnedMembers(w.Lookup("Fleet")) {
+		owned = append(owned, w.EffectiveName(m))
+	}
+	if strings.Join(owned, ",") != "Vehicle,Truck,rig" {
+		t.Errorf("OwnedMembers = %v", owned)
+	}
+	if m := w.Member(truck, "mass"); m == nil || m.Class != "AttributeUsage" {
+		t.Errorf("Member(Truck, mass) = %v", m)
+	}
+	rig := w.Member(w.Lookup("Fleet"), "rig")
+	if ts := w.TypesOf(rig); len(ts) != 1 || ts[0] != truck {
+		t.Errorf("TypesOf(rig) = %v", ts)
+	}
+}
