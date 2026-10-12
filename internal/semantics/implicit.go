@@ -1147,3 +1147,145 @@ func (w *Workspace) crossFeatureOf(f *el) *el {
 	}
 	return nil
 }
+
+// ---- featuring types ----
+
+// ImpliedFeaturingTypes returns the types the pilot's transformation features
+// a feature by without writing a TypeFeaturing: the type that owns it and the
+// others FeatureAdapter.doTransform and its subclasses add. The workspace must
+// have been resolved.
+func (w *Workspace) ImpliedFeaturingTypes(f *el) []*el {
+	if !f.IsA("Feature") {
+		return nil
+	}
+	if v, ok := w.featMemo[f]; ok {
+		return v
+	}
+	if w.featBusy[f] {
+		return nil
+	}
+	w.featBusy[f] = true
+	defer delete(w.featBusy, f)
+	var out []*el
+	add := func(ts ...*el) {
+		for _, t := range ts {
+			dup := t == nil
+			for _, x := range out {
+				dup = dup || x == t
+			}
+			if !dup {
+				out = append(out, t)
+			}
+		}
+	}
+	// FeatureAdapter.computeFeaturingType: a variable feature (a usage that may
+	// time-vary, or one marked var) is featured by the snapshots of its type
+	if f.Owner.IsA("FeatureMembership") && f.Owner.Owner != nil {
+		if variable := f.IsA("Usage") && w.mayTimeVary(f) || !f.IsA("Usage") && f.IsTrue("isVariable"); !variable {
+			add(f.Owner.Owner)
+		} else if occurrence := w.libraryElement("Occurrences::Occurrence"); f.Owner.Owner == occurrence {
+			add(w.libraryElement("Occurrences::Occurrence::snapshots"))
+		} else {
+			add(w.snapshotsOf(f.Owner.Owner))
+		}
+	}
+	owner := w.owningNamespace(f)
+	// addImplicitFeaturingTypesIfNecessary: a feature in a feature is featured as it is
+	ifNecessary := func() {
+		if owner.IsA("Feature") && len(out) == 0 {
+			add(w.featuringTypesOf(owner)...)
+		}
+	}
+	switch {
+	case f.IsA("Multiplicity"):
+		ifNecessary() // MultiplicityAdapter.doTransform
+	case f.IsA("Expression"):
+		// ExpressionAdapter.addImplicitFeaturingTypesIfNecessary
+		if owner.IsA("MultiplicityRange") && f.Owner.IsA("OwningMembership") {
+			if outer := w.owningNamespace(owner); outer.IsA("Feature") {
+				if w.isOwnedCrossFeature(outer) && len(out) == 0 {
+					add(w.featuringTypesOf(outer.Owner.Owner)...)
+				} else {
+					ifNecessary()
+				}
+			}
+		} else if f.Owner.IsA("FeatureValue") {
+			ifNecessary()
+		}
+	}
+	// FeatureAdapter.addOwnedCrossFeatureTypeFeaturing
+	if w.isOwnedCrossFeature(f) && len(w.rels(f, "TypeFeaturing")) == 0 && len(out) == 0 {
+		end := f.Owner.Owner
+		if t := w.featureOwningType(end); t != nil {
+			ends := w.endFeatures(t)
+			if len(ends) == 2 {
+				other := ends[0]
+				if other == end {
+					other = ends[1]
+				}
+				add(w.typesOf(other)...)
+			} else if len(ends) > 2 {
+				add(&el{Class: "Feature", Generated: true})
+			}
+		}
+	}
+	w.featMemo[f] = out
+	return out
+}
+
+// snapshotsOf is the feature the pilot makes for the snapshots of a type.
+func (w *Workspace) snapshotsOf(t *el) *el {
+	if s, ok := w.snapshots[t]; ok {
+		return s
+	}
+	s := &el{Class: "Feature", Generated: true}
+	w.snapshots[t] = s
+	return s
+}
+
+// endFeatures are Type.endFeature: the end features, owned or inherited, that
+// no other of them redefines.
+func (w *Workspace) endFeatures(t *el) []*el {
+	var ends []*el
+	for _, x := range w.features(t) {
+		if x.IsTrue("isEnd") {
+			ends = append(ends, x)
+		}
+	}
+	var out []*el
+	for _, x := range ends {
+		redefined := false
+		for _, y := range ends {
+			if y == x {
+				continue
+			}
+			for _, r := range w.redefinedWithComputed(y) {
+				redefined = redefined || r == x
+			}
+		}
+		if !redefined {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+func (w *Workspace) isOwnedCrossFeature(f *el) bool {
+	return f.Owner.IsA("OwningMembership") && f.Owner.Owner != nil && w.ownedCrossFeature(f.Owner.Owner) == f
+}
+
+// featuringTypesOf is Feature.featuringType: the written and implied featuring
+// types and those of the first chaining feature.
+func (w *Workspace) featuringTypesOf(f *el) []*el {
+	var out []*el
+	for _, r := range w.rels(f, "TypeFeaturing") {
+		if g := w.refTarget(r, "featuringType"); g != nil {
+			out = append(out, g)
+		}
+	}
+	out = append(out, w.ImpliedFeaturingTypes(f)...)
+	if c := w.chainingFeatures(f); len(c) > 0 && c[0] != nil {
+		out = append(out, w.featuringTypesOf(c[0])...)
+	}
+	return out
+}

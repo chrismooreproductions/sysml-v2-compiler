@@ -122,9 +122,9 @@ func TestResolvedLibraryMatchesTheOracle(t *testing.T) {
 	}
 }
 
-// The ratchet for the implied general types: the relationships the pilot marks
+// The ratchet for the implied general types and featuring types: the relationships the pilot marks
 // isImplied, compared by owner position and target.
-const minImpliedMatch = 49131
+const minImpliedMatch = 87420
 
 func TestImpliedGeneralizationsMatchTheOracle(t *testing.T) {
 	dir := oracleRoot(t)

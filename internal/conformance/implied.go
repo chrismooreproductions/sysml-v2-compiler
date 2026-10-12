@@ -29,6 +29,7 @@ var impliedRoles = map[string]string{
 	"FeatureTyping":       "type",
 	"CrossSubsetting":     "crossedFeature",
 	"ReferenceSubsetting": "referencedFeature",
+	"TypeFeaturing":       "featuringType",
 }
 
 // detachImplied removes the implied relationships from an oracle tree, so that
@@ -123,6 +124,18 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			if c == nil || !e.IsA("Type") {
 				return
 			}
+			for _, ft := range w.ImpliedFeaturingTypes(e) {
+				target := "(generated)"
+				if t := z.Canon(ft); t != nil && t.Key != "" {
+					target = t.Key
+				} else if !ft.Generated {
+					continue
+				}
+				if have[c.Key] == nil {
+					have[c.Key] = map[string]int{}
+				}
+				have[c.Key]["TypeFeaturing "+target]++
+			}
 			for _, im := range w.ImpliedGeneralizations(e) {
 				target := "(generated)" // a feature the pilot makes: compared by kind only
 				if t := z.Canon(im.Target); t != nil && t.Key != "" {
@@ -188,7 +201,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			st.Expected += n
 			st.Match += m
 			st.Missing += n - m
-			if n > m && len(st.Samples) < 5000 {
+			if n > m && len(st.Samples) < 200000 {
 				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
 			}
 		}
@@ -203,7 +216,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			kind := rel[:indexByte(rel, ' ')]
 			tally(kind).Wrong += extra
 			st.Extra += extra
-			if len(st.Samples) < 5000 {
+			if len(st.Samples) < 200000 {
 				st.Samples = append(st.Samples, fmt.Sprintf("extra   %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
 			}
 		}

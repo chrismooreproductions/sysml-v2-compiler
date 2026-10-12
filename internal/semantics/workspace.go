@@ -25,18 +25,21 @@ type Workspace struct {
 	roots []*el
 	files map[*el]string // the file name of each root
 
-	memo     map[*model.Ref]*el // resolved references, nil results included
-	done     map[*model.Ref]bool
-	busy     map[*model.Ref]bool // resolutions in progress, to cut cycles
-	cut      int                 // incremented whenever a circular resolution is cut
-	effNames map[*el][2]string   // cache: effective short name, name
-	libCache map[string]*el      // library elements by qualified name
-	relsMemo map[relsKey][]*el
-	implMemo map[*el][]implied
-	implBusy map[*el]bool
-	chains   map[[2]*el]*el // generated feature chains, by their two features
-	chainOf  map[*el][]*el  // the chaining features of a generated chain
-	gaps     map[string]int // things met that this resolver does not handle
+	memo      map[*model.Ref]*el // resolved references, nil results included
+	done      map[*model.Ref]bool
+	busy      map[*model.Ref]bool // resolutions in progress, to cut cycles
+	cut       int                 // incremented whenever a circular resolution is cut
+	effNames  map[*el][2]string   // cache: effective short name, name
+	libCache  map[string]*el      // library elements by qualified name
+	relsMemo  map[relsKey][]*el
+	featMemo  map[*el][]*el
+	snapshots map[*el]*el
+	featBusy  map[*el]bool
+	implMemo  map[*el][]implied
+	implBusy  map[*el]bool
+	chains    map[[2]*el]*el // generated feature chains, by their two features
+	chainOf   map[*el][]*el  // the chaining features of a generated chain
+	gaps      map[string]int // things met that this resolver does not handle
 }
 
 // NewWorkspace returns an empty workspace.
@@ -45,7 +48,7 @@ func NewWorkspace() *Workspace {
 		files: map[*el]string{},
 		memo:  map[*model.Ref]*el{}, done: map[*model.Ref]bool{}, busy: map[*model.Ref]bool{},
 		effNames: map[*el][2]string{}, libCache: map[string]*el{},
-		relsMemo: map[relsKey][]*el{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
+		relsMemo: map[relsKey][]*el{}, featMemo: map[*el][]*el{}, snapshots: map[*el]*el{}, featBusy: map[*el]bool{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
 		chains: map[[2]*el]*el{}, chainOf: map[*el][]*el{}, gaps: map[string]int{},
 	}
 }
