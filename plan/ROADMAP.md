@@ -77,7 +77,7 @@ Each phase ends with a test that can fail.
 | # | Item | Done when |
 |---|---|---|
 | 0.1 | Add CI: build, vet, gofmt, test | a workflow runs on every PR |
-| 0.2 | Choose the repository license | `LICENSE` exists. **The repo has none today.** Vendored grammars and library are EPL-2.0, so the choice has to be compatible, and `NOTICE` must carry the attribution |
+| 0.2 | Choose the repository license | **Done:** EPL-2.0 (`LICENSE`, `NOTICE`, SPDX headers on every Go file; rule recorded in `AGENTS.md`) |
 | 0.3 | Pin the upstream release | `UPSTREAM` records the tag (`2026-08`) for grammar, ecore and library |
 | 0.4 | Conformance fixtures policy | the library sources (1.6 MB) are vendored; the XMI oracles (25 MB, 120 MB) are fetched at the pinned tag by a script, not committed |
 
@@ -218,7 +218,7 @@ What makes an issue safe to give to an agent here:
 
 ## Decisions needed from you
 
-1. The repository license (blocks P0.2 and all vendoring).
+1. ~~The repository license~~ — decided: EPL-2.0.
 2. That replacing the `sysml` and `metamodel` APIs, with a `v0.2.0` break, is
    acceptable.
 3. Package naming: `kerml/...` as above, or something under the existing
