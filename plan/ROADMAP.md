@@ -95,13 +95,13 @@ Port `spike1`/`spike3` into `internal/syntax` as a clean package.
 
 | # | Item | Done when |
 |---|---|---|
-| 1.1 | Xtext grammar loader (spike2) as a tested package | the merged SysML grammar (549 rules) and the KerML grammar load with no undefined references |
-| 1.2 | Lexer with source positions | every token has file, offset, line, column |
-| 1.3 | Grammar interpreter producing nodes **with positions** | every node carries the span of the text that produced it (the spikes have none) |
-| 1.4 | Error reporting | farthest-failure message names the expected tokens and the position; golden tests for 30+ malformed inputs |
+| 1.1 | Xtext grammar loader (spike2) as a tested package | **Done:** `internal/grammar`; the merged SysML grammar (549 rules) and the KerML grammar (282) load with no undefined references, and the counts are pinned |
+| 1.2 | Lexer with source positions | **Done:** every token has an offset, line and column, and a span |
+| 1.3 | Grammar interpreter producing nodes **with positions** | **Done:** every node carries a span, including the nodes built by actions (an operator expression covers its operands) |
+| 1.4 | Error reporting | **Partly done:** errors carry the file, position, the unexpected token and the sorted set of expected tokens; 15 malformed inputs are pinned. **Open:** ranking the expected tokens by context (an import with no visibility reports 76 alternatives and buries `public`/`private`), and 30+ pinned cases |
 | 1.5 | Ambiguity policy | decide and document what happens when two parses reach the same end (spike keeps the first); a test that counts ambiguous files in the library |
-| 1.6 | Corpus test | the 94 library files and the 310 vendored example models parse; the existing 16 fixtures parse |
-| 1.7 | Performance budget | parsing the whole library in under a stated time, with a benchmark |
+| 1.6 | Corpus test | **Done:** all 404 models in the library and the vendored example sets, and the 16 older fixtures, parse (`TestVendoredCorpusParses`) |
+| 1.7 | Performance budget | **Baseline measured:** the 94-file library parses in about 3.8 s (`BenchmarkParseLibrary`), roughly 40 ms per file. Set a budget and profile |
 
 ### P2. Schema from the ecore
 
