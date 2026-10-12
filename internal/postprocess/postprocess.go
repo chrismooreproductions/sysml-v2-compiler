@@ -169,6 +169,16 @@ func relationship(r *model.Element) {
 			r.Add("supplier", "+=", &model.Ref{Target: o})
 		}
 	}
+	// PortConjugationParserPostProcessor: a port definition has an implicit
+	// conjugated definition; the conjugation's original is the port definition
+	// that owns it.
+	if is("PortConjugation") && !r.Has("originalPortDefinition") {
+		if conjugated := owningRelatedElement(r); conjugated.IsA("ConjugatedPortDefinition") && conjugated.Owner != nil {
+			if def := conjugated.Owner.Owner; def.IsA("PortDefinition") {
+				ref(r, "originalPortDefinition", def)
+			}
+		}
+	}
 	// An import inside a filter package is public (ImportParserPostProcessor).
 	if is("Import") {
 		if ns := owningRelatedElement(r); ns != nil && ns.Owner.IsA("NamespaceImport") {

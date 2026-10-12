@@ -195,3 +195,11 @@ func TestKerMLConstantFeaturesAreVariable(t *testing.T) {
 		}
 	}
 }
+
+func TestPortConjugationPointsAtItsPortDefinition(t *testing.T) {
+	root := run(t, grammar.SysML, "port def P;")
+	pc := one(t, root, "PortConjugation")
+	if got := target(t, pc, "originalPortDefinition"); got.Class != "PortDefinition" || got.Text("declaredName") != "P" {
+		t.Errorf("originalPortDefinition = %s", model.Dump(got))
+	}
+}

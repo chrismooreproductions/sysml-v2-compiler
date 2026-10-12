@@ -31,3 +31,23 @@ jobs:
           for d in plan/spike*/; do
             (cd "$d" && go vet ./...)
           done
+
+  # Compares the pipeline with the pilot implementation's serialization of the
+  # standard library. The oracle is large, so it is downloaded and cached
+  # rather than committed.
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Cache the oracle
+        uses: actions/cache@v6
+        with:
+          path: .oracle
+          key: oracle-${{ hashFiles('UPSTREAM') }}
+      - name: Fetch the oracle
+        run: tools/fetch-oracle.sh
+      - name: Conformance
+        run: go test -count=1 -v -run 'Matches' ./internal/conformance
