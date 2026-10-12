@@ -144,8 +144,8 @@ Port `implicit.go`, then the rest of the adapters.
 
 | # | Item | Done when |
 |---|---|---|
-| 5.1 | Implicit supertype engine | ≥ 96% of the implied-generalizations oracle (today's number) | **Done:** 99.59% of 49,334 implied general types match (`TestImpliedGeneralizationsMatchTheOracle`, compared by owner position and target).
-| 5.2 | Remaining generalization families | feature result typing, cross-subsetting, per-usage-kind defaults: ≥ 99.5% | **Done** for the generalization families: usage-kind defaults (`subitem`, `subaction`, binary connections, ports, requirements), cross features (typing, subsetting of redefined ends' cross features, cross subsetting) and the generated chains, compared by kind. 203 missing and 60 extra remain: enumeration literal typing, `ForLoopAction` reference subsettings, a few measurement and geometry features.
+| 5.1 | Implicit supertype engine | ≥ 96% of the implied-generalizations oracle (today's number) — **Done:** 99.59% of 49,334 implied general types match (`TestImpliedGeneralizationsMatchTheOracle`, compared by owner position and target).
+| 5.2 | Remaining generalization families | feature result typing, cross-subsetting, per-usage-kind defaults: ≥ 99.5% — **Done** for the generalization families: usage-kind defaults (`subitem`, `subaction`, binary connections, ports, requirements), cross features (typing, subsetting of redefined ends' cross features, cross subsetting) and the generated chains, compared by kind. 203 missing and 60 extra remain: enumeration literal typing, `ForLoopAction` reference subsettings, a few measurement and geometry features.
 | 5.3 | `TypeFeaturing` | 72k implied relationships compared and ≥ 99% reproduced |
 | 5.4 | `BindingConnector`s and the generated features they need | 12k compared and ≥ 99% reproduced |
 | 5.5 | Transition usage adapter | the last structural difference closes |
@@ -166,9 +166,9 @@ the rest.
 
 | # | Item | Done when |
 |---|---|---|
-| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types with typed accessors (moved here from 2.2), built over `internal/`; a doc comment on every exported identifier; one example per entry point | **Done** (generic model; typed accessors deferred past v0.2.0).
-| 7.2 | `sysmlc` | `check`, `dump`, `resolve` over files and directories, exit codes for CI use | **Done.**
-| 7.3 | Cutover: delete `metamodel`, replace the old `sysml` package with the new one | the 16 vendored spec fixtures and any old test still worth keeping pass on the new API, the rest are removed on purpose; `AGENTS.md` and the README rewritten | **Done** (old packages removed in a3cc65e; docs rewritten).
+| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types with typed accessors (moved here from 2.2), built over `internal/`; a doc comment on every exported identifier; one example per entry point — **Done** (generic model; typed accessors deferred past v0.2.0).
+| 7.2 | `sysmlc` | `check`, `dump`, `resolve` over files and directories, exit codes for CI use — **Done.**
+| 7.3 | Cutover: delete `metamodel`, replace the old `sysml` package with the new one | the 16 vendored spec fixtures and any old test still worth keeping pass on the new API, the rest are removed on purpose; `AGENTS.md` and the README rewritten — **Done** (old packages removed in a3cc65e; docs rewritten).
 | 7.4 | Release `v0.2.0` | CHANGELOG entry, tag, GitHub Release, as `AGENTS.md` requires |
 
 ### P8. Later
