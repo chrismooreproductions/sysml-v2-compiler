@@ -198,3 +198,26 @@ func TestValidateReportsConstraintViolations(t *testing.T) {
 		t.Errorf("Validate() = %+v", got)
 	}
 }
+
+func TestAddRecoveringKeepsTheStatementsThatParse(t *testing.T) {
+	w, err := NewWorkspace(WithoutStandardLibrary())
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, errs := w.AddRecovering("m.sysml", []byte("package P {\n  part def A;\n  part x : ;\n  part def B;\n}\n"))
+	if len(errs) != 1 || errs[0].Pos.Line != 3 {
+		t.Fatalf("errors %v", errs)
+	}
+	if doc == nil || len(w.Documents()) != 1 {
+		t.Fatal("the statements that parse were not added")
+	}
+	var names []string
+	doc.Root.Walk(func(e *Element) {
+		if n := e.Text("declaredName"); n != "" {
+			names = append(names, n)
+		}
+	})
+	if got := strings.Join(names, ","); got != "P,A,B" {
+		t.Errorf("names %s, want P,A,B", got)
+	}
+}

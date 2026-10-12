@@ -175,6 +175,24 @@ func (w *Workspace) AddAs(lang Language, name string, src []byte) (*Document, er
 	return d, nil
 }
 
+// AddRecovering is Add for a file that may have syntax errors. It returns every
+// syntax error in the file, not only the first, each with its position in the
+// source, and adds the statements around them to the workspace. The document is
+// nil if nothing in the file could be parsed. With no errors it behaves as Add.
+func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*SyntaxError) {
+	lang, err := LanguageOf(name)
+	if err != nil {
+		return nil, []*SyntaxError{{File: name, Msg: err.Error()}}
+	}
+	root, errs := w.w.AddSourceRecovering(lang.grammar(), name, string(src))
+	var doc *Document
+	if root != nil {
+		doc = &Document{Name: name, Language: lang, Root: root}
+		w.docs = append(w.docs, doc)
+	}
+	return doc, errs
+}
+
 // Documents lists the files added to the workspace, in order. It does not
 // include the standard library.
 func (w *Workspace) Documents() []*Document { return w.docs }

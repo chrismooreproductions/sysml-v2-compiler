@@ -177,3 +177,14 @@ func TestCheckReportsConstraintViolations(t *testing.T) {
 		t.Errorf("status %d, stderr %q, want %q", status, errs, want)
 	}
 }
+
+func TestCheckReportsEverySyntaxErrorInAFile(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "m.sysml", "package P {\n  part x : ;\n  part def A { attribute a : ; part ok; }\n  part y @@ ;\n  part z;\n}\n")
+	status, _, errs := invoke("check", f)
+	lines := strings.Split(strings.TrimSpace(errs), "\n")
+	if status != 1 || len(lines) != 3 ||
+		!strings.HasPrefix(lines[0], f+":2:12:") || !strings.HasPrefix(lines[1], f+":3:30:") || !strings.HasPrefix(lines[2], f+":4:10:") {
+		t.Errorf("status %d, stderr:\n%s", status, errs)
+	}
+}

@@ -141,13 +141,18 @@ func withWorkspace(args []string, stdout, stderr io.Writer, name string,
 			fmt.Fprintln(stderr, "sysmlc:", err)
 			return 2
 		}
-		doc, err := w.Add(f, src)
-		if err != nil {
-			fmt.Fprintln(stderr, err)
+		doc, errs := w.AddRecovering(f, src)
+		for _, e := range errs {
+			fmt.Fprintln(stderr, e)
 			problems++
-			continue
 		}
-		docs = append(docs, doc)
+		if doc != nil {
+			docs = append(docs, doc)
+		}
+	}
+	if problems > 0 {
+		// names that the unparsed statements would define are not worth reporting
+		return 1
 	}
 	diags := w.Resolve()
 	if name == "check" {

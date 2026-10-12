@@ -301,6 +301,19 @@ func (w *Workspace) removeRedefined(ms []*el) []*el {
 
 // AddSource parses a file, applies the post-processing and structural rules, and
 // adds it to the workspace. It returns the file's root Namespace.
+// AddSourceRecovering is AddSource for a file with syntax errors: it reports
+// all of them and adds the statements that did parse, if any (the root is nil
+// otherwise).
+func (w *Workspace) AddSourceRecovering(lang grammar.Language, file, src string) (*el, []*syntax.Error) {
+	n, errs := syntax.ParseRecover(lang, file, src)
+	if n == nil {
+		return nil, errs
+	}
+	root := w.addTree(n)
+	w.files[root] = file
+	return root, errs
+}
+
 func (w *Workspace) AddSource(lang grammar.Language, file, src string) (*el, error) {
 	n, err := syntax.Parse(lang, file, src)
 	if err != nil {

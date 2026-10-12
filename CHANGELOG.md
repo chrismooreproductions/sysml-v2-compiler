@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.AddRecovering`: reports every syntax error in a file, not only the
+  first, and adds the statements that did parse. `sysmlc check` uses it.
+
 ## [0.4.0] - 2026-10-12
 
 ### Added
