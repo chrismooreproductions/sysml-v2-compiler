@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+      - name: Test
+        run: go test ./...
+      # The spikes under plan/ are separate modules, so the commands above do
+      # not see them.
+      - name: Vet the spikes
+        run: |
+          for d in plan/spike*/; do
+            (cd "$d" && go vet ./...)
+          done
