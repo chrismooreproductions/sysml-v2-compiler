@@ -147,11 +147,18 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 		}
 	}
 	// TypeAdapter.addDefaultGeneralType: the metaclass's default supertype
-	if qn := implicitKind(t.Class, w.defaultKind(t, soFar())); qn != "" {
-		add(baseKind(t), w.libraryElement(qn))
+	emit := func(kind string) {
+		if qn := implicitKind(t.Class, kind); qn != "" {
+			add(baseKind(t), w.libraryElement(qn))
+		}
+	}
+	if t.IsA("OccurrenceUsage") {
+		w.occurrenceUsageKinds(t, emit, soFar)
+	} else {
+		emit(w.defaultKind(t, soFar()))
 	}
 	// ExpressionAdapter.addDefaultGeneralType: where the expression sits
-	if t.IsA("Expression") {
+	if t.IsA("Expression") && !t.IsA("Usage") {
 		if w.isStructureOwnedComposite(t) {
 			add("Subsetting", w.libraryElement(implicitKind(t.Class, "ownedPerformance")))
 		}
@@ -703,4 +710,228 @@ func (w *Workspace) ImpliedGeneralizations(t *model.Element) []Implied {
 		out = append(out, Implied{x.kind, x.target})
 	}
 	return out
+}
+
+// ---- usages ----
+
+func (w *Workspace) owningTypeIs(t *el, classes ...string) bool {
+	owner := w.featureOwningType(t)
+	if owner == nil {
+		return false
+	}
+	for _, c := range classes {
+		if owner.IsA(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasClassType and hasStructureType follow FeatureAdapter: a Feature (or its
+// owner) is typed by a Class or Structure, written or implied.
+func (w *Workspace) hasClassOwner(t *el) bool {
+	owner := w.featureOwningType(t)
+	return owner.IsA("Class") || owner.IsA("Feature") && w.hasType(owner, "Class", w.implicit(owner))
+}
+
+func (w *Workspace) hasStructureOwner(t *el) bool {
+	owner := w.featureOwningType(t)
+	return owner.IsA("Structure") || owner.IsA("Feature") && w.hasType(owner, "Structure", w.implicit(owner))
+}
+
+// isSubitem is ItemUsageAdapter.isSubitem.
+func (w *Workspace) isSubitem(t *el) bool {
+	return t.IsA("ItemUsage") && t.IsTrue("isComposite") && w.owningTypeIs(t, "ItemDefinition", "ItemUsage")
+}
+
+func (w *Workspace) isEntryExitAction(t *el) bool {
+	if t.Owner == nil || !t.Owner.IsA("StateSubactionMembership") {
+		return false
+	}
+	k := t.Owner.Text("kind")
+	return k == "entry" || k == "exit"
+}
+
+func (w *Workspace) isActionOwnedComposite(t *el) bool {
+	return t.IsTrue("isComposite") && !w.isEntryExitAction(t) && w.owningTypeIs(t, "ActionDefinition", "ActionUsage")
+}
+
+func (w *Workspace) isPartOwnedComposite(t *el) bool {
+	return t.IsTrue("isComposite") && w.owningTypeIs(t, "PartDefinition", "PartUsage")
+}
+
+// isSuboccurrence and isSubobject are the overrides down FeatureAdapter,
+// OccurrenceUsageAdapter, ItemUsageAdapter and ActionUsageAdapter.
+func (w *Workspace) isSuboccurrence(t *el) bool {
+	r := t.IsTrue("isComposite") && w.hasClassOwner(t) || t.IsTrue("isComposite") && w.owningTypeIs(t, "OccurrenceUsage")
+	switch {
+	case t.IsA("ItemUsage"):
+		return r && !w.isSubitem(t)
+	case t.IsA("ActionUsage"):
+		return r && !w.isActionOwnedComposite(t)
+	}
+	return r
+}
+
+func (w *Workspace) isSubobject(t *el) bool {
+	r := t.IsTrue("isComposite") && w.hasStructureOwner(t)
+	if t.IsA("ItemUsage") {
+		return r && !w.isSubitem(t)
+	}
+	return r
+}
+
+// usageDefaultKind is getDefaultSupertype() of the adapter for a usage's
+// metaclass.
+func (w *Workspace) usageDefaultKind(t *el) string {
+	isSubrequirement := t.IsTrue("isComposite") && w.owningTypeIs(t, "RequirementDefinition", "RequirementUsage") &&
+		!t.Owner.IsA("RequirementConstraintMembership")
+	switch {
+	case t.IsA("AssertConstraintUsage"), t.IsA("SatisfyRequirementUsage"):
+		if t.IsTrue("isNegated") {
+			return "negated"
+		}
+	case t.IsA("ViewpointUsage"):
+		if w.owningTypeIs(t, "ViewDefinition", "ViewUsage") {
+			return "satisfied"
+		}
+	case t.IsA("ConcernUsage"):
+	case t.IsA("RequirementUsage"):
+		if isSubrequirement {
+			return "subrequirement"
+		}
+	case t.IsA("ConstraintUsage"):
+	case t.IsA("PortUsage"):
+		switch {
+		case w.owningTypeIs(t, "PartDefinition", "PartUsage"):
+			return "ownedPort"
+		case t.IsTrue("isComposite") && w.owningTypeIs(t, "PortDefinition", "PortUsage"):
+			return "subport"
+		}
+	case t.IsA("RenderingUsage"):
+		if w.owningTypeIs(t, "RenderingDefinition", "RenderingUsage") {
+			return "subrendering"
+		}
+	case t.IsA("ViewUsage"):
+		if w.owningTypeIs(t, "ViewDefinition", "ViewUsage") {
+			return "subview"
+		}
+	case t.IsA("PartUsage"):
+		actor := t.Owner.IsA("ActorMembership")
+		switch {
+		case actor && w.owningTypeIs(t, "RequirementDefinition", "RequirementUsage"):
+			return "requirementActor"
+		case t.Owner.IsA("StakeholderMembership") && w.owningTypeIs(t, "RequirementDefinition", "RequirementUsage"):
+			return "requirementStakeholder"
+		case actor && w.owningTypeIs(t, "CaseDefinition", "CaseUsage"):
+			return "caseActor"
+		}
+		if w.isSubitem(t) {
+			return "subitem"
+		}
+	case t.IsA("MetadataUsage"):
+	case t.IsA("ItemUsage"):
+		if w.isSubitem(t) {
+			return "subitem"
+		}
+	case t.IsA("EventOccurrenceUsage"):
+		if w.owningTypeIs(t, "OccurrenceDefinition", "OccurrenceUsage") {
+			return "suboccurrence"
+		}
+	}
+	return "base"
+}
+
+// occurrenceUsageKinds emits, in order, the kinds of implicit general type the
+// adapters from OccurrenceUsageAdapter down add to a usage.
+func (w *Workspace) occurrenceUsageKinds(t *el, emit func(string), soFar func() []implied) {
+	// ConstraintUsageAdapter.computeImplicitGeneralTypes: the requirement
+	// constraint kind comes first
+	if t.IsA("ConstraintUsage") && t.Owner.IsA("RequirementConstraintMembership") {
+		emit(t.Owner.Text("kind"))
+	}
+	if t.IsA("ConcernUsage") && t.Owner.IsA("FramedConcernMembership") {
+		emit("concern")
+	}
+	if t.IsA("RequirementUsage") && t.Owner.IsA("RequirementVerificationMembership") {
+		emit("verification")
+	}
+	emit(w.usageDefaultKind(t))
+	// OccurrenceUsageAdapter.addDefaultGeneralType
+	if w.hasType(t, "DataType", soFar()) {
+		emit("dataValue")
+	}
+	switch {
+	case w.hasType(t, "Structure", soFar()):
+		if w.isSubobject(t) {
+			emit("subobject")
+		} else {
+			emit("object")
+		}
+	case w.isSuboccurrence(t):
+		emit("suboccurrence")
+	}
+	switch t.Text("portionKind") {
+	case "snapshot":
+		emit("snapshot")
+	case "timeslice":
+		emit("timeslice")
+	}
+	// the subclasses' own additions
+	switch {
+	case t.IsA("ActionUsage"):
+		switch {
+		case w.isActionOwnedComposite(t):
+			emit("subaction")
+		case w.isPartOwnedComposite(t):
+			emit("ownedAction")
+		}
+		w.performanceKinds(t, emit, true)
+		if t.IsA("PerformActionUsage") || t.IsA("ExhibitStateUsage") || t.IsA("IncludeUseCaseUsage") {
+			if w.owningTypeIs(t, "PartDefinition", "PartUsage") {
+				emit("performedAction")
+			}
+		}
+		if t.IsA("IfActionUsage") && len(w.rels(t, "ParameterMembership")) > 2 {
+			emit("ifThenElse")
+		}
+	case t.IsA("ConstraintUsage"):
+		checked := t.IsTrue("isComposite") && w.owningTypeIs(t, "ItemDefinition", "ItemUsage")
+		if checked {
+			emit("checkedConstraint")
+		}
+		w.performanceKinds(t, emit, false)
+	case t.IsA("PortUsage"):
+		if w.isStructureOwnedComposite(t) {
+			emit("subobject")
+		}
+	case t.IsA("RenderingUsage"), t.IsA("ViewUsage"):
+		if w.isSubitem(t) {
+			emit("subpart")
+		}
+	}
+	if t.IsA("ConcernUsage") && t.IsTrue("isComposite") && w.owningTypeIs(t, "RequirementDefinition", "RequirementUsage") &&
+		!t.Owner.IsA("RequirementConstraintMembership") {
+		emit("subrequirement")
+	}
+}
+
+// performanceKinds are StepAdapter's: where a step or constraint sits among
+// the performances.
+func (w *Workspace) performanceKinds(t *el, emit func(string), exclusive bool) {
+	behavior := w.isBehaviorOwned(t)
+	if t.IsA("AssertConstraintUsage") {
+		behavior = w.owningTypeIs(t, "ActionDefinition", "ActionUsage")
+	}
+	owned := w.isStructureOwnedComposite(t)
+	sub := behavior && t.IsTrue("isComposite")
+	if owned {
+		emit("ownedPerformance")
+	}
+	if sub && !(exclusive && owned) {
+		emit("subperformance")
+	}
+	if behavior && !(exclusive && (owned || sub)) {
+		emit("enclosedPerformance")
+	}
 }

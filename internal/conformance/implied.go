@@ -34,19 +34,33 @@ var impliedRoles = map[string]string{
 // detachImplied removes the implied relationships from an oracle tree, so that
 // the positions of the other elements are those of the file without them, and
 // returns them by owner.
-func detachImplied(c *Elem, into map[*Elem][]*Elem) {
+func detachImplied(c *Elem, into map[*Elem][]*Elem, generated map[string]bool) {
 	var kept []Kid
 	for _, k := range c.Kids {
 		if k.Elem != nil {
 			if k.Elem.Attrs["isImplied"] == "true" {
 				into[c] = append(into[c], k.Elem)
+				markGenerated(k.Elem, generated)
 				continue
 			}
-			detachImplied(k.Elem, into)
+			detachImplied(k.Elem, into, generated)
 		}
 		kept = append(kept, k)
 	}
 	c.Kids = kept
+}
+
+// markGenerated records the elements owned by an implied relationship: the
+// features the pilot makes to be its targets.
+func markGenerated(c *Elem, into map[string]bool) {
+	for _, k := range c.Kids {
+		if k.Elem != nil {
+			if k.Elem.ID != "" {
+				into[k.Elem.File+"|"+k.Elem.ID] = true
+			}
+			markGenerated(k.Elem, into)
+		}
+	}
 }
 
 // CompareImplied resolves the standard library, computes the implied general
@@ -76,6 +90,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 
 	index := NewIndex()
 	impliedOf := map[*Elem][]*Elem{}
+	generated := map[string]bool{}
 	for i, f := range files {
 		Prune(ours[i])
 		oracle, err := LoadXMI(filepath.Join(oracleRoot, "sysml.library.xmi.implied", f.Path+"x"))
@@ -83,7 +98,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			return nil, err
 		}
 		Prune(oracle)
-		detachImplied(oracle, impliedOf)
+		detachImplied(oracle, impliedOf, generated)
 		index.Add(oracle, FileBase(f.Path))
 	}
 	byKey := map[string]*Elem{}
@@ -132,6 +147,8 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 				if k.Elem == nil && k.Role == role {
 					if t := index.ByID[k.TgtFile+"|"+k.TgtID]; t != nil {
 						target = t.Key
+					} else if generated[k.TgtFile+"|"+k.TgtID] {
+						target = "(generated)"
 					}
 				}
 			}
@@ -169,7 +186,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			st.Expected += n
 			st.Match += m
 			st.Missing += n - m
-			if n > m && len(st.Samples) < 400 {
+			if n > m && len(st.Samples) < 5000 {
 				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner]), describeKey(index, rel[len(kind)+1:])))
 			}
 		}
@@ -184,7 +201,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			kind := rel[:indexByte(rel, ' ')]
 			tally(kind).Wrong += extra
 			st.Extra += extra
-			if len(st.Samples) < 400 {
+			if len(st.Samples) < 5000 {
 				st.Samples = append(st.Samples, fmt.Sprintf("extra   %-18s %s -> %s", kind, describe(index.ByKey[owner]), describeKey(index, rel[len(kind)+1:])))
 			}
 		}
