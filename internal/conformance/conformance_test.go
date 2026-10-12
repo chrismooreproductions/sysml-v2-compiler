@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -118,5 +119,45 @@ func TestResolvedLibraryMatchesTheOracle(t *testing.T) {
 	}
 	if st.Match < minMatchingRefs {
 		t.Errorf("%d references match, fewer than the %d already achieved", st.Match, minMatchingRefs)
+	}
+}
+
+// The ratchet for the implied general types: the relationships the pilot marks
+// isImplied, compared by owner position and target.
+const minImpliedMatch = 46999
+
+func TestImpliedGeneralizationsMatchTheOracle(t *testing.T) {
+	dir := oracleRoot(t)
+	if _, err := os.Stat(filepath.Join(dir, "sysml.library.xmi.implied")); err != nil {
+		t.Skip("no .implied oracle")
+	}
+	st, err := CompareImplied(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kinds []string
+	for k := range st.ByKind {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	var sb strings.Builder
+	for _, k := range kinds {
+		r := st.ByKind[k]
+		sb.WriteString(fmt.Sprintf("  %-20s %6d expected %6d match %5d missing %5d extra\n", k, r.Total, r.Match, r.Unresolved, r.Wrong))
+	}
+	t.Logf("%d implied relationships expected: %d match, %d missing, %d extra (%.2f%%)\n%s",
+		st.Expected, st.Match, st.Missing, st.Extra, 100*float64(st.Match)/float64(st.Expected), sb.String())
+	samples := 12
+	if os.Getenv("ORACLE_ALL") != "" {
+		samples = 1 << 30
+	}
+	for i, s := range st.Samples {
+		if i >= samples {
+			break
+		}
+		t.Log(s)
+	}
+	if st.Match < minImpliedMatch {
+		t.Errorf("%d implied relationships match, fewer than the %d already achieved", st.Match, minImpliedMatch)
 	}
 }

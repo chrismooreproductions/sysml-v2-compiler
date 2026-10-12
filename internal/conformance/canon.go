@@ -112,6 +112,9 @@ func (z *Canonicalizer) Add(root *model.Element, file string) *Elem {
 	return out
 }
 
+// Canon returns the canonical form of an element added earlier, or nil.
+func (z *Canonicalizer) Canon(e *model.Element) *Elem { return z.canon[e] }
+
 // Link sets the targets of the references of every root added so far.
 func (z *Canonicalizer) Link() {
 	var link func(e *model.Element)

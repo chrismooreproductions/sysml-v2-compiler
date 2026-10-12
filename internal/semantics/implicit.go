@@ -686,3 +686,21 @@ func (w *Workspace) defaultKind(t *el, soFar []implied) string {
 	}
 	return "base"
 }
+
+// Implied is a relationship the specification adds to a type that its source
+// does not write: a Subclassification, Subsetting, Redefinition, FeatureTyping
+// and so on, from the type to Target.
+type Implied struct {
+	Kind   string
+	Target *model.Element
+}
+
+// ImpliedGeneralizations returns the implied general types of t, in the order
+// the pilot adds them. The workspace must have been resolved.
+func (w *Workspace) ImpliedGeneralizations(t *model.Element) []Implied {
+	var out []Implied
+	for _, x := range w.implicit(t) {
+		out = append(out, Implied{x.kind, x.target})
+	}
+	return out
+}
