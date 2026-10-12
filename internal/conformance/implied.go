@@ -4,8 +4,10 @@ package conformance
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/library"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/model"
@@ -32,9 +34,10 @@ var impliedRoles = map[string]string{
 	"TypeFeaturing":       "featuringType",
 }
 
-// detachImplied removes the implied relationships from an oracle tree, so that
-// the positions of the other elements are those of the file without them, and
-// returns them by owner.
+// detachImplied removes the implied relationships and elements from an oracle
+// tree, with the membership that holds an implied element, so that the positions
+// of the other elements are those of the file without them, and returns them by
+// owner.
 func detachImplied(c *Elem, into map[*Elem][]*Elem, generated map[string]bool) {
 	var kept []Kid
 	for _, k := range c.Kids {
@@ -42,6 +45,20 @@ func detachImplied(c *Elem, into map[*Elem][]*Elem, generated map[string]bool) {
 			if k.Elem.Attrs["isImplied"] == "true" {
 				into[c] = append(into[c], k.Elem)
 				markGenerated(k.Elem, generated)
+				continue
+			}
+			// a membership holding an implied element is itself implied
+			var held []*Elem
+			for _, kk := range k.Elem.Kids {
+				if kk.Elem != nil && kk.Elem.Attrs["isImplied"] == "true" && kk.Elem.Class == "BindingConnector" {
+					held = append(held, kk.Elem)
+				}
+			}
+			if len(held) > 0 {
+				into[c] = append(into[c], held...)
+				for _, h := range held {
+					markGenerated(h, generated)
+				}
 				continue
 			}
 			detachImplied(k.Elem, into, generated)
@@ -124,6 +141,18 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			if c == nil || !e.IsA("Type") {
 				return
 			}
+			for _, b := range w.ImpliedBindings(e) {
+				key := func(x *model.Element) string {
+					if t := z.Canon(x); t != nil && t.Key != "" {
+						return t.Key
+					}
+					return "(generated)"
+				}
+				if have[c.Key] == nil {
+					have[c.Key] = map[string]int{}
+				}
+				have[c.Key]["BindingConnector "+key(b.Source)+" "+key(b.Target)]++
+			}
 			for _, ft := range w.ImpliedFeaturingTypes(e) {
 				target := "(generated)"
 				if t := z.Canon(ft); t != nil && t.Key != "" {
@@ -153,6 +182,13 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 	want := map[string]map[string]int{}
 	for owner, rels := range impliedOf {
 		for _, r := range rels {
+			if r.Class == "BindingConnector" {
+				if want[owner.Key] == nil {
+					want[owner.Key] = map[string]int{}
+				}
+				want[owner.Key]["BindingConnector "+bindingEnds(r, index, generated)]++
+				continue
+			}
 			role, ok := impliedRoles[r.Class]
 			if !ok {
 				continue
@@ -201,6 +237,9 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			st.Expected += n
 			st.Match += m
 			st.Missing += n - m
+			if n > m && kind == "BindingConnector" && os.Getenv("ORACLE_DEBUG") != "" {
+				fmt.Printf("DEBUG owner %s\n  want %s\n  have %v\n", describe(index.ByKey[owner]), rel, have[owner])
+			}
 			if n > m && len(st.Samples) < 200000 {
 				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
 			}
@@ -238,4 +277,44 @@ func describeKey(x *Index, key string) string {
 		return describe(e)
 	}
 	return key
+}
+
+// bindingEnds names the two features an oracle binding connector binds: the
+// features its ends reference, by position, or (generated).
+func bindingEnds(bc *Elem, index *Index, generated map[string]bool) string {
+	var ends []string
+	for _, k := range bc.Kids {
+		if k.Elem == nil || !strings.HasSuffix(k.Elem.Class, "Membership") {
+			continue
+		}
+		for _, kk := range k.Elem.Kids {
+			if kk.Elem == nil || kk.Elem.Attrs["isEnd"] != "true" {
+				continue
+			}
+			ends = append(ends, endTarget(kk.Elem, index, generated))
+		}
+	}
+	for len(ends) < 2 {
+		ends = append(ends, "?")
+	}
+	return ends[0] + " " + ends[1]
+}
+
+func endTarget(end *Elem, index *Index, generated map[string]bool) string {
+	for _, k := range end.Kids {
+		if k.Elem != nil && k.Elem.Class == "ReferenceSubsetting" {
+			for _, kk := range k.Elem.Kids {
+				switch {
+				case kk.Elem == nil && kk.Role == "referencedFeature":
+					if t := index.ByID[kk.TgtFile+"|"+kk.TgtID]; t != nil {
+						return t.Key
+					}
+					return "(generated)"
+				case kk.Elem != nil:
+					return "(generated)"
+				}
+			}
+		}
+	}
+	return "?"
 }

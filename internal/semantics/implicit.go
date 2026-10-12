@@ -487,8 +487,8 @@ func (w *Workspace) isFunctionType(t *el) bool {
 		return true
 	}
 	if t.IsA("Feature") {
-		for _, r := range w.rels(t, "FeatureTyping") {
-			if g := w.refTarget(r, "type"); g.IsA("Function") {
+		for _, g := range w.typesOf(t) {
+			if g.IsA("Function") {
 				return true
 			}
 		}
@@ -1286,6 +1286,67 @@ func (w *Workspace) featuringTypesOf(f *el) []*el {
 	out = append(out, w.ImpliedFeaturingTypes(f)...)
 	if c := w.chainingFeatures(f); len(c) > 0 && c[0] != nil {
 		out = append(out, w.featuringTypesOf(c[0])...)
+	}
+	return out
+}
+
+// ---- binding connectors ----
+
+// Binding is a BindingConnector the pilot's transformation adds to a type: it
+// binds Source to Target.
+type Binding struct{ Source, Target *model.Element }
+
+// ImpliedBindings returns the binding connectors the transformation of t adds:
+// for a feature value, a reference, an invocation of a behavior or a result
+// expression. The workspace must have been resolved.
+func (w *Workspace) ImpliedBindings(t *el) []Binding {
+	var out []Binding
+	add := func(src, tgt *el) {
+		if src != nil && tgt != nil {
+			out = append(out, Binding{src, tgt})
+		}
+	}
+	// FeatureAdapter.computeValueConnector (checkFeatureValueBindingConnector)
+	if t.IsA("Feature") {
+		for _, fv := range w.rels(t, "FeatureValue") {
+			if fv.IsTrue("isDefault") {
+				break
+			}
+			if value := first(w.ownedRelated(fv)); value != nil {
+				if res := w.resultOf(value); res != nil {
+					add(w.chainFeatures(value, res), t)
+				}
+			}
+			break
+		}
+	}
+	// FeatureReferenceExpressionAdapter.addReferenceConnector
+	if t.IsA("FeatureReferenceExpression") {
+		// ExpressionUtil.getReferentFor: the first membership that is not a parameter's
+		for _, m := range w.rels(t, "Membership") {
+			if m.IsA("ParameterMembership") {
+				continue
+			}
+			if r := w.memberElement(m); r.IsA("Feature") {
+				add(r, w.resultOf(t))
+			}
+			break
+		}
+	}
+	// InvocationExpressionAdapter.createSelfResultConnector
+	if t.IsA("InvocationExpression") && !t.IsA("OperatorExpression") {
+		if inst := w.instantiatedType(t); inst != nil && !w.isFunctionType(inst) {
+			add(t, w.resultOf(t))
+		}
+	}
+	// TypeAdapter.createResultConnector
+	if t.IsA("Function") || t.IsA("Expression") || t.IsA("CalculationUsage") || t.IsA("ConstraintUsage") {
+		for _, m := range w.rels(t, "ResultExpressionMembership") {
+			if e := first(w.ownedRelated(m)); e != nil && e.IsA("Expression") {
+				add(w.resultOf(e), w.resultParameterOf(t, map[*el]bool{}))
+			}
+			break
+		}
 	}
 	return out
 }
