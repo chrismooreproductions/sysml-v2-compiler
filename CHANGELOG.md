@@ -6,8 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-12
+
 ### Added
 
+- Seven more structural constraints are checked, 75 in all: the referential
+  and individual rules for usages, references to non-features, conjugated
+  specifics, binary associations and connectors, and connection definition ends.
 - `Workspace.AddRecovering`: reports every syntax error in a file, not only the
   first, and adds the statements that did parse. `sysmlc check` uses it.
 
@@ -15,7 +20,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `Workspace.Validate` and `Diagnostic.Constraint`: 75 of the specification's
+- `Workspace.Validate` and `Diagnostic.Constraint`: 68 of the specification's
   structural constraints, named and worded as in the pilot implementation, are
   checked on the documents you add. `sysmlc check` reports them. The standard
   library is valid under all of them.
@@ -71,7 +76,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   verification, use cases and a narrow slice of actions. See the README
   for the exact supported constructs and known gaps.
 
-[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.1.0...v0.2.0
