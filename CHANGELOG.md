@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.Validate` and `Diagnostic.Constraint`: 18 of the specification's
+  structural constraints, named and worded as in the pilot implementation, are
+  checked on the documents you add. `sysmlc check` reports them. The standard
+  library is valid under all of them.
+
 ## [0.3.0] - 2026-10-12
 
 ### Added

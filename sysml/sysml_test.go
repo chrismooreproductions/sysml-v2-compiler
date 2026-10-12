@@ -184,3 +184,17 @@ func TestElementsKnowTheirFileAndQualifiedName(t *testing.T) {
 		t.Errorf("QualifiedName = %q", got)
 	}
 }
+
+func TestValidateReportsConstraintViolations(t *testing.T) {
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Add("v.sysml", []byte("package P { part def V { variant part x; } }")); err != nil {
+		t.Fatal(err)
+	}
+	got := w.Validate()
+	if len(got) != 1 || got[0].Constraint != "validateVariantMembershipOwningNamespace" || got[0].File != "v.sysml" {
+		t.Errorf("Validate() = %+v", got)
+	}
+}

@@ -150,6 +150,9 @@ func withWorkspace(args []string, stdout, stderr io.Writer, name string,
 		docs = append(docs, doc)
 	}
 	diags := w.Resolve()
+	if name == "check" {
+		diags = append(diags, w.Validate()...)
+	}
 	for _, d := range diags {
 		fmt.Fprintln(stderr, d)
 		problems++

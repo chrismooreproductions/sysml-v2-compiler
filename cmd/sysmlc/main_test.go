@@ -167,3 +167,13 @@ func TestImpliedPrintsWhatTheSpecificationAdds(t *testing.T) {
 		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
 	}
 }
+
+func TestCheckReportsConstraintViolations(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "v.sysml", "package P { part def V { variant part x; } }")
+	status, _, errs := invoke("check", f)
+	want := f + ":1:26: A variant must be an owned member of a variation.\n"
+	if status != 1 || errs != want {
+		t.Errorf("status %d, stderr %q, want %q", status, errs, want)
+	}
+}

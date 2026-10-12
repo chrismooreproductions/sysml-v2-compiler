@@ -184,6 +184,10 @@ type Diagnostic struct {
 	File    string
 	Span    Span
 	Message string
+	// Constraint names the specification constraint a Validate diagnostic
+	// reports (for example "validateFeatureEndNoDirection"); it is empty for
+	// the diagnostics Resolve returns.
+	Constraint string
 }
 
 func (d Diagnostic) String() string {
@@ -252,6 +256,26 @@ func (w *Workspace) ImpliedBindings(e *Element) []Binding {
 	var out []Binding
 	for _, b := range w.w.ImpliedBindings(e) {
 		out = append(out, Binding{b.Source, b.Target})
+	}
+	return out
+}
+
+// Validate checks the specification's constraints on the documents added to
+// the workspace (not on the standard library) and returns the violations. It
+// resolves the workspace first if that has not been done. Only the structural
+// constraints are checked so far; see the README.
+func (w *Workspace) Validate() []Diagnostic {
+	w.w.Resolve()
+	var out []Diagnostic
+	for _, doc := range w.docs {
+		for _, is := range w.w.Validate(doc.Root) {
+			out = append(out, Diagnostic{
+				File:       doc.Name,
+				Span:       is.Element.Span,
+				Message:    is.Message,
+				Constraint: is.Constraint,
+			})
+		}
 	}
 	return out
 }
