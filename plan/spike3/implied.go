@@ -96,42 +96,11 @@ func (w *world) oracleImplied(e *cn, byID map[string]*cn) []impl {
 // ourImplied lists the implied generalizations our rules give an element.
 func (w *world) ourImplied(e *cn) []impl {
 	var out []impl
-	if !w.is(e, "Type") || len(w.rels(e, "Conjugation")) > 0 {
+	if !w.is(e, "Type") {
 		return out
 	}
-	// The default supertype of the metaclass, unless an explicit general type
-	// already specializes it (removeUnnecessaryImplicitGeneralTypes).
-	if qn := implicitBase(e.class); qn != "" {
-		if g := w.libraryElement(qn); g != nil && g != e {
-			redundant := false
-			for _, x := range w.explicitGenerals(e) {
-				if w.specializes(x, g) {
-					redundant = true
-				}
-			}
-			if !redundant {
-				cls := "Subclassification"
-				if w.is(e, "Feature") {
-					cls = "Subsetting"
-				}
-				out = append(out, impl{cls, w.targetKey(g)})
-			}
-		}
-	}
-	return out
-}
-
-// explicitGenerals are the resolved targets of the type's own specializations.
-func (w *world) explicitGenerals(t *cn) []*cn {
-	var out []*cn
-	for _, r := range w.rels(t, "Specialization") {
-		for i, k := range r.kids {
-			if k.n == nil && theMeta.isTargetEnd(r.class, k.role) {
-				if g := w.resolveKid(r, i); g != nil && g != t {
-					out = append(out, g)
-				}
-			}
-		}
+	for _, x := range w.implicit(e) {
+		out = append(out, impl{x.kind, w.targetKey(x.target)})
 	}
 	return out
 }

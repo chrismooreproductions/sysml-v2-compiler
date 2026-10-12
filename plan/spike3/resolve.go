@@ -28,7 +28,9 @@ type world struct {
 	effNames     map[*cn][2]string // cache: effective short name, name
 	cut          int               // incremented whenever a circular resolution is cut
 	libCache     map[string]*cn    // library elements by qualified name
-	impliedByKey map[string]*cn    // the implied serialization\'s plain elements by position
+	implMemo     map[*cn][]ig
+	implBusy     map[*cn]bool
+	impliedByKey map[string]*cn // the implied serialization\'s plain elements by position
 }
 
 func assignKeys(c *cn, file, path string, parent *cn, byKey map[string]*cn) {
@@ -277,10 +279,10 @@ func (w *world) removeRedefined(ms []*cn) []*cn {
 
 // ---- inheritance, imports, visible memberships ----
 
-// implicitBase names the library type a metaclass implicitly specializes
-// (ImplicitGeneralizationMap, kind "base"), searching up the metaclass
-// hierarchy as the Java does up the implementation class hierarchy.
-func implicitBase(class string) string {
+// implicitKind names the library type a metaclass implicitly specializes for
+// a kind (ImplicitGeneralizationMap), searching up the metaclass hierarchy as
+// the Java does up the implementation class hierarchy.
+func implicitKind(class, kind string) string {
 	queue, seen := []string{class}, map[string]bool{}
 	for len(queue) > 0 {
 		c := queue[0]
@@ -289,13 +291,15 @@ func implicitBase(class string) string {
 			continue
 		}
 		seen[c] = true
-		if v, ok := implicitTable[c+"_base"]; ok {
+		if v, ok := implicitTable[c+"_"+kind]; ok {
 			return v
 		}
 		queue = append(queue, theMeta.supers[c]...)
 	}
 	return ""
 }
+
+func implicitBase(class string) string { return implicitKind(class, "base") }
 
 // libraryElement resolves a qualified library name from the global scope.
 func (w *world) libraryElement(qn string) *cn {
@@ -311,18 +315,11 @@ func (w *world) libraryElement(qn string) *cn {
 }
 
 // generals are the types a type specializes or conjugates, as resolved,
-// followed by the library type it implicitly specializes.
-func (w *world) generals(t *cn) (out []*cn) {
-	defer func() {
-		if os.Getenv("NO_IMPLICIT") != "" || len(w.rels(t, "Conjugation")) > 0 {
-			return
-		}
-		if qn := implicitBase(t.class); qn != "" {
-			if g := w.libraryElement(qn); g != nil && g != t {
-				out = append(out, g)
-			}
-		}
-	}()
+// followed by its implicit general types (TypeUtil.getGeneralTypesOf).
+func (w *world) generals(t *cn) []*cn { return w.generalTypes(t) }
+
+func (w *world) generalTypes(t *cn) []*cn {
+	var out []*cn
 	for _, r := range w.rels(t, "Specialization") {
 		for i, k := range r.kids {
 			if k.n == nil && theMeta.isTargetEnd(r.class, k.role) {
@@ -338,6 +335,18 @@ func (w *world) generals(t *cn) (out []*cn) {
 				if g := w.resolveKid(r, i); g != nil {
 					out = append(out, g)
 				}
+			}
+		}
+	}
+	if os.Getenv("NO_IMPLICIT") == "" {
+		for _, x := range w.implicit(t) {
+			out = append(out, x.target)
+		}
+	}
+	if w.is(t, "Feature") {
+		if ch := w.rels(t, "FeatureChaining"); len(ch) > 0 {
+			if f := w.basicFeature(t); f != nil {
+				out = append(out, f)
 			}
 		}
 	}
@@ -903,7 +912,7 @@ func worldMain() {
 	sort.Strings(files)
 
 	w := &world{mineByKey: map[string]*cn{}, oracleByKey: map[string]*cn{}, oracleByID: map[string]*cn{},
-		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}, impliedByKey: map[string]*cn{}}
+		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}, implMemo: map[*cn][]ig{}, implBusy: map[*cn]bool{}, impliedByKey: map[string]*cn{}}
 	oracleRoots := map[string]*cn{}
 	impliedRoots := map[string]*cn{}
 	impliedByID := map[string]*cn{}
