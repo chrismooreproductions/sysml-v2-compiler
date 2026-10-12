@@ -52,6 +52,18 @@ a new fixture, fetch it from the real repo (`raw.githubusercontent.com/
 Systems-Modeling/SysML-v2-Release/master/sysml/src/examples/...`) and
 diff/compare rather than retype it from memory or an earlier paraphrase.
 
+### Upstream sources
+
+`UPSTREAM` pins the OMG release (tag and commit) that the standard library,
+the example models and the XMI oracles come from. `internal/library` and
+`testdata/upstream` are copied from it unmodified by
+`tools/vendor-upstream.sh <SysML-v2-Release checkout>`; never edit them by
+hand, and never add a file there that is not in the pinned release. The XMI
+oracles (25 MB and 120 MB) are not committed: `tools/fetch-oracle.sh`
+downloads them into `.oracle/` (ignored by git). To move to a new release,
+change `UPSTREAM`, re-run the vendoring script and the conformance run, and
+record behaviour changes in `CHANGELOG.md`.
+
 ## The DefKind mirroring trap
 
 `sysml.DefKind` and `metamodel.DefKind` are two separate Go types kept in

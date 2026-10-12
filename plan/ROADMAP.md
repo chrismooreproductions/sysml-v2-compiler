@@ -84,10 +84,10 @@ Each phase ends with a test that can fail.
 
 | # | Item | Done when |
 |---|---|---|
-| 0.1 | Add CI: build, vet, gofmt, test | a workflow runs on every PR |
+| 0.1 | Add CI: build, vet, gofmt, test | **Done:** `.github/workflows/ci.yml` runs on every push to `main` and every PR, and also vets the `plan/` spikes |
 | 0.2 | Choose the repository license | **Done:** EPL-2.0 (`LICENSE`, `NOTICE`, SPDX headers on every Go file; rule recorded in `AGENTS.md`) |
-| 0.3 | Pin the upstream release | `UPSTREAM` records the tag (`2026-08`) for grammar, ecore and library |
-| 0.4 | Conformance fixtures policy | **Decided.** Vendored, pinned to the release tag in `UPSTREAM`: the library sources (1.6 MB, under `internal/library`) and the release examples, training and validation models plus the KerML examples (about 1.4 MB, as test data). Fetched by script in CI, never committed: the XMI oracles (25 MB, and 120 MB for `.implied`). Unit tests run offline; only the conformance run needs the download |
+| 0.3 | Pin the upstream release | **Done:** `UPSTREAM` records tag `2026-08` and the commit of both the release and pilot repos |
+| 0.4 | Conformance fixtures policy | **Decided.** Vendored, pinned to the release tag in `UPSTREAM`: the library sources (1.6 MB, under `internal/library`) and the release examples, training and validation models plus the KerML examples (about 1.4 MB, as test data). Fetched by script in CI, never committed: the XMI oracles (25 MB, and 120 MB for `.implied`). Unit tests run offline; only the conformance run needs the download. **Done:** `tools/vendor-upstream.sh` and `tools/fetch-oracle.sh`; 94 library files and 310 example models vendored and byte-identical to the tag; all 310 parse with the spike parser, including the 156 training and validation models |
 
 ### P1. Syntax: parse into a node tree
 
@@ -100,7 +100,7 @@ Port `spike1`/`spike3` into `internal/syntax` as a clean package.
 | 1.3 | Grammar interpreter producing nodes **with positions** | every node carries the span of the text that produced it (the spikes have none) |
 | 1.4 | Error reporting | farthest-failure message names the expected tokens and the position; golden tests for 30+ malformed inputs |
 | 1.5 | Ambiguity policy | decide and document what happens when two parses reach the same end (spike keeps the first); a test that counts ambiguous files in the library |
-| 1.6 | Corpus test | the 94 library files and the release examples parse; the existing 16 fixtures parse |
+| 1.6 | Corpus test | the 94 library files and the 310 vendored example models parse; the existing 16 fixtures parse |
 | 1.7 | Performance budget | parsing the whole library in under a stated time, with a benchmark |
 
 ### P2. Schema from the ecore
