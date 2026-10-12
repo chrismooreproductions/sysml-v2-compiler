@@ -11,9 +11,8 @@ SysML v2 Release (https://github.com/Systems-Modeling/SysML-v2-Release)
   Systems Modeling project, Object Management Group.
   Vendored unmodified at the tag pinned in UPSTREAM (tools/vendor-upstream.sh):
   the standard library sources (internal/library) and the example, training
-  and validation models (testdata/upstream). Also the older fixtures in
-  sysml/testdata/spec_examples, and the source of the grammar listings and XMI
-  serializations studied under plan/ (the XMI is downloaded, not committed).
+  and validation models (testdata/upstream), and the XMI serializations used
+  as the conformance oracle (downloaded, not committed).
 
 SysML v2 Pilot Implementation
 (https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation)
