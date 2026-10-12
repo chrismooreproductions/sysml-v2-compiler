@@ -3,7 +3,8 @@
 # UPSTREAM, unmodified:
 #   - from a SysML-v2-Release checkout: the standard library sources and the
 #     example, training and validation models (.sysml and .kerml files only);
-#   - from a SysML-v2-Pilot-Implementation checkout: the three Xtext grammars.
+#   - from a SysML-v2-Pilot-Implementation checkout: the three Xtext grammars
+#     and the SysML.ecore metamodel.
 #
 #   tools/vendor-upstream.sh /path/to/SysML-v2-Release /path/to/SysML-v2-Pilot-Implementation
 set -eu
@@ -52,4 +53,6 @@ for f in \
 	org.omg.sysml.xtext/src/org/omg/sysml/xtext/SysML.xtext; do
 	git -C "$pilot" show "$PILOT_TAG:$f" >"$gdest/$(basename "$f")"
 done
-echo "vendored pilot grammars $PILOT_TAG ($pcommit)"
+mkdir -p "$root/internal/schema"
+git -C "$pilot" show "$PILOT_TAG:org.omg.sysml/model/SysML.ecore" >"$root/internal/schema/SysML.ecore"
+echo "vendored pilot grammars and metamodel $PILOT_TAG ($pcommit)"

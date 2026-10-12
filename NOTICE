@@ -23,7 +23,7 @@ SysML v2 Pilot Implementation
   Contributors: Ed Seidewitz, Zoltan Kiss, Balazs Grill, Hisashi Miyashita,
   and others named in the upstream file headers.
   The three Xtext grammars are vendored unmodified under
-  internal/grammar/xtext at the tag pinned in UPSTREAM
+  internal/grammar/xtext, and SysML.ecore under internal/schema, at the tag pinned in UPSTREAM
   (tools/vendor-upstream.sh). The Xtext grammars, the SysML.ecore metamodel and the Java logic under
   org.omg.sysml.logic are the reference for this project's grammar data
   (plan/spike2/xtext-ir.json, plan/spike3/implicit_table.go) and for the
