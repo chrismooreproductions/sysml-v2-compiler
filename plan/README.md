@@ -13,6 +13,8 @@ two checkouts that are **not** vendored here:
 Both are EPL-2.0. `spike1/ir.json` is derived from the `.kebnf` files and
 `spike2/xtext-ir.json` from the Xtext files; regenerate rather than edit.
 
+**Next:** [ROADMAP.md](ROADMAP.md) turns these findings into a phased plan with a test per item.
+
 ## spike0 — parse the `.kebnf` into an IR (`report.txt`)
 
 ```
