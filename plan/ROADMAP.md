@@ -101,7 +101,7 @@ Port `spike1`/`spike3` into `internal/syntax` as a clean package.
 | 1.4 | Error reporting | **Partly done:** errors carry the file, position, the unexpected token and the sorted set of expected tokens; 15 malformed inputs are pinned. **Open:** ranking the expected tokens by context (an import with no visibility reports 76 alternatives and buries `public`/`private`), and 30+ pinned cases |
 | 1.5 | Ambiguity policy | decide and document what happens when two parses reach the same end (spike keeps the first); a test that counts ambiguous files in the library |
 | 1.6 | Corpus test | **Done:** all 404 models in the library and the vendored example sets, and the 16 older fixtures, parse (`TestVendoredCorpusParses`) |
-| 1.7 | Performance budget | **Baseline measured:** the 94-file library parses in about 3.8 s (`BenchmarkParseLibrary`), roughly 40 ms per file. Set a budget and profile |
+| 1.7 | Performance budget | **Done:** the 94-file library (1.35 MB) parses in about 0.77 s (`BenchmarkParseLibrary`), down from 3.6 s. The engine compiles the grammar once (references resolved, no lookups by name), joins effects as a rope, and records failed attempts and calls in progress as bitsets instead of map entries. Budget: stay under 1 s for the library on a developer machine; check the benchmark when the engine changes |
 
 ### P2. Schema from the ecore
 
