@@ -168,10 +168,63 @@ evaluator and is not needed for structure.)
 Rules are written as Go over the generic node tree, each naming the Java it
 mirrors, and tested by re-running the comparison.
 
-Still open: name resolution (the prerequisite for the rest of tier 2 and for
-the `.implied` oracle), ambiguity (one parse is kept per end position),
+Still open: implicit general types (the rest of tier 2 and the `.implied`
+oracle), ambiguity (one parse is kept per end position),
 emitting Go instead of interpreting (about 5 s for 153 files), and error
 messages.
+
+### Name resolution (`resolve.go`)
+
+The KerML specification defines name resolution as OCL operations on
+`Namespace` (`resolve`, `resolveLocal`, `resolveVisible`, `visibleMemberships`,
+`importedMemberships`; their bodies are in `SysML.ecore`), and the pilot's
+`KerMLScopeProvider` decides where a search starts for each kind of
+reference. `resolve.go` implements both over the canonical element graph,
+across all 94 files at once (the SysML libraries reference the kernel
+libraries).
+
+It is checked against the oracle element by element: every explicit name in
+the source, and every reference the post-processors imply, is resolved to an
+element and compared with the XMI's target for the same reference, matched by
+position in the tree.
+
+```
+R=/some/dir/rel2608   # the 2026-08 library, as above
+WORLD=1 SHOW=400 LIB_ROOT="$R/sysml.library" XMI_ROOT="$R/sysml.library.xmi" \
+  go run . ~/repos/sysml-pilot-implementation/org.omg.sysml/model/SysML.ecore x > world_run.txt
+```
+
+| | References |
+|---|---|
+| total | 19,118 |
+| same target as the oracle | **18,822 (98.5%)** |
+| resolve to a different element | 86 |
+| unresolved | 210 |
+
+Every `FeatureTyping`, `MembershipImport`, `NamespaceImport`,
+`Subclassification` (1,691 of 1,692), `Intersecting`, `Disjoining` and implied
+reference is right. The two things that moved the number most were
+*effective names* (`Feature.namingFeature`: an unnamed feature that redefines
+another takes its name, which took matches from 89.6% to 94.2%) and
+*feature-chain navigation* plus `removeRedefinedFeatures` (94.2% to 98.5%).
+
+What is left, in rough order of size:
+
+- **Implicit general types.** Every type implicitly specializes library types
+  (`Base::Anything`, `Performances::Performance`, `Links::Link`, ...), so
+  `self`, `participant`, `source` and `annotatedElement` are inherited from
+  types the source never names. This is the `ImplicitGeneralizationMap` and
+  adapter logic, and it is also what the `.implied` oracle records. It needs
+  porting before the rest of these converge.
+- **Expression chains whose source is not a plain reference** (an operator or
+  index expression, 22 cases): needs result-type inference.
+- **Resolution subtleties**: the pilot's `skip` rule (a reference never
+  resolves to the element that contains it), the `$` global qualification,
+  filter imports, and distinguishability collisions between memberships.
+- **Chain features** nested under a redefinition or subsetting (about 90
+  references) not yet examined individually.
+
+Runs in about 9 s for the whole library.
 
 ## Conclusion so far
 

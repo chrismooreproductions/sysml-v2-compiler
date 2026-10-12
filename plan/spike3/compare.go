@@ -15,15 +15,25 @@ import (
 // children, built from either our node tree or the oracle XMI so the two
 // can be diffed structurally.
 type cn struct {
-	id    string
-	class string
-	attrs map[string]string
-	kids  []ckid
+	id     string
+	key    string // position in the file: role[index] path, with the file name
+	file   string
+	parent *cn
+	class  string
+	attrs  map[string]string
+	kids   []ckid
 }
 
 type ckid struct {
 	role string
 	n    *cn // nil for a cross-reference
+
+	// cross-reference, ours
+	text  string // a name written in the source
+	owned int    // implied: index of an owned element, or -1
+	owner bool   // implied: the owning element
+	// cross-reference, oracle
+	tgtFile, tgtID string
 }
 
 var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
@@ -50,9 +60,13 @@ func fromNode(n *Node) *cn {
 	for _, p := range n.Props {
 		switch v := p.V.(type) {
 		case *Node:
-			c.kids = append(c.kids, ckid{p.Name, fromNode(v)})
+			c.kids = append(c.kids, ckid{role: p.Name, n: fromNode(v), owned: -1})
 		case Ref:
-			c.kids = append(c.kids, ckid{p.Name, nil})
+			c.kids = append(c.kids, ckid{role: p.Name, text: string(v), owned: -1})
+		case RefOwned:
+			c.kids = append(c.kids, ckid{role: p.Name, owned: int(v)})
+		case RefOwner:
+			c.kids = append(c.kids, ckid{role: p.Name, owned: -1, owner: true})
 		case Bool:
 			c.attrs[p.Name] = fmt.Sprint(bool(v))
 		case Str:
@@ -66,7 +80,19 @@ func fromNode(n *Node) *cn {
 	return c
 }
 
+// fileBase names a library file the way references to it do: no directory,
+// no extension, URL escapes removed.
+func fileBase(p string) string {
+	p = p[strings.LastIndex(p, "/")+1:]
+	p = strings.ReplaceAll(p, "%20", " ")
+	if i := strings.LastIndex(p, "."); i >= 0 {
+		p = p[:i]
+	}
+	return p
+}
+
 func loadXMI(path string) (*cn, error) {
+	base := fileBase(path)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -88,7 +114,7 @@ func loadXMI(path string) (*cn, error) {
 		switch e := t.(type) {
 		case xml.StartElement:
 			var typ, href, id string
-			var localRefs []string
+			var localRefs [][2]string // role, target id
 			parentID := ""
 			if len(stack) > 0 && stack[len(stack)-1].n != nil {
 				parentID = stack[len(stack)-1].n.id
@@ -116,7 +142,7 @@ func loadXMI(path string) (*cn, error) {
 						// a reference to the owning element is the inverse end of
 						// containment, not a cross-reference written in the source
 						if uuidRe.MatchString(ref) && (ref != parentID || !theMeta.isSourceEnd(ownType, a.Name.Local)) {
-							localRefs = append(localRefs, a.Name.Local)
+							localRefs = append(localRefs, [2]string{a.Name.Local, ref})
 						}
 					}
 				case uuidRe.MatchString(a.Value):
@@ -127,7 +153,7 @@ func loadXMI(path string) (*cn, error) {
 			if len(stack) == 0 {
 				root = &cn{id: id, class: e.Name.Local, attrs: attrs}
 				for _, r := range localRefs {
-					root.kids = append(root.kids, ckid{r, nil})
+					root.kids = append(root.kids, ckid{role: r[0], tgtFile: base, tgtID: r[1], owned: -1})
 				}
 				stack = append(stack, frame{"", root})
 				continue
@@ -135,7 +161,14 @@ func loadXMI(path string) (*cn, error) {
 			parent := stack[len(stack)-1].n
 			if href != "" { // an external element, whether or not it carries an xsi:type hint
 				if parent != nil {
-					parent.kids = append(parent.kids, ckid{e.Name.Local, nil})
+					file, id := base, ""
+					if i := strings.Index(href, "#"); i >= 0 {
+						id = href[i+1:]
+						if i > 0 {
+							file = fileBase(href[:i])
+						}
+					}
+					parent.kids = append(parent.kids, ckid{role: e.Name.Local, tgtFile: file, tgtID: id, owned: -1})
 				}
 				stack = append(stack, frame{e.Name.Local, nil})
 				continue
@@ -145,10 +178,10 @@ func loadXMI(path string) (*cn, error) {
 			}
 			c := &cn{id: id, class: typ, attrs: attrs}
 			for _, r := range localRefs {
-				c.kids = append(c.kids, ckid{r, nil})
+				c.kids = append(c.kids, ckid{role: r[0], tgtFile: base, tgtID: r[1], owned: -1})
 			}
 			if parent != nil {
-				parent.kids = append(parent.kids, ckid{e.Name.Local, c})
+				parent.kids = append(parent.kids, ckid{role: e.Name.Local, n: c, owned: -1})
 			}
 			stack = append(stack, frame{e.Name.Local, c})
 		case xml.EndElement:

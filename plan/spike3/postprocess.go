@@ -97,9 +97,16 @@ func ppTree(n *Node, c ctx) {
 // the owner itself are inverse ends of containment and are not recorded.
 func ref(n *Node, role string, target *Node) {
 	role = theMeta.effectiveRole(n.Class, role)
-	if target != nil && !n.has(role) {
-		n.Props = append(n.Props, Prop{role, "=", Ref(role)})
+	if target == nil || n.has(role) {
+		return
 	}
+	var v Val = RefOwner{}
+	for i, o := range n.owned() {
+		if o == target {
+			v = RefOwned(i)
+		}
+	}
+	n.Props = append(n.Props, Prop{role, "=", v})
 }
 
 func first(l []*Node) *Node {
@@ -195,8 +202,8 @@ func ppNode(n *Node, c ctx) {
 		ref(n, "annotatedElement", c.owner)
 	}
 	if is("Dependency") {
-		for range owned {
-			n.Props = append(n.Props, Prop{"supplier", "+=", Ref("supplier")})
+		for i := range owned {
+			n.Props = append(n.Props, Prop{"supplier", "+=", RefOwned(i)})
 		}
 	}
 	// An import inside a filter package is public.

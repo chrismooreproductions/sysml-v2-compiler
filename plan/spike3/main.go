@@ -221,6 +221,39 @@ func (m *meta) isSourceEnd(class, role string) bool {
 	return walk(role)
 }
 
+// isTargetEnd reports whether a relationship feature is the target end,
+// directly or through redefinitions (general, subsettedFeature, type, ...).
+func (m *meta) isTargetEnd(class, role string) bool {
+	seen := map[string]bool{}
+	var walk func(r string) bool
+	walk = func(r string) bool {
+		if r == "target" || r == "general" {
+			return true
+		}
+		if seen[r] {
+			return false
+		}
+		seen[r] = true
+		queue, visited := []string{class}, map[string]bool{}
+		for len(queue) > 0 {
+			c := queue[0]
+			queue = queue[1:]
+			if visited[c] {
+				continue
+			}
+			visited[c] = true
+			for _, red := range m.redef[c][r] {
+				if walk(red) {
+					return true
+				}
+			}
+			queue = append(queue, m.supers[c]...)
+		}
+		return false
+	}
+	return walk(role)
+}
+
 func (m *meta) hasFeature(c, f string) bool {
 	seen := map[string]bool{}
 	var g func(string) bool
@@ -361,7 +394,13 @@ func (g *Grammar) lex(src string) ([]Tok, error) {
 type Val interface{}
 type Str string
 type Bool bool
-type Ref string
+type Ref string // a name written in the source, not yet resolved
+
+// RefOwned is a reference to the i-th element the relationship owns (a
+// feature chain); RefOwner is a reference to the element owning it.
+type RefOwned int
+type RefOwner struct{}
+
 type Prop struct {
 	Name, Op string
 	V        Val
@@ -951,6 +990,11 @@ func main() {
 		})
 	}
 	theMeta = m
+	theMeta = m
+	if os.Getenv("WORLD") != "" {
+		worldMain()
+		return
+	}
 	tree := false
 	var files []string
 	for _, a := range os.Args[2:] {
