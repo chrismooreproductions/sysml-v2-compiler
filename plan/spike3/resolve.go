@@ -16,18 +16,19 @@ import (
 // search starts for each kind of reference.
 
 type world struct {
-	roots       []*cn             // our file roots, in file order
-	mineByKey   map[string]*cn    // our elements by position
-	oracleByKey map[string]*cn    // the oracle's elements by position
-	oracleByID  map[string]*cn    // file|id -> oracle element
-	memo        map[string]*cn    // resolved references
-	done        map[string]bool   // memo has an entry (including a nil result)
-	busy        map[string]bool   // resolutions in progress, to cut cycles
-	owned       map[*cn][]*cn     // cache: owned relationships by role
-	gaps        map[string]int    // things met that this resolver does not handle
-	effNames    map[*cn][2]string // cache: effective short name, name
-	cut         int               // incremented whenever a circular resolution is cut
-	libCache    map[string]*cn    // library elements by qualified name
+	roots        []*cn             // our file roots, in file order
+	mineByKey    map[string]*cn    // our elements by position
+	oracleByKey  map[string]*cn    // the oracle's elements by position
+	oracleByID   map[string]*cn    // file|id -> oracle element
+	memo         map[string]*cn    // resolved references
+	done         map[string]bool   // memo has an entry (including a nil result)
+	busy         map[string]bool   // resolutions in progress, to cut cycles
+	owned        map[*cn][]*cn     // cache: owned relationships by role
+	gaps         map[string]int    // things met that this resolver does not handle
+	effNames     map[*cn][2]string // cache: effective short name, name
+	cut          int               // incremented whenever a circular resolution is cut
+	libCache     map[string]*cn    // library elements by qualified name
+	impliedByKey map[string]*cn    // the implied serialization\'s plain elements by position
 }
 
 func assignKeys(c *cn, file, path string, parent *cn, byKey map[string]*cn) {
@@ -902,8 +903,10 @@ func worldMain() {
 	sort.Strings(files)
 
 	w := &world{mineByKey: map[string]*cn{}, oracleByKey: map[string]*cn{}, oracleByID: map[string]*cn{},
-		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}}
+		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}, impliedByKey: map[string]*cn{}}
 	oracleRoots := map[string]*cn{}
+	impliedRoots := map[string]*cn{}
+	impliedByID := map[string]*cn{}
 	skipped := 0
 	for _, f := range files {
 		src, _ := os.ReadFile(f)
@@ -932,11 +935,24 @@ func worldMain() {
 		assignKeys(want, base, "", nil, w.oracleByKey)
 		indexIDs(want, base, w.oracleByID)
 		oracleRoots[base] = want
+		if impliedRoot := os.Getenv("IMPLIED_ROOT"); impliedRoot != "" {
+			if imp, err := loadXMI(impliedRoot + "/" + strings.TrimPrefix(f, libRoot+"/") + "x"); err == nil {
+				prune(imp)
+				impliedRoots[base] = imp
+			}
+		}
 	}
 	fmt.Printf("world: %d files loaded (%d skipped)\n", len(w.roots), skipped)
 	w.applyResolutionRules()
 	w.structure(oracleRoots)
 	w.report()
+	if len(impliedRoots) > 0 {
+		for file, root := range impliedRoots {
+			w.assignPlainKeys(root, file, "", nil, w.impliedByKey)
+			indexIDs(root, file, impliedByID)
+		}
+		w.impliedReport(impliedRoots, impliedByID)
+	}
 }
 
 // structure re-runs the structural comparison after the resolution rules.

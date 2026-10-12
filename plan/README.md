@@ -241,6 +241,44 @@ transition-link feature and a payload name).
 
 Runs in about 9 s for the whole library.
 
+### Implied relationships (`implied.go`)
+
+`sysml.library.xmi.implied` is the same serialization with the relationships
+the pilot's adapters add made explicit (`isImplied="true"`), plus the
+elements they need. It is 3.65x the size of the plain one: about 178,000
+implied relationships (72k `TypeFeaturing`, 47k `Subsetting`, 43k
+`Redefinition`, 12k `BindingConnector`, 3.9k `FeatureTyping`, 318
+`Subclassification`, 317 `CrossSubsetting`) and 35k generated features.
+
+The harness aligns the implied tree to ours by position among the nodes that
+exist in the plain serialization, then compares per element the multiset of
+implied generalizations (relationship class and target):
+
+```
+WORLD=1 SHOW=14 LIB_ROOT="$R/sysml.library" XMI_ROOT="$R/sysml.library.xmi" \
+  IMPLIED_ROOT="$R/sysml.library.xmi.implied" go run . <SysML.ecore> x
+```
+
+Baseline with only the unconditional `base` supertype ported: of 49,323
+implied generalizations on plain elements, **20,029 (41%)** are reproduced.
+Already exact: `LiteralInteger`, `MultiplicityRange`, `LiteralInfinity`,
+`LiteralRational`, `LiteralBoolean` and most `FeatureReferenceExpression` and
+`OperatorExpression` subsettings, and all 141 `Function` ->
+`Performances::Evaluation` subclassifications.
+
+The work list, from the oracle (these are the spec's `check<X>Specialization`
+constraints, each a small rule):
+
+| Family | Oracle | What it is |
+|---|---|---|
+| `Feature` redefinitions | 17,928 | A result parameter redefines `Evaluation::result`; an operand parameter redefines the operator function's parameter by position (`DataFunctions::-::x`); `selfLinks::thisThing`/`sameThing` for binding connectors |
+| expression `FeatureTyping` | 3,532 | An operator or invocation expression is typed by the library function for its operator (`DataFunctions::-`, `BaseFunctions::,`, `ControlFunctions::.`) |
+| `ReferenceUsage`/`Feature` redefinition and cross-subsetting | ~830 | End features |
+| default `Multiplicity` | 311 | Subsets `Base::exactlyOne`, not `Base::naturals` (that is for a `MultiplicityRange`) |
+| redundancy removal | 15,701 extra | We over-produce `Base::things`: the oracle drops an implicit general that another implicit general already specializes (`TypeAdapter.removeUnnecessaryImplicitGeneralTypes`), which only works once the other families exist |
+| `TypeFeaturing` | 72,389 | Not yet compared; every feature is featured by its owning type |
+| `BindingConnector` | 12,055 | Not yet compared; generated for feature values |
+
 ## Conclusion so far
 
 A grammar-driven parser is not just workable, it is nearly done at the
