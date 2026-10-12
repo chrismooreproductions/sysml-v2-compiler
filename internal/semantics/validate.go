@@ -56,9 +56,19 @@ func (w *Workspace) Validate(roots ...*el) []Issue {
 	return out
 }
 
+// irregularMessages are the constraints whose message the pilot names
+// differently.
+var irregularMessages = map[string]string{
+	"validateDefinitionVariationOwnedFeatureMembership": "DEFINITION_VARIATION_MEMBERSHIP",
+	"validateUsageVariationOwnedFeatureMembership":      "USAGE_VARIATION_MEMBERSHIP",
+}
+
 // messageFor is the message of a constraint: the pilot names its constant
 // after the constraint, in capitals with underscores.
 func messageFor(constraint string) string {
+	if key, ok := irregularMessages[constraint]; ok {
+		return validationMessages[key]
+	}
 	var sb strings.Builder
 	for i, r := range strings.TrimPrefix(constraint, "validate") {
 		if i > 0 && unicode.IsUpper(r) {
@@ -200,6 +210,99 @@ var structuralChecks = []check{
 	{class: "IfActionUsage", constraint: "validateIfActionUsageParameters", violated: func(w *Workspace, e *el) bool { return w.inputParameterCount(e) < 2 }},
 	{class: "WhileLoopActionUsage", constraint: "validateWhileLoopActionUsageParameters", violated: func(w *Workspace, e *el) bool { return w.inputParameterCount(e) < 2 }},
 	{class: "AcceptActionUsage", constraint: "validateAcceptActionUsageParameters", violated: func(w *Workspace, e *el) bool { return w.inputParameterCount(e) < 1 }},
+	// -- specialization --
+	{class: "Feature", constraint: "validateFeatureOwnedReferenceSubsetting", at: func(w *Workspace, e *el) []*el {
+		if rs := w.rels(e, "ReferenceSubsetting"); len(rs) > 1 {
+			return rs[1:]
+		}
+		return nil
+	}},
+	{class: "DataType", constraint: "validateDataTypeSpecialization", at: badGenerals("Class", "Association")},
+	{class: "Structure", constraint: "validateStructureSpecialization", at: badGenerals("Behavior")},
+	{class: "Behavior", constraint: "validateBehaviorSpecialization", at: badGenerals("Structure")},
+	{class: "Subsetting", constraint: "validateSubsettingUniquenessConformance", violated: func(w *Workspace, e *el) bool {
+		sub, sup := e.Owner, w.generalOf(e)
+		return sup.IsA("Feature") && sub.IsA("Feature") && !isNonunique(sup) && isNonunique(sub)
+	}},
+	{class: "Subsetting", constraint: "validateSubsettingConstantConformance", violated: func(w *Workspace, e *el) bool {
+		sub, sup := e.Owner, w.generalOf(e)
+		return sup.IsA("Feature") && sub.IsA("Feature") && sup.IsTrue("isConstant") && w.isVariable(sub) && !sub.IsTrue("isConstant")
+	}},
+	{class: "Feature", constraint: "validateFeatureIsVariable", violated: func(w *Workspace, e *el) bool {
+		owner := w.featureOwningType(e)
+		return w.isVariable(e) && (owner == nil || !w.specializes(owner, w.libraryElement("Occurrences::Occurrence")))
+	}},
+	{class: "Redefinition", constraint: "validateRedefinitionEndConformance", violated: func(w *Workspace, e *el) bool {
+		redefining, redefined := e.Owner, w.generalOf(e)
+		if !redefined.IsA("Feature") || !redefining.IsA("Feature") || !redefined.IsTrue("isEnd") || redefining.IsTrue("isEnd") {
+			return false
+		}
+		return w.owningTypeIs(redefining, "Association", "Connector")
+	}},
+	// -- variations --
+	{class: "Definition", constraint: "validateDefinitionVariationOwnedFeatureMembership", at: func(w *Workspace, e *el) []*el {
+		if !e.IsTrue("isVariation") {
+			return nil
+		}
+		return w.rels(e, "FeatureMembership")
+	}},
+	{class: "Usage", constraint: "validateUsageVariationOwnedFeatureMembership", at: func(w *Workspace, e *el) []*el {
+		var out []*el
+		if e.IsTrue("isVariation") {
+			for _, m := range w.rels(e, "FeatureMembership") {
+				if !m.IsA("ParameterMembership") && !m.IsA("ObjectiveMembership") {
+					out = append(out, m)
+				}
+			}
+		}
+		return out
+	}},
+	{class: "Definition", constraint: "validateDefinitionVariationSpecialization", at: variationGenerals},
+	{class: "Usage", constraint: "validateUsageVariationSpecialization", at: variationGenerals},
+	// -- expressions and flows --
+	{class: "ConstructorExpression", constraint: "validateConstructorExpressionOwnedFeatures", at: func(w *Workspace, e *el) []*el {
+		result := w.resultOf(e)
+		var out []*el
+		for _, f := range w.ownedFeatures(e) {
+			if f != result {
+				out = append(out, f)
+			}
+		}
+		return out
+	}},
+	{class: "FlowEnd", constraint: "validateFlowEndNestedFeature", violated: func(w *Workspace, e *el) bool { return len(w.ownedFeatures(e)) != 1 }},
+	{class: "FlowEnd", constraint: "validateFlowEndOwningType", violated: func(w *Workspace, e *el) bool { return !w.owningTypeIs(e, "Flow") }},
+	{class: "MetadataFeature", constraint: "validateMetadataFeatureMetaclass", violated: func(w *Workspace, e *el) bool {
+		n := 0
+		for _, t := range w.typesOf(e) {
+			if t.IsA("Metaclass") {
+				n++
+			}
+		}
+		return n != 1
+	}},
+	{class: "ForLoopActionUsage", constraint: "validateForLoopActionUsageLoopVariable", violated: func(w *Workspace, e *el) bool {
+		fs := w.ownedFeatures(e)
+		return len(fs) == 0 || !fs[0].IsA("ReferenceUsage")
+	}},
+	{class: "TransitionFeatureMembership", constraint: "validateTransitionFeatureMembershipTriggerAction", violated: func(w *Workspace, e *el) bool {
+		return e.Text("kind") == "trigger" && !first(w.ownedRelated(e)).IsA("AcceptActionUsage")
+	}},
+	{class: "TransitionFeatureMembership", constraint: "validateTransitionFeatureMembershipEffectAction", violated: func(w *Workspace, e *el) bool {
+		return e.Text("kind") == "effect" && !first(w.ownedRelated(e)).IsA("ActionUsage")
+	}},
+	{class: "OccurrenceUsage", constraint: "validateOccurrenceUsageIndividualDefinition", violated: func(w *Workspace, e *el) bool {
+		n := 0
+		for _, r := range w.rels(e, "FeatureTyping") {
+			if g := w.refTarget(r, "type"); g.IsA("OccurrenceDefinition") && g.IsTrue("isIndividual") {
+				n++
+			}
+		}
+		return n > 1
+	}},
+	// -- ports --
+	{class: "PortDefinition", constraint: "validatePortDefinitionOwnedUsagesNotComposite", at: compositeUsages},
+	{class: "PortUsage", constraint: "validatePortUsageNestedUsagesNotComposite", at: compositeUsages},
 }
 
 // relatedToSelf reports the relationships of a class that point at the element
@@ -226,4 +329,60 @@ func (w *Workspace) inputParameterCount(e *el) int {
 		}
 	}
 	return n
+}
+
+// generalOf is the general type or feature a specialization points at.
+func (w *Workspace) generalOf(r *el) *el {
+	for _, role := range []string{"superclassifier", "redefinedFeature", "referencedFeature", "crossedFeature", "subsettedFeature", "type", "general"} {
+		if g := w.refTarget(r, role); g != nil {
+			return g
+		}
+	}
+	return nil
+}
+
+// isNonunique: a feature is unique unless it says nonunique.
+func isNonunique(f *el) bool { return f.Has("isUnique") && !f.IsTrue("isUnique") }
+
+// badGenerals reports the owned specializations whose general type is of one
+// of the classes.
+func badGenerals(classes ...string) func(w *Workspace, e *el) []*el {
+	return func(w *Workspace, e *el) []*el {
+		var out []*el
+		for _, r := range w.rels(e, "Specialization") {
+			g := w.generalOf(r)
+			for _, c := range classes {
+				if g.IsA(c) {
+					out = append(out, r)
+					break
+				}
+			}
+		}
+		return out
+	}
+}
+
+// variationGenerals reports the owned specializations of a variation that
+// specialize another variation.
+func variationGenerals(w *Workspace, e *el) []*el {
+	var out []*el
+	if e.IsTrue("isVariation") {
+		for _, r := range w.rels(e, "Specialization") {
+			if g := w.generalOf(r); g != nil && isVariation(g) {
+				out = append(out, r)
+			}
+		}
+	}
+	return out
+}
+
+// compositeUsages reports the owned usages other than ports that are composite.
+func compositeUsages(w *Workspace, e *el) []*el {
+	var out []*el
+	for _, f := range w.ownedFeatures(e) {
+		if f.IsA("Usage") && !f.IsA("PortUsage") && f.IsTrue("isComposite") {
+			out = append(out, f)
+		}
+	}
+	return out
 }

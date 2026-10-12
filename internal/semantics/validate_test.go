@@ -282,3 +282,106 @@ func TestCountAndFlagConstraints(t *testing.T) {
 		}
 	}
 }
+
+// ref builds a relationship of a class pointing at a target through a role.
+func ref(class, role string, target *model.Element) *model.Element {
+	r := node(class, nil)
+	r.Add(role, "=", &model.Ref{Name: "x", Target: target})
+	return r
+}
+
+func TestSpecializationAndVariationConstraints(t *testing.T) {
+	yes, no := model.Bool(true), model.Bool(false)
+	cases := []struct {
+		constraint string
+		bad, good  func() *model.Element
+	}{
+		{"validateFeatureOwnedReferenceSubsetting",
+			func() *model.Element {
+				return node("Feature", nil, node("ReferenceSubsetting", nil), node("ReferenceSubsetting", nil))
+			},
+			func() *model.Element { return node("Feature", nil, node("ReferenceSubsetting", nil)) }},
+		{"validateDataTypeSpecialization",
+			func() *model.Element {
+				return node("DataType", nil, ref("Subclassification", "superclassifier", node("Class", nil)))
+			},
+			func() *model.Element {
+				return node("DataType", nil, ref("Subclassification", "superclassifier", node("DataType", nil)))
+			}},
+		{"validateStructureSpecialization",
+			func() *model.Element {
+				return node("Structure", nil, ref("Subclassification", "superclassifier", node("Behavior", nil)))
+			},
+			func() *model.Element {
+				return node("Structure", nil, ref("Subclassification", "superclassifier", node("Structure", nil)))
+			}},
+		{"validateBehaviorSpecialization",
+			func() *model.Element {
+				return node("Behavior", nil, ref("Subclassification", "superclassifier", node("Structure", nil)))
+			},
+			func() *model.Element {
+				return node("Behavior", nil, ref("Subclassification", "superclassifier", node("Behavior", nil)))
+			}},
+		{"validateSubsettingUniquenessConformance",
+			func() *model.Element {
+				return node("Feature", map[string]model.Value{"isUnique": no}, ref("Subsetting", "subsettedFeature", node("Feature", nil)))
+			},
+			func() *model.Element {
+				return node("Feature", map[string]model.Value{"isUnique": no}, ref("Subsetting", "subsettedFeature", node("Feature", map[string]model.Value{"isUnique": no})))
+			}},
+		{"validateFeatureIsVariable",
+			func() *model.Element { return node("Feature", map[string]model.Value{"isVariable": yes}) },
+			func() *model.Element { return node("Feature", nil) }},
+		{"validateDefinitionVariationOwnedFeatureMembership",
+			func() *model.Element {
+				return node("PartDefinition", map[string]model.Value{"isVariation": yes}, member("FeatureMembership", node("PartUsage", nil)))
+			},
+			func() *model.Element {
+				return node("PartDefinition", nil, member("FeatureMembership", node("PartUsage", nil)))
+			}},
+		{"validateUsageVariationOwnedFeatureMembership",
+			func() *model.Element {
+				return node("PartUsage", map[string]model.Value{"isVariation": yes, "isAbstract": yes}, member("FeatureMembership", node("PartUsage", nil)))
+			},
+			func() *model.Element {
+				return node("PartUsage", map[string]model.Value{"isVariation": yes, "isAbstract": yes}, member("VariantMembership", node("PartUsage", nil)))
+			}},
+		{"validateFlowEndNestedFeature",
+			func() *model.Element { return node("FlowEnd", map[string]model.Value{"isEnd": yes}) },
+			func() *model.Element {
+				return node("FlowEnd", map[string]model.Value{"isEnd": yes}, member("FeatureMembership", node("Feature", nil)))
+			}},
+		{"validateMetadataFeatureMetaclass",
+			func() *model.Element { return node("MetadataFeature", nil) },
+			func() *model.Element {
+				return node("MetadataFeature", nil, ref("FeatureTyping", "type", node("Metaclass", nil)))
+			}},
+		{"validatePortDefinitionOwnedUsagesNotComposite",
+			func() *model.Element {
+				return node("PortDefinition", nil, member("FeatureMembership", node("PartUsage", map[string]model.Value{"isComposite": yes})))
+			},
+			func() *model.Element {
+				return node("PortDefinition", nil, member("FeatureMembership", node("PartUsage", map[string]model.Value{"isComposite": no})))
+			}},
+		{"validateForLoopActionUsageLoopVariable",
+			func() *model.Element { return node("ForLoopActionUsage", nil) },
+			func() *model.Element {
+				return node("ForLoopActionUsage", nil, member("FeatureMembership", node("ReferenceUsage", nil)))
+			}},
+		{"validateTransitionFeatureMembershipTriggerAction",
+			func() *model.Element {
+				return node("TransitionUsage", nil, with(member("TransitionFeatureMembership", node("ActionUsage", nil)), "kind", model.Text("trigger")))
+			},
+			func() *model.Element {
+				return node("TransitionUsage", nil, with(member("TransitionFeatureMembership", node("AcceptActionUsage", nil)), "kind", model.Text("trigger")))
+			}},
+	}
+	for _, c := range cases {
+		if got := violations(c.bad()); !hasConstraint(got, c.constraint) {
+			t.Errorf("%s: not reported, got %v", c.constraint, got)
+		}
+		if got := violations(c.good()); hasConstraint(got, c.constraint) {
+			t.Errorf("%s: reported on a valid model", c.constraint)
+		}
+	}
+}
