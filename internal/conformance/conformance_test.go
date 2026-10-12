@@ -69,7 +69,7 @@ func TestStructureMatchesTheOracle(t *testing.T) {
 // The ratchet for name resolution: every reference in the standard library is
 // resolved and its target compared with the oracle's, by position.
 const (
-	minMatchingRefs  = 19063
+	minMatchingRefs  = 19080
 	maxResolvedDiffs = 2
 	minResolvedExact = 93
 )
@@ -82,6 +82,10 @@ func TestResolvedLibraryMatchesTheOracle(t *testing.T) {
 	}
 	n, exact, errs, diffs := Totals(res.Files)
 	st := res.Refs
+	samples := 8
+	if os.Getenv("ORACLE_ALL") != "" {
+		samples = 1 << 30
+	}
 	var sb strings.Builder
 	sb.WriteString(Report(res.Files))
 	sb.WriteString("\nreferences:\n")
@@ -95,13 +99,13 @@ func TestResolvedLibraryMatchesTheOracle(t *testing.T) {
 	t.Logf("%d files: %d match exactly, %d errors, %d differences\n%d references: %d match, %d resolve elsewhere, %d unresolved, %d without an oracle counterpart\n%s",
 		n, exact, errs, diffs, st.Total, st.Match, st.Wrong, st.Unresolved, st.NoOracle, sb.String())
 	for i, s := range st.WrongSamples {
-		if i >= 8 {
+		if i >= samples {
 			break
 		}
 		t.Logf("wrong: %s", s)
 	}
 	for i, s := range st.UnresolvedSamples {
-		if i >= 8 {
+		if i >= samples {
 			break
 		}
 		t.Logf("unresolved: %s", s)

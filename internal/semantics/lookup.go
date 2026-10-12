@@ -227,6 +227,13 @@ func (w *Workspace) chainResult(e *el) *el {
 	switch {
 	case e.IsA("FeatureChainExpression"), e.IsA("FeatureReferenceExpression"):
 		return w.chainTarget(e)
+	case e.IsA("OperatorExpression"):
+		// a cast (x as T) writes its result parameter and types it
+		for _, r := range w.rels(e, "ReturnParameterMembership") {
+			if f := first(w.ownedRelated(r)); f != nil && len(w.rels(f, "FeatureTyping")) > 0 {
+				return f
+			}
+		}
 	}
 	w.gaps["chain-source:"+e.Class]++
 	return nil
