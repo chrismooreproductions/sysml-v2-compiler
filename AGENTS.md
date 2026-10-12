@@ -105,6 +105,15 @@ keep in sync.
   (not `--generate-notes`), and add `--prerelease` for any `-rc`/`-beta`
   tag.
 
+## Licensing
+
+The project is EPL-2.0 (`LICENSE`, `NOTICE`). Every Go file starts with
+`// SPDX-License-Identifier: EPL-2.0`. A file that ports or derives from the
+pilot implementation's Java or Xtext also carries the upstream copyright
+notice (see the existing ports under `plan/spike3`) and names the Java it
+follows. Do not vendor anything whose license is not EPL-2.0 or compatible
+without asking, and add vendored sources to `NOTICE`.
+
 ## Plan file
 
 Multi-phase work is tracked via Claude Code's plan-mode plan file

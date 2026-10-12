@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `LICENSE` (Eclipse Public License 2.0) and `NOTICE`, crediting the OMG SysML
+  v2 release and pilot implementation the project draws on. Every Go file now
+  carries an SPDX identifier.
+
 ## [0.1.0] - 2026-10-09
 
 ### Changed

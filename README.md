@@ -331,3 +331,9 @@ which is why this project's own `metamodel` package (a flat, containment
 and relationship-based element graph) is described as "KerML-shaped": it
 mirrors that layering rather than modeling SysML's surface syntax
 directly.
+
+## License
+
+Eclipse Public License, v. 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE),
+which credits the OMG SysML v2 release and the pilot implementation this
+project's grammar data and semantic rules are derived from.

@@ -1,0 +1,29 @@
+sysml-v2-compiler
+Copyright (c) 2026 the sysml-v2-compiler authors
+
+This project is licensed under the Eclipse Public License, v. 2.0 (see
+LICENSE). SPDX-License-Identifier: EPL-2.0
+
+It incorporates and is derived from work by others, also licensed under
+EPL-2.0:
+
+SysML v2 Release (https://github.com/Systems-Modeling/SysML-v2-Release)
+  Systems Modeling project, Object Management Group.
+  Used as test fixtures (sysml/testdata/spec_examples) and as the source of
+  the grammar listings and standard library studied under plan/.
+
+SysML v2 Pilot Implementation
+(https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation)
+  Copyright (c) 2018-2025 Model Driven Solutions, Inc.
+  Copyright (c) 2018 IncQuery Labs Ltd.
+  Copyright (c) 2019 Mgnite Inc.
+  Contributors: Ed Seidewitz, Zoltan Kiss, Balazs Grill, Hisashi Miyashita,
+  and others named in the upstream file headers.
+  The Xtext grammars, the SysML.ecore metamodel and the Java logic under
+  org.omg.sysml.logic are the reference for this project's grammar data
+  (plan/spike2/xtext-ir.json, plan/spike3/implicit_table.go) and for the
+  semantic rules ported in plan/spike3 (postprocess.go, semantic.go,
+  implicit.go, resolve.go). Each ported file names the Java it follows.
+
+The Kernel Modeling Language and Systems Modeling Language specifications
+are published by the Object Management Group.
