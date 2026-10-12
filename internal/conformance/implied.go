@@ -189,7 +189,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			st.Match += m
 			st.Missing += n - m
 			if n > m && len(st.Samples) < 5000 {
-				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner]), describeKey(index, rel[len(kind)+1:])))
+				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
 			}
 		}
 		for rel, n := range have[owner] {
@@ -204,7 +204,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			tally(kind).Wrong += extra
 			st.Extra += extra
 			if len(st.Samples) < 5000 {
-				st.Samples = append(st.Samples, fmt.Sprintf("extra   %-18s %s -> %s", kind, describe(index.ByKey[owner]), describeKey(index, rel[len(kind)+1:])))
+				st.Samples = append(st.Samples, fmt.Sprintf("extra   %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
 			}
 		}
 	}

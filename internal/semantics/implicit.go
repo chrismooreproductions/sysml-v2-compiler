@@ -170,6 +170,9 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 		}
 	}
 	if t.IsA("Feature") {
+		w.addOwnedCrossFeatureSpecialization(t, add)
+		w.addParticipantSubsetting(t, add)
+		w.addCrossingSpecialization(t, add)
 		w.addRedefinitions(t, add) // FeatureAdapter.addRedefinitions
 		w.addBoundValue(t, add)
 		w.addPushedByOwner(t, add)
@@ -934,4 +937,116 @@ func (w *Workspace) performanceKinds(t *el, emit func(string), exclusive bool) {
 	if behavior && !(exclusive && (owned || sub)) {
 		emit("enclosedPerformance")
 	}
+}
+
+// ---- end features and their cross features ----
+
+// ownedCrossFeature is FeatureUtil.getOwnedCrossFeatureOf: the first feature an
+// end feature owns that is not a multiplicity, metadata, binding or a member
+// by feature membership or value.
+func (w *Workspace) ownedCrossFeature(ns *el) *el {
+	if !ns.IsA("Feature") || !ns.IsTrue("isEnd") || w.featureOwningType(ns) == nil {
+		return nil
+	}
+	for _, m := range w.rels(ns, "Membership") {
+		if !m.IsA("OwningMembership") || m.IsA("FeatureMembership") || m.IsA("FeatureValue") {
+			continue
+		}
+		e := first(w.ownedRelated(m))
+		if e.IsA("Feature") && !e.IsA("Multiplicity") && !e.IsA("MetadataFeature") && !e.IsA("BindingConnector") {
+			return e
+		}
+	}
+	return nil
+}
+
+// typesOf are a feature's types, written or implied.
+func (w *Workspace) typesOf(f *el) []*el {
+	var out []*el
+	for _, r := range w.rels(f, "FeatureTyping") {
+		if g := w.refTarget(r, "type"); g != nil {
+			out = append(out, g)
+		}
+	}
+	for _, x := range w.implicit(f) {
+		if x.kind == "FeatureTyping" {
+			out = append(out, x.target)
+		}
+	}
+	return out
+}
+
+// redefinedWithComputed is FeatureUtil.getRedefinedFeaturesWithComputedOf.
+func (w *Workspace) redefinedWithComputed(f *el) []*el {
+	var out []*el
+	for _, r := range w.rels(f, "Redefinition") {
+		if g := w.refTarget(r, "redefinedFeature"); g != nil {
+			out = append(out, g)
+		}
+	}
+	for _, x := range w.implicit(f) {
+		if x.kind == "Redefinition" {
+			out = append(out, x.target)
+		}
+	}
+	return out
+}
+
+// addOwnedCrossFeatureSpecialization is FeatureAdapter's: the cross feature of
+// an end is typed like the end and subsets the cross features of the ends it
+// redefines.
+func (w *Workspace) addOwnedCrossFeatureSpecialization(t *el, add func(string, *el)) {
+	if t.Owner == nil || !t.Owner.IsA("OwningMembership") || t.Owner.Owner == nil {
+		return
+	}
+	owner := t.Owner.Owner
+	if w.ownedCrossFeature(owner) != t {
+		return
+	}
+	for _, g := range w.typesOf(owner) {
+		add("FeatureTyping", g)
+	}
+	for _, r := range w.redefinedWithComputed(owner) {
+		if r.IsTrue("isEnd") {
+			if c := w.ownedCrossFeature(r); c != nil {
+				add("Subsetting", c)
+			}
+		}
+	}
+}
+
+// addParticipantSubsetting is FeatureAdapter.addParticipantSubsetting.
+func (w *Workspace) addParticipantSubsetting(t *el, add func(string, *el)) {
+	if !t.IsTrue("isEnd") || !w.owningTypeIs(t, "Association", "Connector") || len(w.rels(t, "Redefinition")) > 0 {
+		return
+	}
+	if qn := implicitKind(t.Class, "participant"); qn != "" {
+		add("Subsetting", w.libraryElement(qn))
+	}
+}
+
+// addCrossingSpecialization is FeatureAdapter.addCrossingSpecialization: an end
+// with a cross feature cross-subsets a chain the pilot generates.
+func (w *Workspace) addCrossingSpecialization(t *el, add func(string, *el)) {
+	cross := w.ownedCrossFeature(t)
+	if cross == nil || len(w.rels(t, "CrossSubsetting")) > 0 {
+		return
+	}
+	owner := w.featureOwningType(t)
+	var ends []*el
+	for _, f := range w.ownedFeatures(owner) {
+		if f.IsTrue("isEnd") {
+			ends = append(ends, f)
+		}
+	}
+	if len(ends) == 2 {
+		other := ends[0]
+		if other == t {
+			other = ends[1]
+		}
+		add("CrossSubsetting", w.chainFeatures(other, cross))
+		return
+	}
+	first := &el{Class: "Feature", Generated: true}
+	add("CrossSubsetting", w.chainFeatures(first, cross))
 }
