@@ -124,14 +124,16 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 				return
 			}
 			for _, im := range w.ImpliedGeneralizations(e) {
-				t := z.Canon(im.Target)
-				if t == nil || t.Key == "" {
+				target := "(generated)" // a feature the pilot makes: compared by kind only
+				if t := z.Canon(im.Target); t != nil && t.Key != "" {
+					target = t.Key
+				} else if !im.Target.Generated {
 					continue // a target outside the library: nothing to compare with
 				}
 				if have[c.Key] == nil {
 					have[c.Key] = map[string]int{}
 				}
-				have[c.Key][im.Kind+" "+t.Key]++
+				have[c.Key][im.Kind+" "+target]++
 			}
 		})
 	}
