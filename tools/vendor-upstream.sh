@@ -3,8 +3,9 @@
 # UPSTREAM, unmodified:
 #   - from a SysML-v2-Release checkout: the standard library sources and the
 #     example, training and validation models (.sysml and .kerml files only);
-#   - from a SysML-v2-Pilot-Implementation checkout: the three Xtext grammars
-#     and the SysML.ecore metamodel.
+#   - from a SysML-v2-Pilot-Implementation checkout: the three Xtext grammars,
+#     the SysML.ecore metamodel, and ImplicitGeneralizationMap.java (the table
+#     of implicit supertypes, kept as .java.txt so Go tools ignore it).
 #
 #   tools/vendor-upstream.sh /path/to/SysML-v2-Release /path/to/SysML-v2-Pilot-Implementation
 set -eu
@@ -55,4 +56,7 @@ for f in \
 done
 mkdir -p "$root/internal/schema"
 git -C "$pilot" show "$PILOT_TAG:org.omg.sysml/model/SysML.ecore" >"$root/internal/schema/SysML.ecore"
-echo "vendored pilot grammars and metamodel $PILOT_TAG ($pcommit)"
+mkdir -p "$root/internal/semantics/upstream"
+git -C "$pilot" show "$PILOT_TAG:org.omg.sysml.logic/src/main/java/org/omg/sysml/util/ImplicitGeneralizationMap.java" \
+	>"$root/internal/semantics/upstream/ImplicitGeneralizationMap.java.txt"
+echo "vendored pilot grammars, metamodel and implicit-supertype table $PILOT_TAG ($pcommit)"
