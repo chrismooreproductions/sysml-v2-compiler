@@ -71,8 +71,8 @@ func TestStructureMatchesTheOracle(t *testing.T) {
 // resolved and its target compared with the oracle's, by position.
 const (
 	minMatchingRefs  = 19082
-	maxResolvedDiffs = 2
-	minResolvedExact = 93
+	maxResolvedDiffs = 0
+	minResolvedExact = 94
 )
 
 func TestResolvedLibraryMatchesTheOracle(t *testing.T) {

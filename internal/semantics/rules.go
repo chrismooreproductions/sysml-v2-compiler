@@ -116,10 +116,55 @@ func (w *Workspace) applyResolutionRules(e *el) {
 	if e.IsA("Usage") && e.IsTrue("isEnd") && w.mayTimeVary(e) {
 		e.Set("isConstant", model.Bool(true))
 	}
+	if e.IsA("TransitionUsage") {
+		w.transitionRules(e)
+	}
 	if w.wantsDefaultMultiplicity(e) {
 		mult := &el{Class: "Multiplicity", Generated: true}
 		mem := &el{Class: "OwningMembership", Generated: true}
 		mem.Add("ownedRelatedElement", "+=", mult)
 		e.Add("ownedRelationship", "+=", mem)
+	}
+}
+
+// transitionRules follows TransitionUsageAdapter and ReferenceUsageAdapter: a
+// transition with a succession gets a link feature, and its payload parameter
+// takes the name of the parameter of the action that accepts the trigger.
+func (w *Workspace) transitionRules(t *el) {
+	var succession *el
+	hasLink := false
+	var params []*el
+	var accepter *el
+	for _, r := range w.rels(t, "") {
+		switch {
+		case r.IsA("ParameterMembership"):
+			params = append(params, first(w.ownedRelated(r)))
+		case r.IsA("TransitionFeatureMembership"):
+			if r.Text("kind") == "trigger" && accepter == nil {
+				accepter = first(w.ownedRelated(r))
+			}
+		case r.IsA("FeatureMembership"):
+			hasLink = true
+		case r.IsA("OwningMembership") && succession == nil:
+			if x := first(w.ownedRelated(r)); x.IsA("SuccessionAsUsage") {
+				succession = x
+			}
+		}
+	}
+	if succession != nil && !hasLink {
+		link := &el{Class: "ReferenceUsage", Generated: true}
+		mem := &el{Class: "FeatureMembership", Generated: true}
+		mem.Add("ownedRelatedElement", "+=", link)
+		t.Add("ownedRelationship", "+=", mem)
+	}
+	if len(params) >= 2 && accepter != nil && params[1].Text("declaredName") == "" {
+		for _, r := range w.rels(accepter, "ParameterMembership") {
+			if p := first(w.ownedRelated(r)); p != nil {
+				if name := p.Text("declaredName"); name != "" {
+					params[1].Set("declaredName", model.Text(name))
+				}
+				break
+			}
+		}
 	}
 }

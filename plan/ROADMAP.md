@@ -148,7 +148,7 @@ Port `implicit.go`, then the rest of the adapters.
 | 5.2 | Remaining generalization families | feature result typing, cross-subsetting, per-usage-kind defaults: ≥ 99.5% — **Done** for the generalization families: usage-kind defaults (`subitem`, `subaction`, binary connections, ports, requirements), cross features (typing, subsetting of redefined ends' cross features, cross subsetting) and the generated chains, compared by kind. 203 missing and 60 extra remain: enumeration literal typing, `ForLoopAction` reference subsettings, a few measurement and geometry features.
 | 5.3 | `TypeFeaturing` | 72k implied relationships compared and ≥ 99% reproduced | — **Done** for the TypeFeaturings on elements that exist in the written model: 38,289 of 38,296 (99.98%) match, with 146 extra (featuring of expressions in transitions and loops). The rest of the 72k are inside elements the pilot generates (binding connectors, chain features) and are counted with 5.4. Variable usages (those that may time-vary) are featured by a generated snapshots feature, as the pilot does.
 | 5.4 | `BindingConnector`s and the generated features they need | 12k compared and ≥ 99% reproduced | — **Done** for value, reference, invocation and result-expression bindings: 12,051 of 12,055 (99.97%) match, 2 extra. Left: the transition-link bindings (5.5), subject-parameter and trigger bindings.
-| 5.5 | Transition usage adapter | the last structural difference closes |
+| 5.5 | Transition usage adapter | the last structural difference closes | — **Done:** the transition link feature and the payload parameter's name; all 94 library files now match the oracle structurally with no differences (ratchet 94/0).
 
 ### P6. Validation (scope unknown)
 
