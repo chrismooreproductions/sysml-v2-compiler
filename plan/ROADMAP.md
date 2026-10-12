@@ -166,9 +166,9 @@ the rest.
 
 | # | Item | Done when |
 |---|---|---|
-| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types with typed accessors (moved here from 2.2), built over `internal/`; a doc comment on every exported identifier; one example per entry point |
-| 7.2 | `sysmlc` | `check`, `dump`, `resolve` over files and directories, exit codes for CI use |
-| 7.3 | Cutover: delete `metamodel`, replace the old `sysml` package with the new one | the 16 vendored spec fixtures and any old test still worth keeping pass on the new API, the rest are removed on purpose; `AGENTS.md` and the README rewritten |
+| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types with typed accessors (moved here from 2.2), built over `internal/`; a doc comment on every exported identifier; one example per entry point | **Done** (generic model; typed accessors deferred past v0.2.0).
+| 7.2 | `sysmlc` | `check`, `dump`, `resolve` over files and directories, exit codes for CI use | **Done.**
+| 7.3 | Cutover: delete `metamodel`, replace the old `sysml` package with the new one | the 16 vendored spec fixtures and any old test still worth keeping pass on the new API, the rest are removed on purpose; `AGENTS.md` and the README rewritten | **Done** (old packages removed in a3cc65e; docs rewritten).
 | 7.4 | Release `v0.2.0` | CHANGELOG entry, tag, GitHub Release, as `AGENTS.md` requires |
 
 ### P8. Later

@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-12
+
 ### Changed
 
 - **Breaking:** the hand-written parser, the simplified metamodel and the
@@ -38,5 +40,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   verification, use cases and a narrow slice of actions. See the README
   for the exact supported constructs and known gaps.
 
-[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/releases/tag/v0.1.0
