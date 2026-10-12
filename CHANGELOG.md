@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-12
+
 ### Added
 
 - `Workspace.Materialize` writes the implied relationships into the trees of the
@@ -91,7 +93,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   verification, use cases and a narrow slice of actions. See the README
   for the exact supported constructs and known gaps.
 
-[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.3.0...v0.4.0
