@@ -179,11 +179,19 @@ the rest; incremental parsing; the expression evaluator.
 ## Dependencies
 
 ```
-P0 ─► P1 ─► P3 ─► P4 ─► P5 ─► P7
-       └──► P2 ──┘     └──► P6 (can start with 6.1 after P4)
+P0 ─► P1 ─► P3 ─► P4 ─► P7 (v0.2.0)
+       └──► P2 ──┘   └──► P5 (v0.3.0) ─► P6 (v0.4.0)
 ```
 
-P2 and P1 run in parallel. Within a phase most items are independent.
+P2 and P1 ran in parallel. **Scope call, made while executing:** the original
+order put P5 (materializing implied relationships) and P6 (validation) before the
+public API. A first release needs only what P1 to P4 provide: parse, add the
+structure the specification implies without resolution, resolve names against
+the standard library. So `v0.2.0` ships after P7, and the implied relationships
+(P5) and validation (P6) follow as `v0.3.0` and `v0.4.0`. The model already
+computes implicit general types internally (they drive resolution and are checked
+to 96.4% against the `.implied` oracle in the spike); what `v0.2.0` does not do
+is add them to the tree as relationships.
 
 ## Running it with agents
 
