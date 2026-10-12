@@ -24,7 +24,10 @@
 // properties are those of the OMG SysML v2 release recorded in the UPSTREAM
 // file of the repository.
 //
-// What it does not do yet: add the implied relationships (the implicit
-// specializations of every type, and the binding connectors for values) to the
-// tree, or check the specification's validation constraints.
+// The relationships the specification implies but the source does not write are
+// computed on request: Workspace.ImpliedGeneralizations,
+// Workspace.ImpliedFeaturingTypes and Workspace.ImpliedBindings, after Resolve.
+//
+// What it does not do yet: put those implied relationships into the tree
+// itself, or check the specification's validation constraints.
 package sysml

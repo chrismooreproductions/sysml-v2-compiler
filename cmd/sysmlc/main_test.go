@@ -156,3 +156,14 @@ func TestUsageErrors(t *testing.T) {
 		t.Errorf("version: status %d, stdout %q", status, out)
 	}
 }
+
+func TestImpliedPrintsWhatTheSpecificationAdds(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "fleet.sysml", "package Fleet { part def Truck; part truck : Truck; }")
+	status, out, errs := invoke("implied", f)
+	want := f + ":1:17: Fleet::Truck Subclassification -> Parts::Part\n" +
+		f + ":1:33: Fleet::truck Subsetting -> Parts::parts\n"
+	if status != 0 || errs != "" || out != want {
+		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
+	}
+}

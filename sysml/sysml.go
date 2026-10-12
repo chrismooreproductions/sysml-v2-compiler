@@ -212,6 +212,50 @@ func (w *Workspace) Resolve() []Diagnostic {
 	return out
 }
 
+// Implied is a relationship the specification adds to a type without the source
+// writing it: a Subclassification, Subsetting, Redefinition, FeatureTyping or
+// CrossSubsetting from the type to Target. A Target that is Generated is a
+// feature the specification makes up (a feature chain, or the snapshots of a
+// type) and has no source position.
+type Implied struct {
+	Kind   string
+	Target *Element
+}
+
+// ImpliedGeneralizations returns the general types the specification implies
+// for a type: for example that a part usage typed by a part definition
+// subsets Parts::parts. Call it after Resolve; a type with nothing implied
+// returns nil.
+func (w *Workspace) ImpliedGeneralizations(e *Element) []Implied {
+	var out []Implied
+	for _, x := range w.w.ImpliedGeneralizations(e) {
+		out = append(out, Implied{x.Kind, x.Target})
+	}
+	return out
+}
+
+// ImpliedFeaturingTypes returns the types a feature is featured by without
+// writing a TypeFeaturing, such as the type that owns it. Call it after
+// Resolve.
+func (w *Workspace) ImpliedFeaturingTypes(e *Element) []*Element {
+	return w.w.ImpliedFeaturingTypes(e)
+}
+
+// Binding is a binding connector the specification implies between two
+// features: for example between a feature and the result of its value
+// expression.
+type Binding struct{ Source, Target *Element }
+
+// ImpliedBindings returns the binding connectors implied for a type. Call it
+// after Resolve.
+func (w *Workspace) ImpliedBindings(e *Element) []Binding {
+	var out []Binding
+	for _, b := range w.w.ImpliedBindings(e) {
+		out = append(out, Binding{b.Source, b.Target})
+	}
+	return out
+}
+
 // QualifiedName names an element by the declared names along its ownership
 // chain, such as "Vehicles::Car::engine". It is "" for an element with no
 // named owner. A name that is not a plain identifier is quoted.

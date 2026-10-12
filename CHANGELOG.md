@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.ImpliedGeneralizations`, `ImpliedFeaturingTypes` and
+  `ImpliedBindings`: the relationships the specification implies but the source
+  does not write (default supertypes per usage kind, cross features, featuring
+  types, binding connectors). They match the pilot implementation's output for
+  99.79% of the 99,685 implied relationships in the standard library.
+- `sysmlc implied` prints them.
+
+### Changed
+
+- Name resolution follows chains after a cast, `(x as T).f`, and the library's
+  structure now matches the pilot's in all 94 files (transition link features
+  and payload names).
+
 ## [0.2.0] - 2026-10-12
 
 ### Changed

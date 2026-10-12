@@ -77,3 +77,30 @@ func ExampleRef() {
 	// Output:
 	// Engine -> P::Engine (PartDefinition)
 }
+
+func ExampleWorkspace_ImpliedGeneralizations() {
+	w, err := sysml.NewWorkspace()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	doc, err := w.Add("model.sysml", []byte(`
+package Fleet {
+	part def Truck;
+	part truck : Truck;
+}`))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	w.Resolve()
+	doc.Root.Walk(func(e *sysml.Element) {
+		if e.Class == "PartUsage" {
+			for _, im := range w.ImpliedGeneralizations(e) {
+				fmt.Println(im.Kind, sysml.QualifiedName(im.Target))
+			}
+		}
+	})
+	// Output:
+	// Subsetting Parts::parts
+}

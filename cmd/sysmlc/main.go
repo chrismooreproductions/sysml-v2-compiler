@@ -3,6 +3,7 @@
 // Command sysmlc checks and inspects SysML v2 and KerML textual models.
 //
 //	sysmlc check   [-nolib] <file or directory>...   report syntax errors and names that do not resolve
+//	sysmlc implied [-nolib] <file or directory>...   print the relationships the specification implies for each type
 //	sysmlc dump    [-spans] <file>...                 print the model of each file as a tree
 //	sysmlc resolve [-nolib] <file or directory>...   print each reference and the element it resolves to
 //	sysmlc version                                    print the version
@@ -32,6 +33,7 @@ const usage = `usage: sysmlc <command> [flags] <file or directory>...
 
 commands:
   check     report syntax errors and names that do not resolve
+  implied   print the relationships the specification implies for each type
   dump      print the model of each file as a tree
   resolve   print each reference and the element it resolves to
   version   print the version
@@ -47,6 +49,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return withWorkspace(args[1:], stdout, stderr, "check", func(w *sysml.Workspace, docs []*sysml.Document, diags []sysml.Diagnostic, stdout io.Writer) {})
 	case "resolve":
 		return withWorkspace(args[1:], stdout, stderr, "resolve", printReferences)
+	case "implied":
+		return withWorkspace(args[1:], stdout, stderr, "implied", printImplied)
 	case "dump":
 		return dump(args[1:], stdout, stderr)
 	case "version":
@@ -176,7 +180,32 @@ func printReferences(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagn
 	}
 }
 
+// printImplied prints, for each type, the general types, featuring types and
+// binding connectors the specification implies for it.
+func printImplied(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
+	for _, doc := range docs {
+		doc.Root.Walk(func(e *sysml.Element) {
+			if e.Generated || !e.IsA("Type") {
+				return
+			}
+			name := describe(e)
+			for _, im := range w.ImpliedGeneralizations(e) {
+				fmt.Fprintf(stdout, "%s:%s: %s %s -> %s\n", doc.Name, e.Span.Start, name, im.Kind, describe(im.Target))
+			}
+			for _, t := range w.ImpliedFeaturingTypes(e) {
+				fmt.Fprintf(stdout, "%s:%s: %s TypeFeaturing -> %s\n", doc.Name, e.Span.Start, name, describe(t))
+			}
+			for _, b := range w.ImpliedBindings(e) {
+				fmt.Fprintf(stdout, "%s:%s: %s BindingConnector %s = %s\n", doc.Name, e.Span.Start, name, describe(b.Source), describe(b.Target))
+			}
+		})
+	}
+}
+
 func describe(e *sysml.Element) string {
+	if e.Generated {
+		return "(generated " + e.Class + ")"
+	}
 	if q := sysml.QualifiedName(e); q != "" {
 		return q
 	}
