@@ -146,6 +146,11 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 			}
 		}
 	}
+	// FeatureAdapter.addDefaultGeneralType adds the cross feature's typing first,
+	// because the default supertype depends on it
+	if t.IsA("Feature") {
+		w.addOwnedCrossFeatureSpecialization(t, add)
+	}
 	// TypeAdapter.addDefaultGeneralType: the metaclass's default supertype
 	emit := func(kind string) {
 		if qn := implicitKind(t.Class, kind); qn != "" {
@@ -170,7 +175,6 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 		}
 	}
 	if t.IsA("Feature") {
-		w.addOwnedCrossFeatureSpecialization(t, add)
 		w.addParticipantSubsetting(t, add)
 		w.addCrossingSpecialization(t, add)
 		w.addRedefinitions(t, add) // FeatureAdapter.addRedefinitions
@@ -960,17 +964,66 @@ func (w *Workspace) ownedCrossFeature(ns *el) *el {
 	return nil
 }
 
-// typesOf are a feature's types, written or implied.
+// typesOf is Feature.type: the feature's own and implied types and those of
+// the features it subsets, redefines or chains to, less any type another of
+// them specializes (FeatureAdapter.getAllTypes).
 func (w *Workspace) typesOf(f *el) []*el {
-	var out []*el
-	for _, r := range w.rels(f, "FeatureTyping") {
-		if g := w.refTarget(r, "type"); g != nil {
-			out = append(out, g)
+	types := w.collectTypes(f, map[*el]bool{})
+	for i := len(types) - 1; i >= 0; i-- {
+		for _, o := range types {
+			if o != types[i] && w.specializes(o, types[i]) {
+				types = append(types[:i], types[i+1:]...)
+				break
+			}
 		}
 	}
-	for _, x := range w.implicit(f) {
-		if x.kind == "FeatureTyping" {
-			out = append(out, x.target)
+	return types
+}
+
+func (w *Workspace) collectTypes(f *el, visited map[*el]bool) []*el {
+	visited[f] = true
+	var out []*el
+	var via []*el // typing features
+	if c := w.chainOf[f]; len(c) > 0 {
+		via = append(via, c[len(c)-1])
+	} else {
+		for _, r := range w.rels(f, "FeatureTyping") {
+			if g := w.refTarget(r, "type"); g != nil {
+				out = append(out, g)
+			}
+		}
+		for _, r := range w.rels(f, "Subsetting") {
+			if r.IsA("CrossSubsetting") {
+				continue
+			}
+			role := "subsettedFeature"
+			switch {
+			case r.IsA("Redefinition"):
+				role = "redefinedFeature"
+			case r.IsA("ReferenceSubsetting"):
+				role = "referencedFeature"
+			}
+			if g := w.refTarget(r, role); g != nil {
+				via = append(via, g)
+			}
+		}
+		for _, x := range w.implicit(f) {
+			switch x.kind {
+			case "FeatureTyping":
+				out = append(out, x.target)
+			case "Subsetting", "ReferenceSubsetting", "Redefinition":
+				via = append(via, x.target)
+			}
+		}
+		if ch := w.rels(f, "FeatureChaining"); len(ch) > 0 {
+			if g := w.refTarget(ch[len(ch)-1], "chainingFeature"); g != nil {
+				via = append(via, g)
+			}
+		}
+	}
+	for _, g := range via {
+		if g.IsA("Feature") && !visited[g] {
+			out = append(out, w.collectTypes(g, visited)...)
 		}
 	}
 	return out

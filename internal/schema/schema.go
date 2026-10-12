@@ -242,7 +242,21 @@ func IsTargetEnd(class, role string) bool {
 	return redefinesChain(class, role, "target") || redefinesChain(class, role, "general")
 }
 
+type chainKey struct{ class, role, goal string }
+
+var chainMemo sync.Map // chainKey -> bool
+
 func redefinesChain(class, role, goal string) bool {
+	k := chainKey{class, role, goal}
+	if v, ok := chainMemo.Load(k); ok {
+		return v.(bool)
+	}
+	v := computeRedefinesChain(class, role, goal)
+	chainMemo.Store(k, v)
+	return v
+}
+
+func computeRedefinesChain(class, role, goal string) bool {
 	load()
 	seen := map[string]bool{}
 	var walk func(r string) bool

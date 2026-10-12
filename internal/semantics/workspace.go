@@ -31,6 +31,7 @@ type Workspace struct {
 	cut      int                 // incremented whenever a circular resolution is cut
 	effNames map[*el][2]string   // cache: effective short name, name
 	libCache map[string]*el      // library elements by qualified name
+	relsMemo map[relsKey][]*el
 	implMemo map[*el][]implied
 	implBusy map[*el]bool
 	chains   map[[2]*el]*el // generated feature chains, by their two features
@@ -44,7 +45,7 @@ func NewWorkspace() *Workspace {
 		files: map[*el]string{},
 		memo:  map[*model.Ref]*el{}, done: map[*model.Ref]bool{}, busy: map[*model.Ref]bool{},
 		effNames: map[*el][2]string{}, libCache: map[string]*el{},
-		implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
+		relsMemo: map[relsKey][]*el{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
 		chains: map[[2]*el]*el{}, chainOf: map[*el][]*el{}, gaps: map[string]int{},
 	}
 }
@@ -60,6 +61,21 @@ func (w *Workspace) Gaps() map[string]int { return w.gaps }
 
 // rels are the relationships an element owns, optionally only of a class.
 func (w *Workspace) rels(e *el, class string) []*el {
+	k := relsKey{e, class}
+	if v, ok := w.relsMemo[k]; ok {
+		return v
+	}
+	out := w.computeRels(e, class)
+	w.relsMemo[k] = out
+	return out
+}
+
+type relsKey struct {
+	e     *el
+	class string
+}
+
+func (w *Workspace) computeRels(e *el, class string) []*el {
 	var out []*el
 	for _, r := range e.Children("ownedRelationship") {
 		if class == "" || r.IsA(class) {
