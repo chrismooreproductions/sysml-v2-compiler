@@ -126,16 +126,17 @@ resolved references and a generated mark).
 
 ### P4. Workspace and name resolution
 
-Port `resolve.go`, and give it an API: a `Workspace` of files, with the standard
-library loaded on demand.
+Ported from `plan/spike3` into `internal/semantics` (the resolver and the
+implicit-supertype engine call each other, so they share a package with the
+structural rules) and `internal/library`.
 
 | # | Item | Done when |
 |---|---|---|
-| 4.1 | `Workspace` type: add files, resolve, query | multi-file models resolve against each other and the library |
-| 4.2 | Embedded standard library, loaded lazily | `go:embed` of `internal/library`; importing `ScalarValues` or `Parts` works with no setup |
-| 4.3 | Port the resolution operations | ≥ 99.7% of the oracle's reference targets (today's number) |
-| 4.4 | Close the long tail | `$` qualification, filter imports, distinguishability, the pilot's `skip` rule, result-type inference for operator and index chain sources: target 99.95% |
-| 4.5 | Diagnostics | an unresolved reference reports its name, position and the scope searched |
+| 4.1 | `Workspace` type: add files, resolve, query | **Done:** `semantics.Workspace` with `AddSource`, `AddLibrary`, `Resolve`; files resolve against each other and the library. (It is internal until the public API in P7.1.) |
+| 4.2 | Embedded standard library, loaded lazily | **Done:** `internal/library` embeds the vendored sources with `go:embed` and parses them once per process, in parallel (94 files in about 0.3 s); each workspace builds its own model from the shared, immutable trees |
+| 4.3 | Port the resolution operations | **Done, with a ratchet:** 19,063 of 19,119 references (99.71%) resolve to the oracle's target, by position; 93 of 94 files match structurally after the resolution rules (`isConstant`, the subsetting clause of the default multiplicity) |
+| 4.4 | Close the long tail | **Open.** The 56 left: feature chains whose source is an operator or index expression (needs result-type inference), the pilot's `skip` rule, nested chain features, `$` qualification, filter imports, distinguishability. Target 99.95% |
+| 4.5 | Diagnostics | **Open.** An unresolved reference should report its name, position and the scope searched |
 
 ### P5. Tier 2: implied relationships
 

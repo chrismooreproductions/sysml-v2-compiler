@@ -69,19 +69,31 @@ func sameScalar(a, b string) bool {
 	return e1 == nil && e2 == nil && x == y
 }
 
-// FromModel reduces an element graph to canonical form.
-func FromModel(root *model.Element, file string) *Elem {
-	canon := map[*model.Element]*Elem{}
+// Canonicalizer reduces element graphs to canonical form. A reference in one
+// file can point into another, so all the files of a workspace share one.
+type Canonicalizer struct {
+	canon map[*model.Element]*Elem
+	roots []*model.Element
+	outs  []*Elem
+}
+
+// NewCanonicalizer returns an empty canonicalizer.
+func NewCanonicalizer() *Canonicalizer {
+	return &Canonicalizer{canon: map[*model.Element]*Elem{}}
+}
+
+// Add reduces a root to canonical form. Reference targets are filled in by Link.
+func (z *Canonicalizer) Add(root *model.Element, file string) *Elem {
 	var build func(e *model.Element, parent *Elem) *Elem
 	build = func(e *model.Element, parent *Elem) *Elem {
 		c := &Elem{Class: e.Class, Attrs: map[string]string{}, Parent: parent, File: file}
-		canon[e] = c
+		z.canon[e] = c
 		for _, p := range e.Props {
 			switch v := p.Value.(type) {
 			case *model.Element:
 				c.Kids = append(c.Kids, Kid{Role: p.Name, Elem: build(v, c)})
 			case *model.Ref:
-				c.Kids = append(c.Kids, Kid{Role: p.Name, Name: v.Name, Target: nil})
+				c.Kids = append(c.Kids, Kid{Role: p.Name, Name: v.Name})
 			case model.Bool:
 				c.Attrs[p.Name] = strconv.FormatBool(bool(v))
 			case model.Text:
@@ -95,10 +107,16 @@ func FromModel(root *model.Element, file string) *Elem {
 		return c
 	}
 	out := build(root, nil)
-	// second pass: reference targets, now that every element has a canonical form
+	z.roots = append(z.roots, root)
+	z.outs = append(z.outs, out)
+	return out
+}
+
+// Link sets the targets of the references of every root added so far.
+func (z *Canonicalizer) Link() {
 	var link func(e *model.Element)
 	link = func(e *model.Element) {
-		c := canon[e]
+		c := z.canon[e]
 		i := 0
 		for _, p := range e.Props {
 			switch v := p.Value.(type) {
@@ -109,14 +127,21 @@ func FromModel(root *model.Element, file string) *Elem {
 				for c.Kids[i].Elem != nil {
 					i++
 				}
-				c.Kids[i].Target = canon[v.Target]
+				c.Kids[i].Target = z.canon[v.Target]
 				i++
-			default:
-				continue
 			}
 		}
 	}
-	link(root)
+	for _, r := range z.roots {
+		link(r)
+	}
+}
+
+// FromModel reduces one element graph to canonical form.
+func FromModel(root *model.Element, file string) *Elem {
+	z := NewCanonicalizer()
+	out := z.Add(root, file)
+	z.Link()
 	return out
 }
 

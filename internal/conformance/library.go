@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/grammar"
+	"github.com/chrismooreproductions/sysml-v2-compiler/internal/library"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/model"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/postprocess"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/semantics"
@@ -134,4 +135,59 @@ func Report(results []FileResult) string {
 		sb.WriteString(line + "\n")
 	}
 	return sb.String()
+}
+
+// ResolvedResult is the comparison of the whole library after name resolution.
+type ResolvedResult struct {
+	Files []FileResult
+	Refs  *RefStats
+}
+
+// CompareResolved loads the whole standard library into one workspace, resolves
+// it, and compares both the structure of each file and every reference target
+// with the oracle.
+func CompareResolved(oracleRoot string) (*ResolvedResult, error) {
+	files, err := library.Files()
+	if err != nil {
+		return nil, err
+	}
+	w := semantics.NewWorkspace()
+	z := NewCanonicalizer()
+	var roots []*model.Element
+	for _, f := range files {
+		root := model.FromSyntax(f.Tree)
+		postprocess.Run(root)
+		semantics.Structure(root)
+		w.Add(root)
+		roots = append(roots, root)
+	}
+	w.Resolve()
+	var ours []*Elem
+	for i, f := range files {
+		ours = append(ours, z.Add(roots[i], FileBase(f.Path)))
+	}
+	z.Link()
+
+	res := &ResolvedResult{}
+	index := NewIndex()
+	for i, f := range files {
+		r := FileResult{File: LibraryFile{Path: f.Path, Lang: f.Lang}}
+		Prune(ours[i])
+		oracle, err := LoadXMI(filepath.Join(oracleRoot, f.Path+"x"))
+		if err != nil {
+			r.Err = err
+			res.Files = append(res.Files, r)
+			continue
+		}
+		Prune(oracle)
+		r.Diffs = Compare(ours[i], oracle)
+		res.Files = append(res.Files, r)
+		index.Add(oracle, FileBase(f.Path))
+	}
+	byKey := map[string]*Elem{}
+	for i, f := range files {
+		AssignKeys(ours[i], FileBase(f.Path), "", nil, byKey)
+	}
+	res.Refs = CompareReferences(ours, index)
+	return res, nil
 }
