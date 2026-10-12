@@ -268,6 +268,17 @@ func (w *Workspace) ownedFeatures(t *el) []*el {
 	return out
 }
 
+// ownedEndCount is TypeUtil.getOwnedEndFeaturesOf(t).size().
+func (w *Workspace) ownedEndCount(t *el) int {
+	n := 0
+	for _, f := range w.ownedFeatures(t) {
+		if f.IsTrue("isEnd") {
+			n++
+		}
+	}
+	return n
+}
+
 // features of a type: owned, then inherited.
 func (w *Workspace) features(t *el) []*el {
 	out := w.ownedFeatures(t)
@@ -605,6 +616,29 @@ func (w *Workspace) isStructureOwnedComposite(f *el) bool {
 // default supertype: the getDefaultSupertype of the adapter for its metaclass.
 func (w *Workspace) defaultKind(t *el, soFar []implied) string {
 	switch {
+	case t.IsA("Association"), t.IsA("ConnectionDefinition"), t.IsA("FlowDefinition"):
+		// AssociationAdapter, ConnectionDefinitionAdapter, FlowDefinitionAdapter
+		if w.ownedEndCount(t) == 2 {
+			return "binary"
+		}
+		return "base"
+	case t.IsA("ConnectionUsage") && !t.IsA("FlowUsage"):
+		if w.ownedEndCount(t) == 2 {
+			return "binary"
+		}
+		return "base"
+	case t.IsA("Connector") && !t.IsA("Flow") && !t.IsA("FlowUsage"):
+		// ConnectorAdapter
+		binary := w.ownedEndCount(t) == 2
+		switch {
+		case w.hasType(t, "Structure", soFar) && binary:
+			return "binaryObject"
+		case w.hasType(t, "Structure", soFar):
+			return "object"
+		case binary:
+			return "binary"
+		}
+		return "base"
 	case t.IsA("Multiplicity"):
 		owner := t.Owner
 		if owner != nil {
