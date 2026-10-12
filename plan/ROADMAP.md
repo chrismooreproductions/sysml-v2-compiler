@@ -144,8 +144,8 @@ Port `implicit.go`, then the rest of the adapters.
 
 | # | Item | Done when |
 |---|---|---|
-| 5.1 | Implicit supertype engine | ≥ 96% of the implied-generalizations oracle (today's number) |
-| 5.2 | Remaining generalization families | feature result typing, cross-subsetting, per-usage-kind defaults: ≥ 99.5% |
+| 5.1 | Implicit supertype engine | ≥ 96% of the implied-generalizations oracle (today's number) | **Done:** 99.59% of 49,334 implied general types match (`TestImpliedGeneralizationsMatchTheOracle`, compared by owner position and target).
+| 5.2 | Remaining generalization families | feature result typing, cross-subsetting, per-usage-kind defaults: ≥ 99.5% | **Done** for the generalization families: usage-kind defaults (`subitem`, `subaction`, binary connections, ports, requirements), cross features (typing, subsetting of redefined ends' cross features, cross subsetting) and the generated chains, compared by kind. 203 missing and 60 extra remain: enumeration literal typing, `ForLoopAction` reference subsettings, a few measurement and geometry features.
 | 5.3 | `TypeFeaturing` | 72k implied relationships compared and ≥ 99% reproduced |
 | 5.4 | `BindingConnector`s and the generated features they need | 12k compared and ≥ 99% reproduced |
 | 5.5 | Transition usage adapter | the last structural difference closes |

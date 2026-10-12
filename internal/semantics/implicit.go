@@ -111,6 +111,8 @@ func (w *Workspace) implicit(t *el) []implied {
 		src := w.chainSourceTarget(t)
 		add("Redefinition", w.libraryElement(implicitKind("FeatureChainExpression", "target")))
 		add("Redefinition", w.chainTarget(src))
+	case t.Owner != nil && t.Owner.IsA("Specialization") && t.Owner.Owner.IsA("Membership"):
+		// a chain a standalone specialization owns (subset a.b subsets c.d) is not transformed
 	case t.IsA("Type") && len(w.rels(t, "Conjugation")) == 0:
 		w.computeImplicit(t, add, func() []implied { return out })
 		out = w.removeUnnecessary(t, out)
