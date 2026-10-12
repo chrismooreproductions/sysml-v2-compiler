@@ -43,11 +43,11 @@ func (w *Workspace) Validate(roots ...*el) []Issue {
 					continue
 				}
 				if c.violated != nil && c.violated(w, e) {
-					out = append(out, Issue{e, c.constraint, messageFor(c.constraint), "error"})
+					out = append(out, Issue{e, base(c.constraint), messageFor(c.constraint), "error"})
 				}
 				if c.at != nil {
 					for _, bad := range c.at(w, e) {
-						out = append(out, Issue{bad, c.constraint, messageFor(c.constraint), "error"})
+						out = append(out, Issue{bad, base(c.constraint), messageFor(c.constraint), "error"})
 					}
 				}
 			}
@@ -63,24 +63,37 @@ var irregularMessages = map[string]string{
 	"validateUsageVariationOwnedFeatureMembership":      "USAGE_VARIATION_MEMBERSHIP",
 }
 
+// base is a constraint's name without the message variant.
+func base(constraint string) string {
+	if i := strings.IndexByte(constraint, '#'); i >= 0 {
+		return constraint[:i]
+	}
+	return constraint
+}
+
 // messageFor is the message of a constraint: the pilot names its constant
 // after the constraint, in capitals with underscores.
 func messageFor(constraint string) string {
+	// "constraint#n" asks for the n-th of the constraint's messages
+	variant := ""
+	if i := strings.IndexByte(constraint, '#'); i >= 0 {
+		constraint, variant = constraint[:i], "_"+constraint[i+1:]
+	}
 	if key, ok := irregularMessages[constraint]; ok {
-		return validationMessages[key]
+		return validationMessages[key+variant]
 	}
 	var sb strings.Builder
-	for i, r := range strings.TrimPrefix(constraint, "validate") {
+	for i, r := range strings.TrimSuffix(strings.TrimPrefix(constraint, "validate"), "_") {
 		if i > 0 && unicode.IsUpper(r) {
 			sb.WriteByte('_')
 		}
 		sb.WriteRune(unicode.ToUpper(r))
 	}
-	if m, ok := validationMessages[sb.String()]; ok {
+	if m, ok := validationMessages[sb.String()+variant]; ok {
 		return m
 	}
 	for _, prefix := range []string{"FEATURE_", "TYPE_"} { // validatePortionNotVariable, validateDifferencingTypesNotSelf
-		if m, ok := validationMessages[prefix+sb.String()]; ok {
+		if m, ok := validationMessages[prefix+sb.String()+variant]; ok {
 			return m
 		}
 	}
@@ -303,6 +316,60 @@ var structuralChecks = []check{
 	// -- ports --
 	{class: "PortDefinition", constraint: "validatePortDefinitionOwnedUsagesNotComposite", at: compositeUsages},
 	{class: "PortUsage", constraint: "validatePortUsageNestedUsagesNotComposite", at: compositeUsages},
+	// -- usages --
+	{class: "Usage", constraint: "validateUsageIsReferential#1", violated: func(_ *Workspace, e *el) bool { return e.IsTrue("isComposite") && e.Has("direction") }},
+	{class: "Usage", constraint: "validateUsageIsReferential#2", violated: func(_ *Workspace, e *el) bool {
+		return e.IsTrue("isComposite") && !e.Has("direction") && e.IsTrue("isEnd")
+	}},
+	{class: "OccurrenceUsage", constraint: "validateOccurrenceUsageIndividualUsage", violated: func(w *Workspace, e *el) bool {
+		if !e.IsTrue("isIndividual") {
+			return false
+		}
+		n := 0
+		for _, r := range w.rels(e, "FeatureTyping") {
+			if g := w.refTarget(r, "type"); g.IsA("OccurrenceDefinition") && g.IsTrue("isIndividual") {
+				n++
+			}
+		}
+		return n != 1
+	}},
+	// -- references and conjugation --
+	{class: "FeatureReferenceExpression", constraint: "validateFeatureReferenceExpressionReferentIsFeature", violated: func(w *Workspace, e *el) bool {
+		for _, m := range w.rels(e, "Membership") {
+			if m.IsA("ParameterMembership") {
+				continue
+			}
+			t := w.memberElement(m)
+			return t != nil && !t.IsA("Feature")
+		}
+		return false
+	}},
+	{class: "Specialization", constraint: "validateSpecializationSpecificNotConjugated", violated: func(w *Workspace, e *el) bool {
+		return e.Owner.IsA("Type") && len(w.rels(e.Owner, "Conjugation")) > 0
+	}},
+	// -- binary associations and connectors --
+	{class: "Association", constraint: "validateAssociationBinarySpecialization", at: func(w *Workspace, e *el) []*el {
+		var ends []*el
+		for _, f := range w.ownedFeatures(e) {
+			if f.IsTrue("isEnd") {
+				ends = append(ends, f)
+			}
+		}
+		if len(ends) > 2 && w.specializes(e, w.libraryElement("Links::BinaryLink")) {
+			return ends[2:]
+		}
+		return nil
+	}},
+	{class: "Connector", constraint: "validateConnectorBinarySpecialization", violated: func(w *Workspace, e *el) bool {
+		owned := 0
+		for _, f := range w.ownedFeatures(e) {
+			if f.IsTrue("isEnd") {
+				owned++
+			}
+		}
+		return len(w.endFeatures(e)) > 2 && owned <= 2 && w.specializes(e, w.libraryElement("Links::BinaryLink"))
+	}},
+	{class: "ConnectionDefinition", constraint: "validateConnectionDefinitionEndsAreUsages_", at: nonUsageEnds},
 }
 
 // relatedToSelf reports the relationships of a class that point at the element
@@ -385,4 +452,25 @@ func compositeUsages(w *Workspace, e *el) []*el {
 		}
 	}
 	return out
+}
+
+// nonUsageEnds is checkEndsAreUsages: the end features of a type that are not
+// usages, or the type itself if it inherits them.
+func nonUsageEnds(w *Workspace, e *el) []*el {
+	var bad, owned []*el
+	for _, f := range w.endFeatures(e) {
+		if !f.IsA("Usage") {
+			bad = append(bad, f)
+			if w.featureOwningType(f) == e {
+				owned = append(owned, f)
+			}
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	if len(owned) == 0 {
+		return []*el{e}
+	}
+	return owned
 }

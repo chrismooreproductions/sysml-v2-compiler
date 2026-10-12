@@ -41,12 +41,12 @@ func main() {
 			os.Exit(1)
 		}
 		for _, m := range decl.FindAllStringSubmatch(string(b), -1) {
-			if m[2] == "_MSG" {
+			if strings.HasPrefix(m[2], "_MSG") {
 				msg := m[3]
 				if msg == "" {
 					msg = m[4]
 				}
-				msgs[strings.TrimPrefix(m[1], "INVALID_")] = msg
+				msgs[strings.TrimPrefix(m[1], "INVALID_")+strings.TrimPrefix(m[2], "_MSG")] = msg
 			}
 		}
 	}

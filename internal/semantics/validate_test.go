@@ -368,6 +368,37 @@ func TestSpecializationAndVariationConstraints(t *testing.T) {
 			func() *model.Element {
 				return node("ForLoopActionUsage", nil, member("FeatureMembership", node("ReferenceUsage", nil)))
 			}},
+		{"validateUsageIsReferential",
+			func() *model.Element {
+				return node("PartUsage", map[string]model.Value{"isComposite": yes, "direction": model.Text("in")})
+			},
+			func() *model.Element {
+				return node("PartUsage", map[string]model.Value{"isComposite": no, "direction": model.Text("in")})
+			}},
+		{"validateOccurrenceUsageIndividualUsage",
+			func() *model.Element { return node("OccurrenceUsage", map[string]model.Value{"isIndividual": yes}) },
+			func() *model.Element { return node("OccurrenceUsage", nil) }},
+		{"validateFeatureReferenceExpressionReferentIsFeature",
+			func() *model.Element {
+				return node("FeatureReferenceExpression", nil, ref("Membership", "memberElement", node("Class", nil)))
+			},
+			func() *model.Element {
+				return node("FeatureReferenceExpression", nil, ref("Membership", "memberElement", node("Feature", nil)))
+			}},
+		{"validateSpecializationSpecificNotConjugated",
+			func() *model.Element {
+				return node("Classifier", nil, node("Conjugation", nil), ref("Subclassification", "superclassifier", node("Classifier", nil)))
+			},
+			func() *model.Element {
+				return node("Classifier", nil, ref("Subclassification", "superclassifier", node("Classifier", nil)))
+			}},
+		{"validateConnectionDefinitionEndsAreUsages_",
+			func() *model.Element {
+				return node("ConnectionDefinition", nil, member("EndFeatureMembership", node("Feature", map[string]model.Value{"isEnd": yes})))
+			},
+			func() *model.Element {
+				return node("ConnectionDefinition", nil, member("EndFeatureMembership", node("ReferenceUsage", map[string]model.Value{"isEnd": yes})))
+			}},
 		{"validateTransitionFeatureMembershipTriggerAction",
 			func() *model.Element {
 				return node("TransitionUsage", nil, with(member("TransitionFeatureMembership", node("ActionUsage", nil)), "kind", model.Text("trigger")))
