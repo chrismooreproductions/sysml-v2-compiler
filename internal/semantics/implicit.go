@@ -1061,7 +1061,7 @@ func (w *Workspace) addOwnedCrossFeatureSpecialization(t *el, add func(string, *
 	}
 	for _, r := range w.redefinedWithComputed(owner) {
 		if r.IsTrue("isEnd") {
-			if c := w.ownedCrossFeature(r); c != nil {
+			if c := w.crossFeatureOf(r); c != nil {
 				add("Subsetting", c)
 			}
 		}
@@ -1102,4 +1102,41 @@ func (w *Workspace) addCrossingSpecialization(t *el, add func(string, *el)) {
 	}
 	first := &el{Class: "Feature", Generated: true}
 	add("CrossSubsetting", w.chainFeatures(first, cross))
+}
+
+// chainingFeatures are the features a (written or generated) chain chains.
+func (w *Workspace) chainingFeatures(f *el) []*el {
+	if c := w.chainOf[f]; len(c) > 0 {
+		return c
+	}
+	var out []*el
+	for _, r := range w.rels(f, "FeatureChaining") {
+		out = append(out, w.refTarget(r, "chainingFeature"))
+	}
+	return out
+}
+
+// crossFeatureOf is FeatureUtil.getCrossFeatureOf: the second feature of the
+// chain an end feature crosses, written (crosses a.b) or implied.
+func (w *Workspace) crossFeatureOf(f *el) *el {
+	var crossed *el
+	for _, r := range w.rels(f, "CrossSubsetting") {
+		crossed = w.refTarget(r, "crossedFeature")
+		break
+	}
+	if crossed == nil {
+		for _, x := range w.implicit(f) {
+			if x.kind == "CrossSubsetting" {
+				crossed = x.target
+				break
+			}
+		}
+	}
+	if crossed == nil {
+		return nil
+	}
+	if c := w.chainingFeatures(crossed); len(c) >= 2 {
+		return c[1]
+	}
+	return nil
 }
