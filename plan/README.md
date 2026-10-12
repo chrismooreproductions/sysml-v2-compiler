@@ -139,17 +139,10 @@ History, SysML differences: 10,418 (raw) → 4,114 (comparator normalizations)
 (redefinition-aware roles, chain target feature, default multiplicity,
 enumeration variations, owner-context fixes).
 
-What is left in SysML, all of it needing name resolution or an unported
-rule:
-
-- `isConstant`, 74 differences (`UsageAdapter.doTransform`: an end usage is
-  constant when `mayTimeVary()`, which asks whether the owning type
-  *specializes* `Occurrences::Occurrence`, and whether the usage specializes
-  `SelfLink`, `HappensLink` or `Action`).
-- implied empty `Multiplicity` when a subsetted feature has no owning type, 3
-  (the subsetting clause of `isAddDefaultMultiplicity`).
-- an implied transition payload name and parameter, 2
-  (`TransitionUsageAdapter`).
+What is left in SysML needed name resolution (`isConstant`, 74 differences,
+and the subsetting clause of the default multiplicity, 3) or an unported
+transition rule (2). The first two are now done in `resolve.go`; see
+*Name resolution* below, which brings the structure to 93 of 94 files exact.
 
 ### Where the extra structure comes from
 
@@ -168,8 +161,8 @@ evaluator and is not needed for structure.)
 Rules are written as Go over the generic node tree, each naming the Java it
 mirrors, and tested by re-running the comparison.
 
-Still open: implicit general types (the rest of tier 2 and the `.implied`
-oracle), ambiguity (one parse is kept per end position),
+Still open: the context-dependent implicit general types (the rest of tier 2
+and the `.implied` oracle), ambiguity (one parse is kept per end position),
 emitting Go instead of interpreting (about 5 s for 153 files), and error
 messages.
 
@@ -197,32 +190,54 @@ WORLD=1 SHOW=400 LIB_ROOT="$R/sysml.library" XMI_ROOT="$R/sysml.library.xmi" \
 | | References |
 |---|---|
 | total | 19,118 |
-| same target as the oracle | **18,822 (98.5%)** |
-| resolve to a different element | 86 |
-| unresolved | 210 |
+| same target as the oracle | **19,059 (99.7%)** |
+| resolve to a different element | 17 |
+| unresolved | 42 |
 
-Every `FeatureTyping`, `MembershipImport`, `NamespaceImport`,
-`Subclassification` (1,691 of 1,692), `Intersecting`, `Disjoining` and implied
-reference is right. The two things that moved the number most were
-*effective names* (`Feature.namingFeature`: an unnamed feature that redefines
-another takes its name, which took matches from 89.6% to 94.2%) and
-*feature-chain navigation* plus `removeRedefinedFeatures` (94.2% to 98.5%).
+Every `FeatureTyping` (5,244), `MembershipImport`, `NamespaceImport`,
+`Subclassification`, `Subsetting`, `Intersecting`, `Disjoining` and implied
+reference is right. What moved the number, in order:
 
-What is left, in rough order of size:
+| Step | Matching |
+|---|---|
+| first run | 89.6% |
+| effective names (`Feature.namingFeature`: an unnamed feature that redefines another takes its name) | 94.2% |
+| feature-chain navigation and `removeRedefinedFeatures` | 98.5% |
+| implicit base supertypes (`ImplicitGeneralizationMap`, kind `base`, extracted into `implicit_table.go`) | 99.0% |
+| `NamespaceUtil.getNonExpressionNamespaceFor` ported literally: a value expression is searched from the *owner of its feature*, not from inside it | 99.6% |
+| `KerMLScopeProvider`/`SysMLScopeProvider` special cases: the target of an end feature's reference subsetting is looked up outside the connector, and a transition's source and target outside the transition | 99.7% |
 
-- **Implicit general types.** Every type implicitly specializes library types
-  (`Base::Anything`, `Performances::Performance`, `Links::Link`, ...), so
-  `self`, `participant`, `source` and `annotatedElement` are inherited from
-  types the source never names. This is the `ImplicitGeneralizationMap` and
-  adapter logic, and it is also what the `.implied` oracle records. It needs
-  porting before the rest of these converge.
-- **Expression chains whose source is not a plain reference** (an operator or
-  index expression, 22 cases): needs result-type inference.
-- **Resolution subtleties**: the pilot's `skip` rule (a reference never
-  resolves to the element that contains it), the `$` global qualification,
-  filter imports, and distinguishability collisions between memberships.
-- **Chain features** nested under a redefinition or subsetting (about 90
-  references) not yet examined individually.
+### Rules that needed resolution
+
+With resolution and implicit supertypes in place, the adapter rules that were
+blocked on them could be ported (`applyResolutionRules`):
+
+- `UsageAdapter.mayTimeVary` / `doTransform`: an end usage is constant when
+  its owning type specializes `Occurrences::Occurrence` and it is not a
+  portion, a `SelfLink`, a `HappensLink` or a composite `Action`. This cleared
+  all 74 `isConstant` differences.
+- the subsetting clause of `isAddDefaultMultiplicity`, which `semantic.go`
+  could only approximate. This cleared the last 3 multiplicity differences.
+
+Re-running the structural comparison after these rules, **93 of 94 library
+files match the oracle exactly** and 2 differences remain, both from one
+transition in `Actions.sysml` (`TransitionUsageAdapter` adds an implied
+transition-link feature and a payload name).
+
+### What is left
+
+- **42 unresolved, 17 wrong references**, of which about 25 are feature
+  chains (the target of an `a.b` chain whose source is an operator or index
+  expression, 22 cases, needs result-type inference; the rest are nested chain
+  features) and a handful are `redefines X::y` forms where the pilot's `skip`
+  rule matters.
+- **Only the `base` implicit supertype** is ported. The other 140 entries in
+  `ImplicitGeneralizationMap` are context-dependent (`subaction`,
+  `ownedPerformance`, `participant`, ...) and are gated by conditions in the
+  adapters. They are not needed for the plain-XMI oracle but are what the
+  `.implied` oracle contains.
+- Not ported: `$` global qualification, filter imports, distinguishability
+  collisions between memberships, the transition adapter.
 
 Runs in about 9 s for the whole library.
 

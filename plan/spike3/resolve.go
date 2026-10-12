@@ -27,6 +27,7 @@ type world struct {
 	gaps        map[string]int    // things met that this resolver does not handle
 	effNames    map[*cn][2]string // cache: effective short name, name
 	cut         int               // incremented whenever a circular resolution is cut
+	libCache    map[string]*cn    // library elements by qualified name
 }
 
 func assignKeys(c *cn, file, path string, parent *cn, byKey map[string]*cn) {
@@ -88,25 +89,56 @@ func (w *world) owningNamespace(e *cn) *cn {
 	return nil
 }
 
-// parentNamespace mirrors NamespaceUtil.getParentNamespaceOf: for an element
-// held by a non-membership relationship, the namespace of that relationship's
-// owner.
+// parentNamespace mirrors NamespaceUtil.getParentNamespaceOf: the nearest
+// Namespace containing an element.
 func (w *world) parentNamespace(e *cn) *cn {
-	for e != nil {
-		if ns := w.owningNamespace(e); ns != nil {
-			return ns
+	for p := e.parent; p != nil; p = p.parent {
+		if w.is(p, "Namespace") {
+			return p
 		}
-		if e.parent == nil || e.parent.parent == nil {
-			return nil
-		}
-		e = e.parent.parent
 	}
 	return nil
 }
 
-func (w *world) nonExpressionNamespace(ns *cn) *cn {
-	for ns != nil && w.is(ns, "Expression") {
-		ns = w.parentNamespace(ns)
+func (w *world) owningMembership(e *cn) *cn {
+	if e.parent != nil && w.is(e.parent, "Membership") {
+		return e.parent
+	}
+	return nil
+}
+
+// expressionNamespaceOf mirrors NamespaceUtil.getExpressionNamespaceOf.
+func (w *world) expressionNamespaceOf(e *cn) *cn {
+	ns := w.parentNamespace(e)
+	if ns == nil {
+		return nil
+	}
+	owning := w.owningNamespace(ns)
+	rel := e
+	if !w.is(e, "Relationship") {
+		rel = w.owningMembership(e)
+	}
+	if rel != nil && w.is(rel, "FeatureValue") && w.is(owning, "InstantiationExpression") {
+		return owning
+	}
+	return ns
+}
+
+// nonExpressionNamespaceFor mirrors NamespaceUtil.getNonExpressionNamespaceFor:
+// the namespace outside any enclosing instantiation or feature-reference
+// expression, and, for a feature's value expression, outside the feature
+// itself.
+func (w *world) nonExpressionNamespaceFor(e *cn) *cn {
+	if e == nil {
+		return nil
+	}
+	ns := w.expressionNamespaceOf(e)
+	for ns != nil && (w.is(e, "FeatureValue") || w.is(ns, "InstantiationExpression") || w.is(ns, "FeatureReferenceExpression")) {
+		e = w.owningMembership(ns)
+		if e == nil {
+			return nil
+		}
+		ns = w.expressionNamespaceOf(e)
 	}
 	return ns
 }
@@ -244,9 +276,52 @@ func (w *world) removeRedefined(ms []*cn) []*cn {
 
 // ---- inheritance, imports, visible memberships ----
 
-// generals are the types a type specializes or conjugates, as resolved.
-func (w *world) generals(t *cn) []*cn {
-	var out []*cn
+// implicitBase names the library type a metaclass implicitly specializes
+// (ImplicitGeneralizationMap, kind "base"), searching up the metaclass
+// hierarchy as the Java does up the implementation class hierarchy.
+func implicitBase(class string) string {
+	queue, seen := []string{class}, map[string]bool{}
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		if seen[c] {
+			continue
+		}
+		seen[c] = true
+		if v, ok := implicitTable[c+"_base"]; ok {
+			return v
+		}
+		queue = append(queue, theMeta.supers[c]...)
+	}
+	return ""
+}
+
+// libraryElement resolves a qualified library name from the global scope.
+func (w *world) libraryElement(qn string) *cn {
+	if e, ok := w.libCache[qn]; ok {
+		return e
+	}
+	var e *cn
+	if m := w.resolveName(scope{inside: true}, qn); m != nil {
+		e = w.memberElement(m)
+	}
+	w.libCache[qn] = e
+	return e
+}
+
+// generals are the types a type specializes or conjugates, as resolved,
+// followed by the library type it implicitly specializes.
+func (w *world) generals(t *cn) (out []*cn) {
+	defer func() {
+		if os.Getenv("NO_IMPLICIT") != "" || len(w.rels(t, "Conjugation")) > 0 {
+			return
+		}
+		if qn := implicitBase(t.class); qn != "" {
+			if g := w.libraryElement(qn); g != nil && g != t {
+				out = append(out, g)
+			}
+		}
+	}()
 	for _, r := range w.rels(t, "Specialization") {
 		for i, k := range r.kids {
 			if k.n == nil && theMeta.isTargetEnd(r.class, k.role) {
@@ -549,22 +624,66 @@ func (w *world) scopeFor(owner *cn, ki int) scope {
 		return scope{ns: w.parentNamespace(rel.parent), inside: true,
 			redefinition: w.is(rel, "Redefinition")}
 	case w.is(owner, "Membership"):
+		// SysMLScopeProvider: the source of a transition is looked up outside it.
+		if tu := owner.parent; w.is(tu, "TransitionUsage") && !w.is(owner, "FeatureMembership") {
+			var firstPlain *cn
+			for _, m := range w.ownedMemberships(tu) {
+				if !w.is(m, "FeatureMembership") {
+					firstPlain = m
+					break
+				}
+			}
+			if firstPlain == owner {
+				return scope{ns: w.parentNamespace(tu), inside: true}
+			}
+		}
 		if owner.class == "Membership" && w.is(owner.parent, "FeatureChainExpression") {
 			// the target of a chain: look among the members of the source
 			return scope{ns: w.chainSource(owner.parent), inside: false}
 		}
-		return scope{ns: w.nonExpressionNamespace(owner.parent), inside: true}
+		return scope{ns: w.nonExpressionNamespaceFor(owner), inside: true}
 	case w.is(owner, "Relationship"):
 		if owner.parent == nil {
 			return scope{}
 		}
+		if s, ok := w.endScope(owner); ok {
+			return s
+		}
 		ns := w.parentNamespace(owner.parent)
 		if w.is(owner, "FeatureTyping") {
-			ns = w.nonExpressionNamespace(ns)
+			ns = w.nonExpressionNamespaceFor(owner.parent)
 		}
 		return scope{ns: ns, inside: true, redefinition: w.is(owner, "Redefinition") && role == "redefinedFeature"}
 	}
 	return scope{ns: w.parentNamespace(owner), inside: true}
+}
+
+// endScope applies the pilot's special scoping for the target of a
+// ReferenceSubsetting on an end feature: KerMLScopeProvider looks it up
+// outside a connector, and SysMLScopeProvider outside a transition's
+// succession.
+func (w *world) endScope(rs *cn) (scope, bool) {
+	if !w.is(rs, "ReferenceSubsetting") {
+		return scope{}, false
+	}
+	f := rs.parent
+	held := f.parent
+	if held == nil || !w.is(held, "FeatureMembership") || held.parent == nil {
+		return scope{}, false
+	}
+	owningType := held.parent
+	if f.attrs["isEnd"] == "true" && w.is(owningType, "Connector") {
+		return scope{ns: w.parentNamespace(owningType), inside: true}, true
+	}
+	if w.is(owningType, "SuccessionAsUsage") && w.is(held, "EndFeatureMembership") {
+		ends := w.rels(owningType, "EndFeatureMembership")
+		if len(ends) == 2 && ends[1] == held {
+			if outer := w.owningNamespace(owningType); w.is(outer, "TransitionUsage") {
+				return scope{ns: w.parentNamespace(outer), inside: true}, true
+			}
+		}
+	}
+	return scope{}, false
 }
 
 // resolveKid resolves the ki-th child of owner, a cross-reference.
@@ -603,6 +722,133 @@ func (w *world) resolveKid(owner *cn, ki int) *cn {
 	w.done[key] = true
 	w.memo[key] = out
 	return out
+}
+
+// ---- rules that need resolution ----
+
+// specializes mirrors TypeUtil.specializes: a type specializes itself and
+// every type reachable through its (explicit and implicit) generals.
+func (w *world) specializes(t, general *cn) bool {
+	if t == nil || general == nil {
+		return false
+	}
+	seen := map[*cn]bool{}
+	var walk func(x *cn) bool
+	walk = func(x *cn) bool {
+		if x == general {
+			return true
+		}
+		if seen[x] {
+			return false
+		}
+		seen[x] = true
+		for _, g := range w.generals(x) {
+			if walk(g) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(t)
+}
+
+// mayTimeVary mirrors UsageAdapter.mayTimeVary.
+func (w *world) mayTimeVary(u *cn) bool {
+	if !w.is(u.parent, "FeatureMembership") || u.parent.parent == nil {
+		return false
+	}
+	owningType := u.parent.parent
+	if !w.specializes(owningType, w.libraryElement("Occurrences::Occurrence")) {
+		return false
+	}
+	return !(u.attrs["isPortion"] == "true" ||
+		w.specializes(u, w.libraryElement("Links::SelfLink")) ||
+		w.specializes(u, w.libraryElement("Occurrences::HappensLink")) ||
+		u.attrs["isComposite"] == "true" && w.specializes(u, w.libraryElement("Actions::Action")))
+}
+
+// basicFeature mirrors FeatureUtil.getBasicFeatureOf: a chain stands for its
+// last chaining feature.
+func (w *world) basicFeature(f *cn) *cn {
+	if f == nil {
+		return nil
+	}
+	if ch := w.rels(f, "FeatureChaining"); len(ch) > 0 {
+		last := ch[len(ch)-1]
+		for i, k := range last.kids {
+			if k.n == nil && k.role == "chainingFeature" {
+				return w.resolveKid(last, i)
+			}
+		}
+		return nil
+	}
+	return f
+}
+
+func (w *world) owningType(f *cn) *cn {
+	if w.is(f.parent, "FeatureMembership") {
+		return f.parent.parent
+	}
+	return nil
+}
+
+// wantsDefaultMultiplicity completes UsageAdapter.isAddDefaultMultiplicity,
+// the clause semantic.go could only approximate: an attribute, item or port
+// usage owned by a type gets a default multiplicity unless a feature it
+// subsets is itself owned by a type.
+func (w *world) wantsDefaultMultiplicity(u *cn) bool {
+	if !(w.is(u, "AttributeUsage") || w.is(u, "ItemUsage") || w.is(u, "PortUsage")) || w.is(u, "ConnectionUsage") {
+		return false
+	}
+	if u.attrs["isEnd"] == "true" || w.owningType(u) == nil {
+		return false
+	}
+	for _, m := range w.rels(u, "") {
+		if member := first1(w.ownedRelated(m)); member != nil && w.is(member, "Multiplicity") {
+			return false
+		}
+	}
+	subs := w.rels(u, "Subsetting")
+	if len(subs) == 0 {
+		return false // already added at the node level
+	}
+	for _, s := range subs {
+		for i, k := range s.kids {
+			if k.n == nil && theMeta.isTargetEnd(s.class, k.role) {
+				if f := w.basicFeature(w.resolveKid(s, i)); f != nil && w.owningType(f) != nil {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// applyResolutionRules applies the adapter rules that need name resolution:
+// UsageAdapter.doTransform makes an end usage constant if it may time-vary,
+// and the default-multiplicity clause that asks about subsetted features.
+func (w *world) applyResolutionRules() {
+	var visit func(c *cn)
+	visit = func(c *cn) {
+		if w.is(c, "Usage") && c.attrs["isEnd"] == "true" && w.mayTimeVary(c) {
+			c.attrs["isConstant"] = "true"
+		}
+		if w.wantsDefaultMultiplicity(c) {
+			mult := &cn{class: "Multiplicity", attrs: map[string]string{}}
+			mem := &cn{class: "OwningMembership", attrs: map[string]string{}, parent: c}
+			mult.parent = mem
+			mem.kids = []ckid{{role: "ownedRelatedElement", n: mult, owned: -1}}
+			c.kids = append(c.kids, ckid{role: "ownedRelationship", n: mem, owned: -1})
+		}
+		for _, k := range c.kids {
+			if k.n != nil {
+				visit(k.n)
+			}
+		}
+	}
+	for _, r := range w.roots {
+		visit(r)
+	}
 }
 
 // ---- driver and report ----
@@ -656,7 +902,7 @@ func worldMain() {
 	sort.Strings(files)
 
 	w := &world{mineByKey: map[string]*cn{}, oracleByKey: map[string]*cn{}, oracleByID: map[string]*cn{},
-		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}}
+		memo: map[string]*cn{}, done: map[string]bool{}, busy: map[string]bool{}, gaps: map[string]int{}, effNames: map[*cn][2]string{}, libCache: map[string]*cn{}}
 	oracleRoots := map[string]*cn{}
 	skipped := 0
 	for _, f := range files {
@@ -688,7 +934,49 @@ func worldMain() {
 		oracleRoots[base] = want
 	}
 	fmt.Printf("world: %d files loaded (%d skipped)\n", len(w.roots), skipped)
+	w.applyResolutionRules()
+	w.structure(oracleRoots)
 	w.report()
+}
+
+// structure re-runs the structural comparison after the resolution rules.
+func (w *world) structure(oracleRoots map[string]*cn) {
+	kinds := map[string]int{}
+	exact, files, total := 0, 0, 0
+	for _, root := range w.roots {
+		want := oracleRoots[root.file]
+		if want == nil {
+			continue
+		}
+		files++
+		var ds []diff
+		diffCN("", root, want, &ds)
+		if len(ds) == 0 {
+			exact++
+		}
+		for _, d := range ds {
+			cls := d.path[strings.LastIndex(d.path, "/")+1:]
+			if i := strings.Index(cls, "."); i >= 0 {
+				cls = cls[:i]
+			}
+			kinds[d.kind+" @ "+cls]++
+			total++
+		}
+	}
+	fmt.Printf("\nstructure after resolution rules: %d of %d files match the oracle exactly, %d differences\n", exact, files, total)
+	var ks []string
+	for k := range kinds {
+		ks = append(ks, k)
+	}
+	sort.Slice(ks, func(i, j int) bool {
+		return kinds[ks[i]] > kinds[ks[j]] || (kinds[ks[i]] == kinds[ks[j]] && ks[i] < ks[j])
+	})
+	for i, k := range ks {
+		if i >= 12 {
+			break
+		}
+		fmt.Printf("  %5d  %s\n", kinds[k], k)
+	}
 }
 
 type tally struct{ total, match, wrong, unresolved, noOracle int }
