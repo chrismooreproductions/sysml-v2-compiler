@@ -107,9 +107,10 @@ Port `spike1`/`spike3` into `internal/syntax` as a clean package.
 
 | # | Item | Done when |
 |---|---|---|
-| 2.1 | Generator reads `SysML.ecore` and emits `schema` | classes, supertypes, features, defaults, derived/transient, `redefines` |
-| 2.2 | Typed accessors over nodes | `Package.OwnedMembership()` style access for the metaclasses; round-trip tests |
-| 2.3 | Staleness check | CI fails if the generated schema differs from the pinned ecore |
+| 2.1 | Generator reads `SysML.ecore` and emits `internal/schema` | **Done:** `internal/schema/gen` and `tools/genschema` (`go generate ./internal/schema`); 175 classes, 7 enums, 415 features with supertypes, types, defaults, derived/transient/volatile flags, `redefines`, `subsets`, opposites; lookups for kind-of, feature-by-name, effective role, source/target ends |
+| 2.2 | Typed accessors over nodes | **Moved to P7.1.** Nothing in P3 to P5 needs them (those stages work on metaclass and property names, which the schema now validates), and their shape should follow the public API, so building them here would be building them twice |
+| 2.3 | Staleness check | **Done:** `TestGeneratedTablesAreCurrent` fails if `schema_gen.go` differs from what the generator makes from the vendored ecore |
+| 2.4 | Parsed trees conform to the schema | **Done:** `TestParsedTreesConformToTheSchema` checks every node of the 404 models (128,039 nodes): the metaclass exists, each property exists on it, node/reference/boolean/text values suit the property, enum values are real literals. It found a real parser bug (rules returning an enumeration built nodes), now fixed by consulting the schema |
 
 ### P3. Tier 1: post-processing and structure
 
@@ -163,7 +164,7 @@ the rest.
 
 | # | Item | Done when |
 |---|---|---|
-| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types, built over `internal/`; a doc comment on every exported identifier; one example per entry point |
+| 7.1 | Public API: the `sysml` package | `Parse`, `Workspace`, the model and the generated metaclass types with typed accessors (moved here from 2.2), built over `internal/`; a doc comment on every exported identifier; one example per entry point |
 | 7.2 | `sysmlc` | `check`, `dump`, `resolve` over files and directories, exit codes for CI use |
 | 7.3 | Cutover: delete `metamodel`, replace the old `sysml` package with the new one | the 16 vendored spec fixtures and any old test still worth keeping pass on the new API, the rest are removed on purpose; `AGENTS.md` and the README rewritten |
 | 7.4 | Release `v0.2.0` | CHANGELOG entry, tag, GitHub Release, as `AGENTS.md` requires |

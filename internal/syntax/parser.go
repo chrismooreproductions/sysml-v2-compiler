@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/grammar"
+	"github.com/chrismooreproductions/sysml-v2-compiler/internal/schema"
 )
 
 // Parse parses a SysML v2 or KerML document. It returns the root Namespace.
@@ -144,7 +145,9 @@ func compile(g *grammar.Grammar) *compiled {
 		switch {
 		case r.Kind == grammar.Enum:
 		case r.Returns != "":
-			if !strings.HasPrefix(r.Returns, "Ecore::") && !enums[bare(r.Returns)] {
+			// A rule that returns an enumeration yields a literal, not a node. Enum
+			// rules say so themselves; for others the metamodel does.
+			if !strings.HasPrefix(r.Returns, "Ecore::") && !enums[bare(r.Returns)] && !schema.IsEnum(bare(r.Returns)) {
 				cr.class = bare(r.Returns)
 			}
 		case !datatype[name]:
