@@ -3,6 +3,7 @@
 package semantics
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/grammar"
@@ -189,5 +190,54 @@ func TestImplicitSupertypesAreGeneralTypes(t *testing.T) {
 	}
 	if !found {
 		t.Error("a part definition does not specialize Parts::Part")
+	}
+}
+
+func TestUnresolvedNamesAreReportedWithWhereTheyWereWritten(t *testing.T) {
+	w := NewWorkspace()
+	if _, err := w.AddSource(grammar.SysML, "model.sysml", "package P {\n  part x : Missing;\n  package Q { part y : 'Also Missing'::T; }\n}"); err != nil {
+		t.Fatal(err)
+	}
+	w.Resolve()
+	got := w.Unresolved()
+	if len(got) != 2 {
+		t.Fatalf("%d unresolved: %+v", len(got), got)
+	}
+	u := got[0]
+	if u.Ref.Name != "Missing" || u.File != "model.sysml" || u.Role != "type" || u.Ref.Span.Start.Line != 2 || u.Ref.Span.Start.Column != 12 {
+		t.Errorf("first = %q in %s at %v role %s", u.Ref.Name, u.File, u.Ref.Span.Start, u.Role)
+	}
+	if QualifiedName(u.Scope) != "P" {
+		t.Errorf("searched from %q, want P", QualifiedName(u.Scope))
+	}
+	if got[1].Ref.Name != "'Also Missing'::T" || QualifiedName(got[1].Scope) != "P::Q" {
+		t.Errorf("second = %q from %q", got[1].Ref.Name, QualifiedName(got[1].Scope))
+	}
+}
+
+func TestTheLibraryIsNotReportedAsUnresolved(t *testing.T) {
+	w := NewWorkspace()
+	if err := w.AddLibrary(); err != nil {
+		t.Fatal(err)
+	}
+	w.Resolve()
+	if got := w.Unresolved(); len(got) != 0 {
+		t.Errorf("%d unresolved in the library were reported", len(got))
+	}
+	if got := w.FileOf(w.roots[0]); !strings.HasPrefix(got, "library:") {
+		t.Errorf("FileOf = %q", got)
+	}
+}
+
+func TestQualifiedNameQuotesWhenNeeded(t *testing.T) {
+	_, roots := resolved(t, false, `package 'My Pkg' { part def 'A-1' { part x; } }`)
+	var x *model.Element
+	roots[0].Walk(func(e *model.Element) {
+		if e.Class == "PartUsage" {
+			x = e
+		}
+	})
+	if got := QualifiedName(x); got != `'My Pkg'::'A-1'::x` {
+		t.Errorf("QualifiedName = %s", got)
 	}
 }

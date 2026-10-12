@@ -23,6 +23,7 @@ type el = model.Element
 // scope.
 type Workspace struct {
 	roots []*el
+	files map[*el]string // the file name of each root
 
 	memo     map[*model.Ref]*el // resolved references, nil results included
 	done     map[*model.Ref]bool
@@ -40,7 +41,8 @@ type Workspace struct {
 // NewWorkspace returns an empty workspace.
 func NewWorkspace() *Workspace {
 	return &Workspace{
-		memo: map[*model.Ref]*el{}, done: map[*model.Ref]bool{}, busy: map[*model.Ref]bool{},
+		files: map[*el]string{},
+		memo:  map[*model.Ref]*el{}, done: map[*model.Ref]bool{}, busy: map[*model.Ref]bool{},
 		effNames: map[*el][2]string{}, libCache: map[string]*el{},
 		implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
 		chains: map[[2]*el]*el{}, chainOf: map[*el][]*el{}, gaps: map[string]int{},
@@ -285,7 +287,9 @@ func (w *Workspace) AddSource(lang grammar.Language, file, src string) (*el, err
 	if err != nil {
 		return nil, err
 	}
-	return w.addTree(n), nil
+	root := w.addTree(n)
+	w.files[root] = file
+	return root, nil
 }
 
 func (w *Workspace) addTree(n *syntax.Node) *el {
@@ -296,6 +300,15 @@ func (w *Workspace) addTree(n *syntax.Node) *el {
 	return root
 }
 
+// FileOf is the name of the file an element came from, or "" for a generated
+// element or one that was added without a name.
+func (w *Workspace) FileOf(e *el) string {
+	for e.Owner != nil {
+		e = e.Owner
+	}
+	return w.files[e]
+}
+
 // AddLibrary adds the standard library to the workspace. The library's parse
 // trees are shared between workspaces; each workspace builds its own model.
 func (w *Workspace) AddLibrary() error {
@@ -304,7 +317,7 @@ func (w *Workspace) AddLibrary() error {
 		return err
 	}
 	for _, f := range files {
-		w.addTree(f.Tree)
+		w.files[w.addTree(f.Tree)] = "library:" + f.Path
 	}
 	return nil
 }
