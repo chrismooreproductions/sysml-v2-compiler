@@ -7,15 +7,34 @@
 package semantics
 
 import (
+	"strings"
+
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/model"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/schema"
 )
 
-// Resolve resolves every cross-reference in the workspace and applies the
-// rules that need the resolved names. After it, each *model.Ref that could be
-// resolved has its Target set.
-func (w *Workspace) Resolve() {
+// isLibrary reports whether a root is a standard library file.
+func (w *Workspace) isLibrary(root *el) bool {
+	return strings.HasPrefix(w.files[root], "library:")
+}
+
+// Resolve resolves every cross-reference in the files added to the workspace
+// (not the standard library, whose references resolve on demand, as names in
+// the user's files reach them) and applies the rules that need the resolved
+// names. After it, each *model.Ref that could be resolved has its Target set.
+func (w *Workspace) Resolve() { w.resolve(false) }
+
+// ResolveAll is Resolve for every file, the standard library included.
+func (w *Workspace) ResolveAll() { w.resolve(true) }
+
+func (w *Workspace) resolve(includeLibrary bool) {
+	var roots []*el
 	for _, root := range w.roots {
+		if includeLibrary || !w.isLibrary(root) {
+			roots = append(roots, root)
+		}
+	}
+	for _, root := range roots {
 		root.Walk(func(e *el) {
 			for _, p := range e.Props {
 				if r, ok := p.Value.(*model.Ref); ok && r.Target == nil && r.Name != "" {
@@ -26,7 +45,7 @@ func (w *Workspace) Resolve() {
 			}
 		})
 	}
-	for _, root := range w.roots {
+	for _, root := range roots {
 		root.Walk(w.applyResolutionRules)
 	}
 }

@@ -22,7 +22,7 @@ type Unresolved struct {
 func (w *Workspace) Unresolved() []Unresolved {
 	var out []Unresolved
 	for _, root := range w.roots {
-		if name := w.files[root]; strings.HasPrefix(name, "library:") {
+		if w.isLibrary(root) {
 			continue // the standard library is not the user's to fix
 		}
 		root.Walk(func(e *el) {

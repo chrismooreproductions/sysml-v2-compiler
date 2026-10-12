@@ -161,7 +161,7 @@ func CompareResolved(oracleRoot string) (*ResolvedResult, error) {
 		w.Add(root)
 		roots = append(roots, root)
 	}
-	w.Resolve()
+	w.ResolveAll()
 	var ours []*Elem
 	for i, f := range files {
 		ours = append(ours, z.Add(roots[i], FileBase(f.Path)))
