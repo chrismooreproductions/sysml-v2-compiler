@@ -288,6 +288,12 @@ func (w *Workspace) scopeFor(owner *el, role string) scope {
 		if idx > 0 {
 			return scope{ns: w.refTarget(chain[idx-1], "chainingFeature"), inside: false}
 		}
+		// FeatureChainExpression: a.b.c chains b and c from what a is
+		if fce := w.owningNamespace(chained); fce.IsA("FeatureChainExpression") {
+			if src := w.chainSource(fce); src != nil {
+				return scope{ns: src, inside: false}
+			}
+		}
 		rel := chained.Owner // the relationship whose target this chain is
 		if rel == nil || rel.Owner == nil {
 			return scope{}

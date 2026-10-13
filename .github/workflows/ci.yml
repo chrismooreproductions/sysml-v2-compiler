@@ -43,4 +43,4 @@ jobs:
       - name: Fetch the oracle
         run: tools/fetch-oracle.sh
       - name: Conformance
-        run: go test -count=1 -v -run 'Matches' ./internal/conformance
+        run: go test -count=1 -v -run 'Matches|MatchTheOracle' ./internal/conformance

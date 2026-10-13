@@ -241,3 +241,23 @@ func TestQualifiedNameQuotesWhenNeeded(t *testing.T) {
 		t.Errorf("QualifiedName = %s", got)
 	}
 }
+
+func TestResolvesEveryStepOfALongChain(t *testing.T) {
+	w, roots := resolved(t, true, `package P {
+		attribute def SamplePair { attribute domainValue : ScalarValues::Real; }
+		attribute def SF { attribute samples : SamplePair[0..*]; }
+		calc def D { in fn : SF; return : ScalarValues::Real[0..*] = fn.samples.domainValue; }
+	}`)
+	if un := w.Unresolved(); len(un) != 0 {
+		t.Fatalf("unresolved: %v", un[0].Ref.Name)
+	}
+	var got []string
+	roots[0].Walk(func(e *model.Element) {
+		if e.Class == "FeatureChaining" {
+			got = append(got, QualifiedName(e.Refs("chainingFeature")[0].Target))
+		}
+	})
+	if strings.Join(got, ",") != "P::SF::samples,P::SamplePair::domainValue" {
+		t.Errorf("chained %v", got)
+	}
+}
