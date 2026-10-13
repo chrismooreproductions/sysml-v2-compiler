@@ -309,3 +309,40 @@ func TestMaterializeAddsTheImpliedRelationshipsToTheTree(t *testing.T) {
 		t.Error("Materialize is not idempotent")
 	}
 }
+
+func TestEvaluate(t *testing.T) {
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := w.Add("m.sysml", []byte("package P { attribute a = 2; attribute b = (a, a + 1); attribute c = a / 0; }"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Resolve()
+	value := func(name string) (any, error) {
+		var out any
+		var oerr error
+		doc.Root.Walk(func(e *Element) {
+			if e.Text("declaredName") == name {
+				for _, r := range e.Children("ownedRelationship") {
+					for _, x := range r.Children("ownedRelatedElement") {
+						out, oerr = w.Evaluate(x)
+					}
+				}
+			}
+		})
+		return out, oerr
+	}
+	if v, err := value("a"); err != nil || v != int64(2) {
+		t.Errorf("a = %v, %v", v, err)
+	}
+	if v, err := value("b"); err != nil || FormatValue(v) != "(2, 3)" {
+		t.Errorf("b = %v, %v", v, err)
+	}
+	if _, err := value("c"); err == nil {
+		t.Error("c = a / 0 evaluated")
+	} else if _, ok := err.(*EvalError); !ok {
+		t.Errorf("error %T, want *EvalError", err)
+	}
+}

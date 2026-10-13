@@ -3,6 +3,7 @@
 // Command sysmlc checks and inspects SysML v2 and KerML textual models.
 //
 //	sysmlc check   [-nolib] <file or directory>...   report syntax errors and names that do not resolve
+//	sysmlc eval    [-nolib] <file or directory>...   print the value of each feature whose value can be computed
 //	sysmlc implied [-nolib] <file or directory>...   print the relationships the specification implies for each type
 //	sysmlc dump    [-spans] <file>...                 print the model of each file as a tree
 //	sysmlc resolve [-nolib] <file or directory>...   print each reference and the element it resolves to
@@ -33,6 +34,7 @@ const usage = `usage: sysmlc <command> [flags] <file or directory>...
 
 commands:
   check     report syntax errors and names that do not resolve
+  eval      print the value of each feature that has a value expression
   implied   print the relationships the specification implies for each type
   dump      print the model of each file as a tree
   resolve   print each reference and the element it resolves to
@@ -49,6 +51,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return withWorkspace(args[1:], stdout, stderr, "check", func(w *sysml.Workspace, docs []*sysml.Document, diags []sysml.Diagnostic, stdout io.Writer) {})
 	case "resolve":
 		return withWorkspace(args[1:], stdout, stderr, "resolve", printReferences)
+	case "eval":
+		return withWorkspace(args[1:], stdout, stderr, "eval", printValues)
 	case "implied":
 		return withWorkspace(args[1:], stdout, stderr, "implied", printImplied)
 	case "dump":
@@ -183,6 +187,28 @@ func printReferences(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagn
 					target = fmt.Sprintf("%s (%s, %s)", describe(r.Target), r.Target.Class, w.FileOf(r.Target))
 				}
 				fmt.Fprintf(stdout, "%s:%s: %s -> %s\n", doc.Name, r.Span.Start, r.Name, target)
+			}
+		})
+	}
+}
+
+// printValues prints each feature with a value expression and the value, for
+// those the evaluator can compute.
+func printValues(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
+	for _, doc := range docs {
+		doc.Root.Walk(func(e *sysml.Element) {
+			if e.Generated || !e.IsA("Feature") || e.Text("declaredName") == "" {
+				return
+			}
+			for _, r := range e.Children("ownedRelationship") {
+				if !r.IsA("FeatureValue") {
+					continue
+				}
+				for _, x := range r.Children("ownedRelatedElement") {
+					if v, err := w.Evaluate(x); err == nil {
+						fmt.Fprintf(stdout, "%s:%s: %s = %s\n", doc.Name, e.Span.Start, describe(e), sysml.FormatValue(v))
+					}
+				}
 			}
 		})
 	}

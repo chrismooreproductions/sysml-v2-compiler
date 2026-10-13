@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.Evaluate` computes the value of an expression: literals,
+  arithmetic, comparison and boolean operators, conditionals, sequences,
+  ranges, indexing and references to features that have values. `sysmlc eval`
+  prints the values it can compute. Calls to library functions are not yet
+  supported.
+
 ## [0.8.0] - 2026-10-13
 
 ### Fixed

@@ -298,6 +298,24 @@ func (w *Workspace) Validate() []Diagnostic {
 	return out
 }
 
+// Seq is a sequence of values, as an expression with several results (or none,
+// which is null) evaluates to.
+type Seq = semantics.Seq
+
+// EvalError says why an expression could not be evaluated, and where.
+type EvalError = semantics.EvalError
+
+// Evaluate computes the value of an expression element in a resolved
+// workspace: literals, operators, sequences and references to features that
+// have values. It returns an *EvalError for what it cannot yet compute, such
+// as calls to library functions. The value is a bool, an int64, a float64 or a
+// string when there is a single result, and a Seq for any other number.
+func (w *Workspace) Evaluate(expression *Element) (any, error) { return w.w.Evaluate(expression) }
+
+// FormatValue writes a value as KerML would: strings quoted, sequences in
+// parentheses, null as null.
+func FormatValue(v any) string { return semantics.FormatValue(v) }
+
 // Materialize writes the relationships the specification implies into the
 // trees of the documents added to the workspace, as elements marked Generated
 // with isImplied set: the implied general types and featuring types of each

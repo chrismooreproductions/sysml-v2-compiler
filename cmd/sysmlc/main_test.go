@@ -206,3 +206,13 @@ func TestDumpImpliedShowsWhatTheSpecificationAdds(t *testing.T) {
 		t.Errorf("plain dump shows implied relationships:\n%s", plain)
 	}
 }
+
+func TestEvalPrintsTheValuesItCanCompute(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "m.sysml", "package P {\n  attribute a = 4500;\n  attribute b = a * 2 + 1;\n  attribute c = ScalarFunctions::sqrt(4.0);\n}\n")
+	status, out, errs := invoke("eval", f)
+	want := f + ":2:3: P::a = 4500\n" + f + ":3:3: P::b = 9001\n"
+	if status != 0 || errs != "" || out != want {
+		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
+	}
+}
