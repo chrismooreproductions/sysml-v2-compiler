@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-13
+
 ### Changed
 
 - A syntax error in a file that is valid in the other language (KerML text
@@ -138,7 +140,8 @@ Against the pilot implementation's own output, 99.95% of the standard library's
   verification, use cases and a narrow slice of actions. See the README
   for the exact supported constructs and known gaps.
 
-[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.6.0...v0.7.0
