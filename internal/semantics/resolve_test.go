@@ -261,3 +261,26 @@ func TestResolvesEveryStepOfALongChain(t *testing.T) {
 		t.Errorf("chained %v", got)
 	}
 }
+
+// The chain a connector's end references is looked up from outside the
+// connector, so self there is the owner's, not one the connector inherits.
+func TestConnectorEndChainsStartOutsideTheConnector(t *testing.T) {
+	w, roots := resolved(t, true, `package P {
+		action def A {
+			action step;
+			succession first step then self.endShot;
+		}
+	}`)
+	if un := w.Unresolved(); len(un) != 0 {
+		t.Fatalf("unresolved: %v", un[0].Ref.Name)
+	}
+	var chained []string
+	roots[0].Walk(func(e *model.Element) {
+		if e.Class == "FeatureChaining" {
+			chained = append(chained, QualifiedName(e.Refs("chainingFeature")[0].Target))
+		}
+	})
+	if strings.Join(chained, ",") != "Actions::Action::self,Occurrences::Occurrence::endShot" {
+		t.Errorf("chained %v", chained)
+	}
+}

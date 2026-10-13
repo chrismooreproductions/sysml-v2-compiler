@@ -298,6 +298,13 @@ func (w *Workspace) scopeFor(owner *el, role string) scope {
 		if rel == nil || rel.Owner == nil {
 			return scope{}
 		}
+		// KerMLScopeProvider.scope_featureChaining: the chain an end of a
+		// connector references is looked up from outside the connector
+		if rel.IsA("ReferenceSubsetting") {
+			if conn := w.owningNamespace(rel.Owner); conn.IsA("Connector") {
+				return scope{ns: w.parentNamespace(conn), inside: true}
+			}
+		}
 		return scope{ns: w.parentNamespace(rel.Owner), inside: true, redefinition: rel.IsA("Redefinition")}
 	case owner.IsA("Membership"):
 		// SysMLScopeProvider: the source of a transition is looked up outside it.
