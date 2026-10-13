@@ -324,6 +324,11 @@ func (w *Workspace) scopeFor(owner *el, role string) scope {
 		if rel == nil || rel.Owner == nil {
 			return scope{}
 		}
+		// a feature that chains (feature c chains a.b) is a member of its
+		// namespace: look from where it sits
+		if rel.IsA("Membership") {
+			return scope{ns: w.nonExpressionNamespaceFor(chained), inside: true}
+		}
 		// KerMLScopeProvider.scope_featureChaining: the chain an end of a
 		// connector references is looked up from outside the connector
 		if rel.IsA("ReferenceSubsetting") {
