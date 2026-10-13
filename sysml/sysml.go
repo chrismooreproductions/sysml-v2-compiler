@@ -193,6 +193,30 @@ func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*Syntax
 	return doc, errs
 }
 
+// Replace adds a document, or if one with the same name was added before,
+// replaces it, and reports its syntax errors as AddRecovering does. Everything
+// that was resolved or computed about the other documents is forgotten, so call
+// Resolve again before using it. The standard library is unaffected, which
+// makes this much cheaper than building a new workspace: an editor calls it on
+// every change.
+func (w *Workspace) Replace(name string, src []byte) (*Document, []*SyntaxError) {
+	w.Remove(name)
+	return w.AddRecovering(name, src)
+}
+
+// Remove drops the document with a name from the workspace, if there is one.
+func (w *Workspace) Remove(name string) {
+	var kept []*Document
+	for _, d := range w.docs {
+		if d.Name == name {
+			w.w.Remove(d.Root)
+		} else {
+			kept = append(kept, d)
+		}
+	}
+	w.docs = kept
+}
+
 // Documents lists the files added to the workspace, in order. It does not
 // include the standard library.
 func (w *Workspace) Documents() []*Document { return w.docs }

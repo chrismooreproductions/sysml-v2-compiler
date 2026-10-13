@@ -37,10 +37,30 @@ go install github.com/chrismooreproductions/sysml-v2-compiler/cmd/sysmlc@latest
 sysmlc check   [-nolib] <file or directory>...   syntax errors and unresolved names
 sysmlc resolve [-nolib] <file or directory>...   each reference and its target
 sysmlc implied [-nolib] <file or directory>...   the relationships the specification implies
+sysmlc eval    [-nolib] <file or directory>...   the value of each feature that has one
+sysmlc lsp                                       a language server on stdin/stdout
 sysmlc dump    [-spans] <file>...                the model as a tree
 ```
 
 Exit status: 0 nothing to report, 1 problems in the models, 2 usage or I/O error.
+
+## Language server
+
+`sysmlc lsp` runs a Language Server Protocol server on standard input and
+output, so an editor or a platform gets the compiler's knowledge as you type:
+
+- diagnostics: syntax errors (all of them), unresolved names and constraint
+  violations, as the file changes;
+- hover (kind, qualified name, types, supertypes, computed value,
+  documentation), go to definition (including into the standard library, which
+  opens from a cache directory), find references and rename;
+- outline (document symbols), workspace symbol search, and completion of names
+  in scope, qualified names after `::`, and keywords.
+
+The server loads every `.sysml` and `.kerml` file under the workspace folders,
+so names resolve across files, and the editor's unsaved buffers take precedence.
+Point any LSP client at it with the command `sysmlc lsp` for the file types
+`sysml` (`.sysml`) and `kerml` (`.kerml`).
 
 ## What is and is not covered
 

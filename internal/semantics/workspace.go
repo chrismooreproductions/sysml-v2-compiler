@@ -31,6 +31,8 @@ type Workspace struct {
 	cut          int                 // incremented whenever a circular resolution is cut
 	effNames     map[*el][2]string   // cache: effective short name, name
 	libCache     map[string]*el      // library elements by qualified name
+	genMemo      map[*el][]*el
+	nameMemo     map[nameKey]*el
 	materialized map[*el]bool
 	relsMemo     map[relsKey][]*el
 	featMemo     map[*el][]*el
@@ -49,7 +51,7 @@ func NewWorkspace() *Workspace {
 		files: map[*el]string{},
 		memo:  map[*model.Ref]*el{}, done: map[*model.Ref]bool{}, busy: map[*model.Ref]bool{},
 		effNames: map[*el][2]string{}, libCache: map[string]*el{},
-		materialized: map[*el]bool{}, relsMemo: map[relsKey][]*el{}, featMemo: map[*el][]*el{}, snapshots: map[*el]*el{}, featBusy: map[*el]bool{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
+		genMemo: map[*el][]*el{}, nameMemo: map[nameKey]*el{}, materialized: map[*el]bool{}, relsMemo: map[relsKey][]*el{}, featMemo: map[*el][]*el{}, snapshots: map[*el]*el{}, featBusy: map[*el]bool{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
 		chains: map[[2]*el]*el{}, chainOf: map[*el][]*el{}, gaps: map[string]int{},
 	}
 }
@@ -356,4 +358,76 @@ func (w *Workspace) AddLibrary() error {
 		w.files[w.addTree(f.Tree)] = "library:" + f.Path
 	}
 	return nil
+}
+
+// Remove drops a file from the workspace. Everything computed about the files
+// that are not part of the standard library is forgotten with it, since those
+// results may refer to the removed file; the references in those files are
+// unresolved again until the next Resolve. What was computed about the standard
+// library is kept.
+func (w *Workspace) Remove(root *el) {
+	var kept []*el
+	for _, r := range w.roots {
+		if r != root {
+			kept = append(kept, r)
+		}
+	}
+	w.roots = kept
+	// the elements and references whose results are to be forgotten
+	user := map[*el]bool{}
+	var refs []*model.Ref
+	forget := func(r *el) {
+		r.Walk(func(e *el) {
+			user[e] = true
+			for _, p := range e.Props {
+				if ref, ok := p.Value.(*model.Ref); ok {
+					refs = append(refs, ref)
+				}
+			}
+		})
+	}
+	forget(root)
+	for _, r := range w.roots {
+		if !w.isLibrary(r) {
+			forget(r)
+		}
+	}
+	delete(w.files, root)
+	for _, ref := range refs {
+		delete(w.memo, ref)
+		delete(w.done, ref)
+		delete(w.busy, ref)
+		if ref.Name != "" {
+			ref.Target = nil
+		}
+	}
+	for k := range w.relsMemo {
+		if user[k.e] {
+			delete(w.relsMemo, k)
+		}
+	}
+	for k, m := range w.nameMemo {
+		if user[k.s.ns] || user[m] {
+			delete(w.nameMemo, k)
+		}
+	}
+	for e := range user {
+		delete(w.effNames, e)
+		delete(w.featMemo, e)
+		delete(w.featBusy, e)
+		delete(w.implMemo, e)
+		delete(w.genMemo, e)
+		delete(w.implBusy, e)
+		delete(w.snapshots, e)
+		delete(w.chainOf, e)
+		delete(w.materialized, e)
+	}
+	for k, c := range w.chains {
+		if user[k[0]] || user[k[1]] {
+			delete(w.chains, k)
+			delete(w.chainOf, c)
+		}
+	}
+	w.cut++ // anything cached under a cut resolution is suspect
+	w.libCache = map[string]*el{}
 }

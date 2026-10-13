@@ -52,6 +52,18 @@ func baseKind(t *el) string {
 // or conjugates, as resolved, then its implicit general types, then the last
 // feature of a chain.
 func (w *Workspace) generalTypes(t *el) []*el {
+	if v, ok := w.genMemo[t]; ok {
+		return v
+	}
+	cutBefore := w.cut
+	out := w.computeGeneralTypes(t)
+	if w.cut == cutBefore {
+		w.genMemo[t] = out
+	}
+	return out
+}
+
+func (w *Workspace) computeGeneralTypes(t *el) []*el {
 	var out []*el
 	for _, r := range w.rels(t, "Specialization") {
 		for _, p := range r.Props {

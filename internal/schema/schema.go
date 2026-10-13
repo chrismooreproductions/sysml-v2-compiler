@@ -145,6 +145,17 @@ func IsKindOf(class, target string) bool {
 
 // Supertypes returns a class and all its supertypes, nearest first.
 func Supertypes(class string) []string {
+	if v, ok := supertypesMemo.Load(class); ok {
+		return v.([]string)
+	}
+	out := computeSupertypes(class)
+	supertypesMemo.Store(class, out)
+	return out
+}
+
+var supertypesMemo sync.Map // class -> []string, which callers must not change
+
+func computeSupertypes(class string) []string {
 	load()
 	seen := map[string]bool{}
 	var out []string
@@ -167,6 +178,26 @@ func Supertypes(class string) []string {
 // FeatureOf returns the named feature of a class or the nearest supertype
 // that declares it, and the class that does.
 func FeatureOf(class, name string) (*Feature, string, bool) {
+	k := featureKey{class, name}
+	if v, ok := featureMemo.Load(k); ok {
+		r := v.(featureResult)
+		return r.f, r.from, r.ok
+	}
+	f, from, ok := computeFeatureOf(class, name)
+	featureMemo.Store(k, featureResult{f, from, ok})
+	return f, from, ok
+}
+
+type featureKey struct{ class, name string }
+type featureResult struct {
+	f    *Feature
+	from string
+	ok   bool
+}
+
+var featureMemo sync.Map
+
+func computeFeatureOf(class, name string) (*Feature, string, bool) {
 	load()
 	for _, c := range Supertypes(class) {
 		k := idx.classes[c]

@@ -4,6 +4,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -214,5 +216,24 @@ func TestEvalPrintsTheValuesItCanCompute(t *testing.T) {
 	want := f + ":2:3: P::a = 4500\n" + f + ":3:3: P::b = 9001\n"
 	if status != 0 || errs != "" || out != want {
 		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
+	}
+}
+
+func TestLSPServesOverStandardInput(t *testing.T) {
+	frame := func(body string) string { return fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body) }
+	input := frame(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootUri":null,"capabilities":{}}}`) +
+		frame(`{"jsonrpc":"2.0","id":2,"method":"shutdown"}`) +
+		frame(`{"jsonrpc":"2.0","method":"exit"}`)
+	old := stdin
+	stdin = func() io.Reader { return strings.NewReader(input) }
+	defer func() { stdin = old }()
+	status, out, errs := invoke("lsp")
+	if status != 0 || errs != "" {
+		t.Fatalf("status %d, stderr %q", status, errs)
+	}
+	for _, want := range []string{`"hoverProvider":true`, `"definitionProvider":true`, `"id":2`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %s:\n%s", want, out)
+		}
 	}
 }

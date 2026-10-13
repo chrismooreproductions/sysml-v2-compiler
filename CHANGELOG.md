@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `sysmlc lsp`: a Language Server Protocol server. It publishes diagnostics as
+  files change and answers hover, go to definition, find references, rename,
+  document symbols, workspace symbols and completion.
+- `Workspace.Replace` and `Workspace.Remove`: change one document without
+  rebuilding the workspace or discarding what is known about the standard
+  library.
+
+### Changed
+
+- Name resolution and implied-relationship computation are about twice as fast
+  (the conformance run takes 49 seconds, not 137).
+
+### Added
+
 - `Workspace.Evaluate` computes the value of an expression: literals,
   arithmetic, comparison and boolean operators, conditionals, sequences,
   ranges, indexing and references to features that have values. `sysmlc eval`

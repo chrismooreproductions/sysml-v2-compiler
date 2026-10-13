@@ -346,3 +346,37 @@ func TestEvaluate(t *testing.T) {
 		t.Errorf("error %T, want *EvalError", err)
 	}
 }
+
+func TestReplaceUpdatesWhatIsResolved(t *testing.T) {
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, errs := w.Replace("lib.sysml", []byte("package L { part def A; }")); len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if _, errs := w.Replace("use.sysml", []byte("package U { part x : L::A; }")); len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if d := w.Resolve(); len(d) != 0 {
+		t.Fatalf("diagnostics: %v", d)
+	}
+	// rename the definition: the use now fails to resolve
+	w.Replace("lib.sysml", []byte("package L { part def B; }"))
+	d := w.Resolve()
+	if len(d) != 1 || !strings.Contains(d[0].Message, `"L::A"`) {
+		t.Fatalf("after the rename: %v", d)
+	}
+	// and fixing the use makes it resolve again
+	w.Replace("use.sysml", []byte("package U { part x : L::B; }"))
+	if d := w.Resolve(); len(d) != 0 {
+		t.Fatalf("after the fix: %v", d)
+	}
+	if len(w.Documents()) != 2 {
+		t.Errorf("%d documents", len(w.Documents()))
+	}
+	w.Remove("use.sysml")
+	if len(w.Documents()) != 1 || w.Lookup("U") != nil {
+		t.Error("Remove left the document behind")
+	}
+}

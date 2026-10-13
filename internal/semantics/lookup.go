@@ -181,8 +181,27 @@ type scope struct {
 	redefinition bool
 }
 
-// resolveName resolves a written name to a Membership from a scope.
+type nameKey struct {
+	s    scope
+	text string
+}
+
+// resolveName resolves a written name to a Membership from a scope. The answer
+// is remembered unless a circular resolution was cut to get it.
 func (w *Workspace) resolveName(s scope, text string) *el {
+	key := nameKey{s, text}
+	if m, ok := w.nameMemo[key]; ok {
+		return m
+	}
+	cutBefore := w.cut
+	m := w.resolveNameUncached(s, text)
+	if w.cut == cutBefore {
+		w.nameMemo[key] = m
+	}
+	return m
+}
+
+func (w *Workspace) resolveNameUncached(s scope, text string) *el {
 	segs := splitName(text)
 	if segs[0] == "$" {
 		w.gaps["global-qualified"]++

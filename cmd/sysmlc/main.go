@@ -3,6 +3,7 @@
 // Command sysmlc checks and inspects SysML v2 and KerML textual models.
 //
 //	sysmlc check   [-nolib] <file or directory>...   report syntax errors and names that do not resolve
+//	sysmlc lsp                                        run a language server (LSP) on standard input and output
 //	sysmlc eval    [-nolib] <file or directory>...   print the value of each feature whose value can be computed
 //	sysmlc implied [-nolib] <file or directory>...   print the relationships the specification implies for each type
 //	sysmlc dump    [-spans] <file>...                 print the model of each file as a tree
@@ -25,15 +26,31 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chrismooreproductions/sysml-v2-compiler/internal/lsp"
 	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
+// stdin is where the language server reads requests; tests replace it.
+var stdin = func() io.Reader { return os.Stdin }
+
+// runLSP serves the Language Server Protocol until the editor exits.
+func runLSP(in io.Reader, stdout, stderr io.Writer) int {
+	srv := lsp.NewServer(in, stdout)
+	srv.Logf = func(format string, args ...any) { fmt.Fprintf(stderr, "sysmlc lsp: "+format+"\n", args...) }
+	if err := srv.Run(); err != nil {
+		fmt.Fprintln(stderr, "sysmlc lsp:", err)
+		return 1
+	}
+	return 0
+}
+
 const usage = `usage: sysmlc <command> [flags] <file or directory>...
 
 commands:
   check     report syntax errors and names that do not resolve
+  lsp       run a language server on standard input and output
   eval      print the value of each feature that has a value expression
   implied   print the relationships the specification implies for each type
   dump      print the model of each file as a tree
@@ -51,6 +68,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return withWorkspace(args[1:], stdout, stderr, "check", func(w *sysml.Workspace, docs []*sysml.Document, diags []sysml.Diagnostic, stdout io.Writer) {})
 	case "resolve":
 		return withWorkspace(args[1:], stdout, stderr, "resolve", printReferences)
+	case "lsp":
+		return runLSP(stdin(), stdout, stderr)
 	case "eval":
 		return withWorkspace(args[1:], stdout, stderr, "eval", printValues)
 	case "implied":
