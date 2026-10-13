@@ -227,6 +227,14 @@ func (w *Workspace) chainResult(e *el) *el {
 	switch {
 	case e.IsA("FeatureChainExpression"), e.IsA("FeatureReferenceExpression"):
 		return w.chainTarget(e)
+	case e.IsA("IndexExpression"), e.IsA("SelectExpression"):
+		// IndexExpressionAdapter and SelectExpressionAdapter: the result
+		// subsets the result of the first argument, unless that is a collection
+		if arg := w.firstArgument(e); arg != nil {
+			if src := w.chainResult(arg); src != nil && !w.specializes(src, w.libraryElement("Collections::Collection")) {
+				return src
+			}
+		}
 	case e.IsA("OperatorExpression"):
 		// a cast (x as T) writes its result parameter and types it
 		for _, r := range w.rels(e, "ReturnParameterMembership") {
@@ -245,6 +253,24 @@ func (w *Workspace) chainTarget(e *el) *el {
 		if r.Class == "Membership" {
 			return w.memberElement(r)
 		}
+	}
+	return nil
+}
+
+// firstArgument is the expression that is an expression's first operand.
+func (w *Workspace) firstArgument(e *el) *el {
+	for _, r := range w.rels(e, "ParameterMembership") {
+		if r.IsA("ReturnParameterMembership") {
+			continue
+		}
+		param := first(w.ownedRelated(r))
+		if param == nil {
+			return nil
+		}
+		for _, fv := range w.rels(param, "FeatureValue") {
+			return first(w.ownedRelated(fv))
+		}
+		return nil
 	}
 	return nil
 }
