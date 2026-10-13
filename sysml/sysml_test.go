@@ -380,3 +380,28 @@ func TestReplaceUpdatesWhatIsResolved(t *testing.T) {
 		t.Error("Remove left the document behind")
 	}
 }
+
+func TestAWrongLanguageIsSaid(t *testing.T) {
+	kerml := []byte("function f { in x : ScalarValues::Integer; return : ScalarValues::Integer = x; }")
+	_, err := Parse("model.sysml", kerml)
+	if err == nil || !strings.Contains(err.Error(), "the text is valid KerML: name the file .kerml") {
+		t.Errorf("a KerML file named .sysml: %v", err)
+	}
+	if _, err := Parse("model.kerml", kerml); err != nil {
+		t.Errorf("as KerML: %v", err)
+	}
+	_, err = Parse("model.kerml", []byte("package P { part def A; }"))
+	if err == nil || !strings.Contains(err.Error(), "the text is valid SysML") {
+		t.Errorf("a SysML file named .kerml: %v", err)
+	}
+	// text that is valid in neither gets no hint
+	_, err = Parse("model.sysml", []byte("package P { part x : ; }"))
+	if err == nil || strings.Contains(err.Error(), "valid") {
+		t.Errorf("a plain syntax error: %v", err)
+	}
+	w, _ := NewWorkspace(WithoutStandardLibrary())
+	_, errs := w.AddRecovering("model.sysml", kerml)
+	if len(errs) == 0 || !strings.Contains(errs[0].Msg, "the text is valid KerML") {
+		t.Errorf("AddRecovering: %v", errs)
+	}
+}

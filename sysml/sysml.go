@@ -70,6 +70,14 @@ func (l Language) String() string {
 	return "SysML"
 }
 
+// extension is the file name extension of the language.
+func (l Language) extension() string {
+	if l == KerML {
+		return ".kerml"
+	}
+	return ".sysml"
+}
+
 func (l Language) grammar() grammar.Language {
 	if l == KerML {
 		return grammar.KerML
@@ -112,7 +120,7 @@ func Parse(name string, src []byte) (*Document, error) {
 func ParseAs(lang Language, name string, src []byte) (*Document, error) {
 	tree, err := syntax.Parse(lang.grammar(), name, string(src))
 	if err != nil {
-		return nil, err
+		return nil, withLanguageHint(lang, name, src, err)
 	}
 	root := model.FromSyntax(tree)
 	postprocess.Run(root)
@@ -168,7 +176,7 @@ func (w *Workspace) Add(name string, src []byte) (*Document, error) {
 func (w *Workspace) AddAs(lang Language, name string, src []byte) (*Document, error) {
 	root, err := w.w.AddSource(lang.grammar(), name, string(src))
 	if err != nil {
-		return nil, err
+		return nil, withLanguageHint(lang, name, src, err)
 	}
 	d := &Document{Name: name, Language: lang, Root: root}
 	w.docs = append(w.docs, d)
@@ -185,6 +193,9 @@ func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*Syntax
 		return nil, []*SyntaxError{{File: name, Msg: err.Error()}}
 	}
 	root, errs := w.w.AddSourceRecovering(lang.grammar(), name, string(src))
+	if len(errs) > 0 {
+		withLanguageHint(lang, name, src, errs[0])
+	}
 	var doc *Document
 	if root != nil {
 		doc = &Document{Name: name, Language: lang, Root: root}
@@ -402,3 +413,21 @@ func QualifiedName(e *Element) string { return semantics.QualifiedName(e) }
 // by the path for an element of the standard library, and "" for an element a
 // rule generated that cannot be traced to a file.
 func (w *Workspace) FileOf(e *Element) string { return w.w.FileOf(e) }
+
+// withLanguageHint adds to a syntax error the observation that the text is
+// valid in the other language, which is what is wrong when a KerML file is
+// named .sysml or the other way round.
+func withLanguageHint(lang Language, name string, src []byte, err error) error {
+	e, ok := err.(*SyntaxError)
+	if !ok {
+		return err
+	}
+	other := KerML
+	if lang == KerML {
+		other = SysML
+	}
+	if _, perr := syntax.Parse(other.grammar(), name, string(src)); perr == nil {
+		e.Msg += fmt.Sprintf(" (the text is valid %s: name the file %s, or pass %s to ParseAs or AddAs)", other, other.extension(), other)
+	}
+	return err
+}

@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A syntax error in a file that is valid in the other language (KerML text
+  named `.sysml`, or SysML named `.kerml`) now says so and how to fix it.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added
