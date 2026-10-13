@@ -159,7 +159,9 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 			add(baseKind(t), w.libraryElement(qn))
 		}
 	}
-	if t.IsA("OccurrenceUsage") {
+	if t.IsA("FlowUsage") {
+		w.flowUsageKinds(t, emit)
+	} else if t.IsA("OccurrenceUsage") {
 		w.occurrenceUsageKinds(t, emit, soFar)
 	} else {
 		emit(w.defaultKind(t, soFar()))
@@ -1349,4 +1351,34 @@ func (w *Workspace) ImpliedBindings(t *el) []Binding {
 		}
 	}
 	return out
+}
+
+// flowUsageKinds follows FlowUsageAdapter: a flow usage that has no ends of its
+// own is a message; the rest is what an occurrence, action and step add.
+func (w *Workspace) flowUsageKinds(t *el, emit func(string)) {
+	isMessage := true
+	for _, f := range w.ownedFeatures(t) {
+		isMessage = isMessage && !f.IsTrue("isEnd")
+	}
+	if isMessage {
+		emit("message")
+	} else {
+		emit("base")
+	}
+	if w.isSuboccurrence(t) {
+		emit("suboccurrence")
+	}
+	switch t.Text("portionKind") {
+	case "snapshot":
+		emit("snapshot")
+	case "timeslice":
+		emit("timeslice")
+	}
+	switch {
+	case w.isActionOwnedComposite(t):
+		emit("subaction")
+	case w.isPartOwnedComposite(t):
+		emit("ownedAction")
+	}
+	w.performanceKinds(t, emit, true)
 }
