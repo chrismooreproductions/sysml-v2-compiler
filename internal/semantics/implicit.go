@@ -535,6 +535,15 @@ func (w *Workspace) addPushedByOwner(f *el, add func(string, *el)) {
 				add("Subsetting", w.chainFeatures(src, fs[0]))
 			}
 		}
+	case e.IsA("ConstructorExpression"):
+		// ConstructorExpressionAdapter.addResultTyping
+		if inst := w.instantiatedType(e); inst != nil {
+			if inst.IsA("Feature") {
+				add("Subsetting", inst)
+			} else {
+				add("FeatureTyping", inst)
+			}
+		}
 	case e.IsA("InvocationExpression"):
 		if inst := w.instantiatedType(e); inst != nil && !w.isFunctionType(inst) {
 			if inst.IsA("Feature") {

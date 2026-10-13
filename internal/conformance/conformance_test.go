@@ -70,7 +70,7 @@ func TestStructureMatchesTheOracle(t *testing.T) {
 // The ratchet for name resolution: every reference in the standard library is
 // resolved and its target compared with the oracle's, by position.
 const (
-	minMatchingRefs  = 19109
+	minMatchingRefs  = 19110
 	maxResolvedDiffs = 0
 	minResolvedExact = 94
 )
@@ -124,7 +124,7 @@ func TestResolvedLibraryMatchesTheOracle(t *testing.T) {
 
 // The ratchet for the implied general types and featuring types: the relationships the pilot marks
 // isImplied, compared by owner position and target.
-const minImpliedMatch = 99476
+const minImpliedMatch = 99484
 
 func TestImpliedGeneralizationsMatchTheOracle(t *testing.T) {
 	dir := oracleRoot(t)

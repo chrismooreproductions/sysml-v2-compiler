@@ -65,7 +65,7 @@ Exit status: 0 nothing to report, 1 problems in the models, 2 usage or I/O error
 
 The tests compare against the pilot implementation's XMI for the standard
 library (pinned in `UPSTREAM`): all 94 library files match structurally
-exactly, and 99.81% of the 19,119 name references resolve to the same element
+exactly, and 99.95% of the 19,119 name references resolve to the same element
 the pilot chooses. The remaining differences are listed and ratcheted in
 `internal/conformance`. The XMI files (25 MB and 120 MB) are fetched by
 `tools/fetch-oracle.sh` into `.oracle/`; tests that need them skip when absent

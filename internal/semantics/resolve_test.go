@@ -284,3 +284,14 @@ func TestConnectorEndChainsStartOutsideTheConnector(t *testing.T) {
 		t.Errorf("chained %v", chained)
 	}
 }
+
+// A constructor's named arguments redefine features of the type it constructs.
+func TestResolvesTheNamedArgumentsOfAConstructor(t *testing.T) {
+	w, _ := resolved(t, true, `package P {
+		attribute def SF { attribute samples : ScalarValues::Integer[*]; }
+		calc def S { in attribute dv [0..*]; return sampling = new SF ( samples = dv ); }
+	}`)
+	if un := w.Unresolved(); len(un) != 0 {
+		t.Errorf("unresolved: %q", un[0].Ref.Name)
+	}
+}

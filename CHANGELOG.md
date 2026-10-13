@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Names after the first in a feature chain such as `fn.samples.domainValue`
+  now resolve from what the chain's source is (they were not found at all in a
+  chain of three or more), as do chains after an index or select expression.
+- A chain a connector's end references, such as `self.endShot` in a
+  succession, is looked up from outside the connector.
+- A feature that chains (`feature c chains a.b`) resolves its chain from where
+  it sits.
+- The named arguments of a constructor (`new T(x = 1)`) redefine features of
+  `T`.
+- A flow usage gets its own default supertypes (a message is `Flows::messages`).
+
+Against the pilot implementation's own output, 99.95% of the standard library's
+19,119 name references now resolve to the same element (99.81% before).
+
 ## [0.7.0] - 2026-10-12
 
 ### Added
