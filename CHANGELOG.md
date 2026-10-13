@@ -6,11 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-13
+
 ### Added
 
 - `sysmlc lsp`: a Language Server Protocol server. It publishes diagnostics as
   files change and answers hover, go to definition, find references, rename,
-  document symbols, workspace symbols and completion.
+  document symbols, workspace symbols and completion. `sysmlc lsp -listen addr`
+  serves it over TCP, one server per connection.
+- `Workspace.Evaluate` computes the value of an expression: literals,
+  arithmetic, comparison and boolean operators, conditionals, sequences,
+  ranges, indexing and references to features that have values. `sysmlc eval`
+  prints the values it can compute. Calls to library functions are not yet
+  supported.
 - `Workspace.Replace` and `Workspace.Remove`: change one document without
   rebuilding the workspace or discarding what is known about the standard
   library.
@@ -19,14 +27,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Name resolution and implied-relationship computation are about twice as fast
   (the conformance run takes 49 seconds, not 137).
-
-### Added
-
-- `Workspace.Evaluate` computes the value of an expression: literals,
-  arithmetic, comparison and boolean operators, conditionals, sequences,
-  ranges, indexing and references to features that have values. `sysmlc eval`
-  prints the values it can compute. Calls to library functions are not yet
-  supported.
 
 ## [0.8.0] - 2026-10-13
 
@@ -133,7 +133,8 @@ Against the pilot implementation's own output, 99.95% of the standard library's
   verification, use cases and a narrow slice of actions. See the README
   for the exact supported constructs and known gaps.
 
-[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/chrismooreproductions/sysml-v2-compiler/compare/v0.5.0...v0.6.0
