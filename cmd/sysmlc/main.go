@@ -3,7 +3,7 @@
 // Command sysmlc checks and inspects SysML v2 and KerML textual models.
 //
 //	sysmlc check   [-nolib] <file or directory>...   report syntax errors and names that do not resolve
-//	sysmlc lsp                                        run a language server (LSP) on standard input and output
+//	sysmlc lsp     [-listen addr]                     run a language server (LSP) on standard input and output, or on a TCP address
 //	sysmlc eval    [-nolib] <file or directory>...   print the value of each feature whose value can be computed
 //	sysmlc implied [-nolib] <file or directory>...   print the relationships the specification implies for each type
 //	sysmlc dump    [-spans] <file>...                 print the model of each file as a tree
@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -35,22 +36,59 @@ func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 // stdin is where the language server reads requests; tests replace it.
 var stdin = func() io.Reader { return os.Stdin }
 
-// runLSP serves the Language Server Protocol until the editor exits.
-func runLSP(in io.Reader, stdout, stderr io.Writer) int {
+// runLSP serves the Language Server Protocol until the editor exits: on
+// standard input and output, or with -listen on a TCP address, one independent
+// server per connection.
+func runLSP(args []string, in io.Reader, stdout, stderr io.Writer) int {
+	fl := flag.NewFlagSet("sysmlc lsp", flag.ContinueOnError)
+	fl.SetOutput(stderr)
+	listen := fl.String("listen", "", "serve on a TCP address such as 127.0.0.1:2087 instead of standard input and output")
+	if err := fl.Parse(args); err != nil {
+		return 2
+	}
+	logf := func(format string, args ...any) { fmt.Fprintf(stderr, "sysmlc lsp: "+format+"\n", args...) }
+	if *listen != "" {
+		l, err := net.Listen("tcp", *listen)
+		if err != nil {
+			fmt.Fprintln(stderr, "sysmlc lsp:", err)
+			return 2
+		}
+		logf("listening on %s", l.Addr())
+		return serveTCP(l, logf)
+	}
 	srv := lsp.NewServer(in, stdout)
-	srv.Logf = func(format string, args ...any) { fmt.Fprintf(stderr, "sysmlc lsp: "+format+"\n", args...) }
+	srv.Logf = logf
 	if err := srv.Run(); err != nil {
-		fmt.Fprintln(stderr, "sysmlc lsp:", err)
+		logf("%v", err)
 		return 1
 	}
 	return 0
+}
+
+// serveTCP serves each connection to a listener with a server of its own, until
+// the listener is closed.
+func serveTCP(l net.Listener, logf func(string, ...any)) int {
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return 0
+		}
+		go func() {
+			defer conn.Close()
+			srv := lsp.NewServer(conn, conn)
+			srv.Logf = logf
+			if err := srv.Run(); err != nil {
+				logf("%v", err)
+			}
+		}()
+	}
 }
 
 const usage = `usage: sysmlc <command> [flags] <file or directory>...
 
 commands:
   check     report syntax errors and names that do not resolve
-  lsp       run a language server on standard input and output
+  lsp       run a language server on standard input and output (or -listen addr)
   eval      print the value of each feature that has a value expression
   implied   print the relationships the specification implies for each type
   dump      print the model of each file as a tree
@@ -69,7 +107,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "resolve":
 		return withWorkspace(args[1:], stdout, stderr, "resolve", printReferences)
 	case "lsp":
-		return runLSP(stdin(), stdout, stderr)
+		return runLSP(args[1:], stdin(), stdout, stderr)
 	case "eval":
 		return withWorkspace(args[1:], stdout, stderr, "eval", printValues)
 	case "implied":

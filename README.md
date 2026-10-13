@@ -60,7 +60,9 @@ output, so an editor or a platform gets the compiler's knowledge as you type:
 The server loads every `.sysml` and `.kerml` file under the workspace folders,
 so names resolve across files, and the editor's unsaved buffers take precedence.
 Point any LSP client at it with the command `sysmlc lsp` for the file types
-`sysml` (`.sysml`) and `kerml` (`.kerml`).
+`sysml` (`.sysml`) and `kerml` (`.kerml`). For a client that connects over a
+socket, such as a web editor through a proxy, run `sysmlc lsp -listen 127.0.0.1:2087`:
+each connection gets a server of its own.
 
 ## What is and is not covered
 

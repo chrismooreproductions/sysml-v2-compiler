@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // invoke runs the command with the given arguments and returns its exit status
@@ -235,5 +237,31 @@ func TestLSPServesOverStandardInput(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %s:\n%s", want, out)
 		}
+	}
+}
+
+func TestLSPServesOverTCP(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("no loopback:", err)
+	}
+	done := make(chan int, 1)
+	go func() { done <- serveTCP(l, func(string, ...any) {}) }()
+	conn, err := net.Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootUri":null,"capabilities":{}}}`
+	fmt.Fprintf(conn, "Content-Length: %d\r\n\r\n%s", len(body), body)
+	conn.SetReadDeadline(time.Now().Add(20 * time.Second))
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil || !strings.Contains(string(buf[:n]), `"hoverProvider":true`) {
+		t.Errorf("reply %q, %v", buf[:n], err)
+	}
+	l.Close()
+	if st := <-done; st != 0 {
+		t.Errorf("serveTCP returned %d", st)
 	}
 }
