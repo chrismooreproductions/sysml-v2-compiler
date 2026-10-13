@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -145,9 +146,18 @@ func (s *Server) fail(id json.RawMessage, code int, format string, args ...any) 
 	s.write(&message{ID: id, Error: &responseError{code, fmt.Sprintf(format, args...)}})
 }
 
-// handle dispatches one message.
+// handle dispatches one message. A failure inside a handler answers that one
+// request with an error and leaves the server running.
 func (s *Server) handle(m *message) {
 	isRequest := len(m.ID) > 0
+	defer func() {
+		if r := recover(); r != nil {
+			s.Logf("%s: panic: %v\n%s", m.Method, r, debug.Stack())
+			if isRequest {
+				s.fail(m.ID, -32603, "internal error in %s: %v", m.Method, r)
+			}
+		}
+	}()
 	var result any
 	var err error
 	switch m.Method {
