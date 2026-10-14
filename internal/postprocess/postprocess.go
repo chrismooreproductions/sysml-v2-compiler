@@ -41,6 +41,11 @@ func process(e *model.Element) {
 	if e.IsA("Membership") {
 		membership(e)
 	}
+	if e.IsA("Expose") && !e.Has("isImportAll") {
+		// An expose has no syntax for `all`; MembershipExposeImpl and
+		// NamespaceExposeImpl default isImportAll to true.
+		e.Set("isImportAll", model.Bool(true))
+	}
 	if e.IsA("Feature") && !e.IsA("Usage") && e.IsTrue("isConstant") {
 		e.Set("isVariable", model.Bool(true)) // FeatureParserPostProcessor
 	}

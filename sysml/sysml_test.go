@@ -3,6 +3,7 @@
 package sysml
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -403,5 +404,105 @@ func TestAWrongLanguageIsSaid(t *testing.T) {
 	_, errs := w.AddRecovering("model.sysml", kerml)
 	if len(errs) == 0 || !strings.Contains(errs[0].Msg, "the text is valid KerML") {
 		t.Errorf("AddRecovering: %v", errs)
+	}
+}
+
+// checked adds a file to a fresh workspace and returns what Resolve and
+// Validate report.
+func checked(t *testing.T, name string, src []byte) (*Workspace, *Document, []Diagnostic) {
+	t.Helper()
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := w.Add(name, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := w.Resolve()
+	return w, doc, append(diags, w.Validate()...)
+}
+
+func TestExposeAndRenderAreValid(t *testing.T) {
+	for name, src := range map[string]string{
+		"expose.sysml": `package P {
+    part def Vehicle;
+    view v {
+        expose Vehicle::*;
+    }
+}`,
+		"render.sysml": `package P {
+    public import Views::*;
+    view def TreeView {
+        render asTreeDiagram;
+    }
+}`,
+	} {
+		if _, _, diags := checked(t, name, []byte(src)); len(diags) != 0 {
+			t.Errorf("%s: %v", name, diags)
+		}
+	}
+}
+
+func TestTheSpecificationsViewExampleIsValid(t *testing.T) {
+	src, err := os.ReadFile("../testdata/upstream/sysml/examples/Simple Tests/ViewTest.sysml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, diags := checked(t, "ViewTest.sysml", src); len(diags) != 0 {
+		t.Errorf("ViewTest.sysml: %v", diags)
+	}
+}
+
+// An expose imports everything it names, private members included ("expose
+// imports all" in the example), because the pilot defaults isImportAll to true.
+func TestAnExposeImportsAll(t *testing.T) {
+	_, doc, diags := checked(t, "e.sysml", []byte(`package P {
+    part def Vehicle;
+    private part hidden;
+    view v {
+        expose P::*;
+        alias h for hidden;
+    }
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	n := 0
+	doc.Root.Walk(func(e *Element) {
+		if e.IsA("Expose") {
+			n++
+			if !e.IsTrue("isImportAll") {
+				t.Errorf("%s does not import all", e.Class)
+			}
+		}
+	})
+	if n != 1 {
+		t.Errorf("%d exposes, want 1", n)
+	}
+}
+
+// Resolve can be called again and again; a default the resolution rules add
+// (here the multiplicity of a rendering usage) must be added once.
+func TestResolveAddsADefaultMultiplicityOnce(t *testing.T) {
+	w, doc, _ := checked(t, "r.sysml", []byte(`package P {
+    public import Views::*;
+    view def TreeView { render asTreeDiagram; }
+}`))
+	w.Resolve()
+	w.Resolve()
+	count := 0
+	doc.Root.Walk(func(e *Element) {
+		if e.Class != "RenderingUsage" {
+			return
+		}
+		for _, m := range e.Children("ownedRelationship") {
+			if m.Child("ownedRelatedElement").IsA("Multiplicity") {
+				count++
+			}
+		}
+	})
+	if count != 1 {
+		t.Errorf("%d multiplicities on the rendering usage, want 1", count)
 	}
 }

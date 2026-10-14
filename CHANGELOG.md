@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `expose` no longer fails validation with "An expose must import all", and a
+  view's `expose` now imports private members as the pilot does: it defaults
+  `isImportAll` to true. ([#1](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/1))
+- `render` (and any usage given a default multiplicity when the feature it
+  subsets is not owned by a type) no longer fails validation with "Only one
+  multiplicity is allowed": `Resolve` added the default multiplicity again each
+  time it was called, and `check` calls it twice.
+  ([#1](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/1))
 - A conjugated port typing whose port definition does not resolve (`port p :
   ~Pkg::Fuel` with `Pkg` in another file) crashed the resolver with a nil
   pointer dereference since 0.10.0; it is now reported as unresolved.

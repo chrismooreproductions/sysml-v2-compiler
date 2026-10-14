@@ -75,7 +75,9 @@ func (w *Workspace) wantsDefaultMultiplicity(u *el) bool {
 	if u.IsTrue("isEnd") || w.owningType(u) == nil {
 		return false
 	}
-	for _, m := range w.rels(u, "") {
+	// the tree itself, not w.rels: the memoized list does not see the
+	// multiplicity added by an earlier Resolve, which runs this rule again
+	for _, m := range u.Children("ownedRelationship") {
 		if first(w.ownedRelated(m)).IsA("Multiplicity") {
 			return false
 		}
