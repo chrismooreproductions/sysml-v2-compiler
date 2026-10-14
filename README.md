@@ -41,7 +41,9 @@ succession), and the value expression (computed when possible, with its
 source text), the control-node kind, and the behaviour an action or state
 writes (entry, do and exit actions, successions and transitions with their
 trigger, guard and effect; an end the source does not write is left nil, not
-inferred). Requirement roles and annotations are not there yet. `sysmlc facts` prints it.
+inferred), and the requirement roles (subject, actors, stakeholders,
+objective, assumed and required constraints, and what a satisfy or verify
+targets). Annotations are not there yet. `sysmlc facts` prints it.
 
 ## Command line
 

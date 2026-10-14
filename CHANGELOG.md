@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `Facts.Roles` gives the requirement roles of an element: subject, actors,
+  stakeholders, objective, assumed and required constraints, the requirement a
+  satisfy usage satisfies and what satisfies it, and the requirements a
+  verification case verifies. `sysmlc facts` prints them.
 - `Facts.Behavior` gives the structure of an action or state: entry, do and
   exit actions, whether it is parallel, its successions and its transitions
   (source, target, trigger, guard, effect). `Facts.ControlNode` says whether a

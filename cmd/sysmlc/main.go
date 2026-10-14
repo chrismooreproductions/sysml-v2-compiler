@@ -302,7 +302,7 @@ func printImplied(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnost
 func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
 	for _, doc := range docs {
 		doc.Root.Walk(func(e *sysml.Element) {
-			if e.Generated || e == doc.Root || !(e.IsA("Package") || e.IsA("Type")) || e.IsA("Expression") || e.IsA("Multiplicity") ||
+			if e.Generated || e == doc.Root || !(e.IsA("Package") || e.IsA("Type")) || e.IsA("Expression") && !e.IsA("Usage") || e.IsA("Multiplicity") ||
 				e.Owner.IsA("ParameterMembership") && e.Owner.Owner.IsA("Expression") {
 				return
 			}
@@ -439,6 +439,27 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 					fmt.Fprintln(stdout, line)
 				}
 			}
+			if r := f.Roles; r != nil {
+				one := func(label string, e *sysml.Element) {
+					if e != nil {
+						fmt.Fprintf(stdout, "  %s: %s\n", label, describeRole(e))
+					}
+				}
+				many := func(label string, es []*sysml.Element) {
+					for _, e := range es {
+						one(label, e)
+					}
+				}
+				one("subject", r.Subject)
+				many("actor", r.Actors)
+				many("stakeholder", r.Stakeholders)
+				one("objective", r.Objective)
+				many("assume", r.Assumed)
+				many("require", r.Required)
+				one("satisfies", r.Satisfies)
+				one("satisfied by", r.SatisfiedBy)
+				many("verifies", r.Verifies)
+			}
 			if len(f.Members) > 0 {
 				var parts []string
 				for _, m := range f.Members {
@@ -452,6 +473,15 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 			}
 		})
 	}
+}
+
+// describeRole names an element in a role; one with no name of its own is told
+// by where it is written.
+func describeRole(e *sysml.Element) string {
+	if e.Text("declaredName") == "" && !e.Generated {
+		return fmt.Sprintf("%s at %s", e.Class, e.Span.Start)
+	}
+	return describe(e)
 }
 
 // describeEnd names what a connector end points to.

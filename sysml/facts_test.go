@@ -491,3 +491,101 @@ func TestFactsBehavior(t *testing.T) {
 		t.Errorf("a part definition has behaviour %+v", b)
 	}
 }
+
+const rolesSource = `package P {
+  part def Car; part def Driver; part def Owner;
+  requirement def R1 {
+    subject car : Car;
+    attribute mass;
+    assume constraint ac { true }
+    require constraint rc { true }
+    actor drv : Driver;
+    stakeholder own : Owner;
+  }
+  requirement r2 : R1;
+  use case def U { subject s : Car; objective o { doc /* goal */ } actor a : Driver; }
+  part vehicle : Car;
+  satisfy r2 by vehicle;
+  satisfy requirement r3 : R1 by vehicle;
+  verification def V { subject sv : Car; objective vo { verify r2; } }
+  concern def Cn { stakeholder st : Owner; }
+}`
+
+func TestFactsRequirementRoles(t *testing.T) {
+	w, _ := NewWorkspace()
+	doc, err := w.Add("r.sysml", []byte(rolesSource))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) > 0 {
+		t.Fatal(ds)
+	}
+	q := func(es ...*Element) []string {
+		out := []string{}
+		for _, e := range es {
+			if e != nil {
+				out = append(out, w.Facts(e).QualifiedName)
+			}
+		}
+		return out
+	}
+
+	r1 := w.Facts(w.Lookup("P::R1")).Roles
+	if r1 == nil {
+		t.Fatal("R1 has no roles")
+	}
+	for _, c := range []struct {
+		what      string
+		got, want []string
+	}{
+		{"subject", q(r1.Subject), []string{"P::R1::car"}},
+		{"actors", q(r1.Actors...), []string{"P::R1::drv"}},
+		{"stakeholders", q(r1.Stakeholders...), []string{"P::R1::own"}},
+		{"assumed", q(r1.Assumed...), []string{"P::R1::ac"}},
+		{"required", q(r1.Required...), []string{"P::R1::rc"}},
+		{"objective", q(r1.Objective), []string{}},
+	} {
+		if !reflect.DeepEqual(c.got, c.want) {
+			t.Errorf("R1 %s: got %q, want %q", c.what, c.got, c.want)
+		}
+	}
+
+	u := w.Facts(w.Lookup("P::U")).Roles
+	if u == nil || q(u.Subject)[0] != "P::U::s" || q(u.Objective)[0] != "P::U::o" || q(u.Actors...)[0] != "P::U::a" {
+		t.Errorf("U: %+v", u)
+	}
+	if cn := w.Facts(w.Lookup("P::Cn")).Roles; cn == nil || q(cn.Stakeholders...)[0] != "P::Cn::st" {
+		t.Errorf("Cn: %+v", cn)
+	}
+
+	// a verification case verifies what its objective verifies, and so does the objective
+	for _, name := range []string{"P::V", "P::V::vo"} {
+		if got := q(w.Facts(w.Lookup(name)).Roles.Verifies...); !reflect.DeepEqual(got, []string{"P::r2"}) {
+			t.Errorf("%s verifies %q", name, got)
+		}
+	}
+	if v := w.Facts(w.Lookup("P::V")).Roles; len(v.Required) != 0 {
+		t.Errorf("verify is also counted as require: %q", q(v.Required...))
+	}
+
+	// a satisfy usage references the requirement or declares one, and names what satisfies it
+	var satisfies [][]string
+	doc.Root.Walk(func(e *Element) {
+		if e.IsA("SatisfyRequirementUsage") {
+			r := w.Facts(e).Roles
+			satisfies = append(satisfies, append(q(r.Satisfies), q(r.SatisfiedBy)...))
+			if r.Subject != nil {
+				t.Errorf("a satisfy usage's by is its subject: %+v", r)
+			}
+		}
+	})
+	if want := [][]string{{"P::r2", "P::vehicle"}, {"P::r3", "P::vehicle"}}; !reflect.DeepEqual(satisfies, want) {
+		t.Errorf("satisfy: got %q, want %q", satisfies, want)
+	}
+
+	for _, name := range []string{"P::Car", "P::vehicle", "P::r2"} {
+		if r := w.Facts(w.Lookup(name)).Roles; r != nil {
+			t.Errorf("%s has roles %+v", name, r)
+		}
+	}
+}

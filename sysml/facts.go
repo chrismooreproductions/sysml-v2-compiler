@@ -154,6 +154,28 @@ type Behavior struct {
 	Transitions []Transition
 }
 
+// Roles are the parts a requirement, a concern, a case or a use case gives
+// to the elements it relates, and what a satisfy or verify usage targets.
+type Roles struct {
+	// Subject is the subject usage the element declares.
+	Subject *Element
+	// Actors and Stakeholders are the actor and stakeholder usages.
+	Actors, Stakeholders []*Element
+	// Objective is the objective requirement of a case or use case.
+	Objective *Element
+	// Assumed and Required are the constraint usages of "assume" and
+	// "require".
+	Assumed, Required []*Element
+	// Satisfies is the requirement a satisfy usage satisfies: the one it
+	// references (satisfy r2), or the usage itself when it declares one
+	// (satisfy requirement r3 : R1). SatisfiedBy is the element it is
+	// satisfied by (... by vehicle), nil if the source writes none.
+	Satisfies, SatisfiedBy *Element
+	// Verifies are the requirements that a verification case, or its
+	// objective, verifies (verify r2).
+	Verifies []*Element
+}
+
 // Facts are the resolved, ready-to-use properties of one element, derived
 // from the generic tree so that a consumer does not need to know how the
 // metamodel encodes them. A field that does not apply to the element's
@@ -245,6 +267,9 @@ type Facts struct {
 	// parallel state.
 	Behavior *Behavior
 
+	// Roles are the requirement roles of the element, nil when it has none.
+	Roles *Roles
+
 	// Conjugates is the type a conjugated type is the conjugate of: from a
 	// Conjugation, or for a ConjugatedPortDefinition its port definition.
 	Conjugates []Generalization
@@ -292,6 +317,7 @@ func (w *Workspace) Facts(e *Element) Facts {
 	f.Value = w.valueOf(e)
 	f.ControlNode = controlNode(e)
 	f.Behavior = w.behaviorOf(&f)
+	f.Roles = w.rolesOf(e)
 	return f
 }
 
@@ -757,4 +783,88 @@ func (w *Workspace) transitionOf(t *Element) Transition {
 		}
 	}
 	return out
+}
+
+// rolesOf collects the roles an element's memberships give to what they own.
+func (w *Workspace) rolesOf(e *Element) *Roles {
+	r := &Roles{}
+	found := false
+	for _, m := range ownedRels(e) {
+		owned := m.Children("ownedRelatedElement")
+		switch {
+		case m.IsA("SubjectMembership"):
+			for _, x := range owned {
+				if !e.IsA("SatisfyRequirementUsage") {
+					r.Subject = x
+				} else if t := w.valueReference(x); t != nil {
+					r.SatisfiedBy = t
+				}
+				found = true
+			}
+		case m.IsA("ActorMembership"):
+			r.Actors = append(r.Actors, owned...)
+			found = found || len(owned) > 0
+		case m.IsA("StakeholderMembership"):
+			r.Stakeholders = append(r.Stakeholders, owned...)
+			found = found || len(owned) > 0
+		case m.IsA("ObjectiveMembership"):
+			for _, x := range owned {
+				r.Objective = x
+				found = true
+			}
+		case m.IsA("RequirementVerificationMembership"):
+			for _, x := range owned {
+				if t := first(relationTargets(x, "ReferenceSubsetting")); t != nil {
+					r.Verifies = append(r.Verifies, t)
+				} else {
+					r.Verifies = append(r.Verifies, x)
+				}
+				found = true
+			}
+		case m.IsA("RequirementConstraintMembership"):
+			switch m.Text("kind") {
+			case "assumption":
+				r.Assumed = append(r.Assumed, owned...)
+			case "requirement":
+				r.Required = append(r.Required, owned...)
+			}
+			found = found || len(owned) > 0
+		}
+	}
+	if r.Objective != nil && (e.IsA("VerificationCaseUsage") || e.IsA("VerificationCaseDefinition")) {
+		r.Verifies = append(r.Verifies, w.rolesOf(r.Objective).verifiesOrNil()...)
+	}
+	if e.IsA("SatisfyRequirementUsage") {
+		r.Satisfies = first(relationTargets(e, "ReferenceSubsetting"))
+		if r.Satisfies == nil {
+			r.Satisfies = e
+		}
+		found = true
+	}
+	if !found {
+		return nil
+	}
+	return r
+}
+
+func (r *Roles) verifiesOrNil() []*Element {
+	if r == nil {
+		return nil
+	}
+	return r.Verifies
+}
+
+// valueReference is the element that a subject usage's value expression names
+// (the "by vehicle" of a satisfy usage).
+func (w *Workspace) valueReference(subject *Element) *Element {
+	v := w.valueOf(subject)
+	if v == nil {
+		return nil
+	}
+	for _, m := range v.Expression.Children("ownedRelationship") {
+		for _, ref := range m.Refs("memberElement") {
+			return ref.Target
+		}
+	}
+	return nil
 }
