@@ -6,6 +6,7 @@
 //	sysmlc lsp     [-listen addr]                     run a language server (LSP) on standard input and output, or on a TCP address
 //	sysmlc eval    [-nolib] <file or directory>...   print the value of each feature whose value can be computed
 //	sysmlc implied [-nolib] <file or directory>...   print the relationships the specification implies for each type
+//	sysmlc facts   [-nolib] <file or directory>...   print the resolved facts about each element
 //	sysmlc dump    [-spans] <file>...                 print the model of each file as a tree
 //	sysmlc resolve [-nolib] <file or directory>...   print each reference and the element it resolves to
 //	sysmlc version                                    print the version
@@ -91,6 +92,7 @@ commands:
   lsp       run a language server on standard input and output (or -listen addr)
   eval      print the value of each feature that has a value expression
   implied   print the relationships the specification implies for each type
+  facts     print the resolved facts about each element: flags, multiplicity, typing, members
   dump      print the model of each file as a tree
   resolve   print each reference and the element it resolves to
   version   print the version
@@ -112,6 +114,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return withWorkspace(args[1:], stdout, stderr, "eval", printValues)
 	case "implied":
 		return withWorkspace(args[1:], stdout, stderr, "implied", printImplied)
+	case "facts":
+		return withWorkspace(args[1:], stdout, stderr, "facts", printFacts)
 	case "dump":
 		return dump(args[1:], stdout, stderr)
 	case "version":
@@ -288,6 +292,85 @@ func printImplied(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnost
 			}
 			for _, b := range w.ImpliedBindings(e) {
 				fmt.Fprintf(stdout, "%s:%s: %s BindingConnector %s = %s\n", doc.Name, e.Span.Start, name, describe(b.Source), describe(b.Target))
+			}
+		})
+	}
+}
+
+// printFacts prints, for each named element, the facts the API reports about
+// it. It is the check surface for Workspace.Facts.
+func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
+	for _, doc := range docs {
+		doc.Root.Walk(func(e *sysml.Element) {
+			if e.Generated || e == doc.Root || !(e.IsA("Package") || e.IsA("Type")) || e.IsA("Expression") || e.IsA("Multiplicity") {
+				return
+			}
+			f := w.Facts(e)
+			fmt.Fprintf(stdout, "%s:%s: %s %s\n", doc.Name, e.Span.Start, f.Class, describe(e))
+			var flags []string
+			for _, x := range []struct {
+				on   bool
+				name string
+			}{
+				{f.IsLibrary, "library"}, {f.IsAbstract, "abstract"}, {f.IsVariation, "variation"},
+				{f.IsComposite, "composite"}, {f.IsReference, "reference"}, {f.IsEnd, "end"},
+				{f.IsPortion, "portion"}, {f.IsConstant, "constant"}, {f.IsDerived, "derived"},
+				{f.IsOrdered, "ordered"}, {e.IsA("Feature") && !f.IsUnique, "nonunique"},
+				{f.Conjugated, "conjugated"},
+			} {
+				if x.on {
+					flags = append(flags, x.name)
+				}
+			}
+			if f.Direction != "" {
+				flags = append([]string{f.Direction}, flags...)
+			}
+			if len(flags) > 0 {
+				fmt.Fprintf(stdout, "  is: %s\n", strings.Join(flags, " "))
+			}
+			if f.ShortName != "" {
+				fmt.Fprintf(stdout, "  short name: %s\n", f.ShortName)
+			}
+			if m := f.Multiplicity; m != nil {
+				switch {
+				case !m.Resolved:
+					fmt.Fprintln(stdout, "  multiplicity: not computable")
+				case m.Upper < 0:
+					fmt.Fprintf(stdout, "  multiplicity: %d..*\n", m.Lower)
+				default:
+					fmt.Fprintf(stdout, "  multiplicity: %d..%d\n", m.Lower, m.Upper)
+				}
+			}
+			for _, l := range []struct {
+				name string
+				gs   []sysml.Generalization
+			}{
+				{"types", f.Types}, {"subsets", f.Subsets}, {"reference subsets", f.ReferenceSubsets},
+				{"redefines", f.Redefines}, {"specializes", f.Specializes}, {"conjugates", f.Conjugates},
+			} {
+				if len(l.gs) == 0 {
+					continue
+				}
+				var parts []string
+				for _, g := range l.gs {
+					s := describe(g.Target)
+					if g.Implied {
+						s += " (implied)"
+					}
+					parts = append(parts, s)
+				}
+				fmt.Fprintf(stdout, "  %s: %s\n", l.name, strings.Join(parts, ", "))
+			}
+			if len(f.Members) > 0 {
+				var parts []string
+				for _, m := range f.Members {
+					s := string(m.Kind) + " " + describe(m.Element)
+					if m.Name != "" {
+						s = string(m.Kind) + " " + m.Name + " = " + describe(m.Element)
+					}
+					parts = append(parts, s)
+				}
+				fmt.Fprintf(stdout, "  members: %s\n", strings.Join(parts, "; "))
 			}
 		})
 	}

@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.Facts` returns the resolved facts about an element: identity,
+  owner, members and how each is held, direction, the feature flags,
+  multiplicity as numbers, and the typing, subsetting, reference subsetting,
+  redefinition, specialization and conjugation relationships, written and
+  implied. `sysmlc facts` prints them.
+
 ## [0.9.1] - 2026-10-13
 
 ### Changed

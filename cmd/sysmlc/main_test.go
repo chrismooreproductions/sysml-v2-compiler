@@ -265,3 +265,22 @@ func TestLSPServesOverTCP(t *testing.T) {
 		t.Errorf("serveTCP returned %d", st)
 	}
 }
+
+func TestFactsPrintsTheResolvedFactsOfEachElement(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "fleet.sysml", "package Fleet { part def Truck { in attribute load : ScalarValues::Integer [1..2]; } }")
+	status, out, errs := invoke("facts", f)
+	want := f + ":1:1: Package Fleet\n" +
+		"  members: owning Fleet::Truck\n" +
+		f + ":1:17: PartDefinition Fleet::Truck\n" +
+		"  specializes: Parts::Part (implied)\n" +
+		"  members: feature Fleet::Truck::load\n" +
+		f + ":1:34: AttributeUsage Fleet::Truck::load\n" +
+		"  is: in reference\n" +
+		"  multiplicity: 1..2\n" +
+		"  types: ScalarValues::Integer\n" +
+		"  subsets: Base::dataValues (implied)\n"
+	if status != 0 || errs != "" || out != want {
+		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
+	}
+}

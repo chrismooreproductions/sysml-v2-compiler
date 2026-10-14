@@ -29,6 +29,16 @@ source span and ordered properties named as in the specification; `IsA`,
 `Children`, `Child`, `Text`, `IsTrue` and `Refs` read it. Every exported
 identifier is documented; run `go doc github.com/chrismooreproductions/sysml-v2-compiler/sysml`.
 
+`Workspace.Facts(e)` returns the resolved properties of one element so that a
+consumer that draws or tabulates models need not know how the metamodel
+encodes them: identity, owner and members (with how each is held: owning,
+feature, parameter, import, alias), direction, composite/reference and the
+other feature flags, multiplicity as numbers (`Upper == -1` for `*`), and the
+typing, subsetting, reference subsetting, redefinition, specialization and
+conjugation relationships, written or implied. It covers the structural facts
+only: values, connector ends as pairs, behaviour structure, requirement roles
+and annotations are not there yet. `sysmlc facts` prints it.
+
 ## Command line
 
 ```
@@ -37,6 +47,7 @@ go install github.com/chrismooreproductions/sysml-v2-compiler/cmd/sysmlc@latest
 sysmlc check   [-nolib] <file or directory>...   syntax errors and unresolved names
 sysmlc resolve [-nolib] <file or directory>...   each reference and its target
 sysmlc implied [-nolib] <file or directory>...   the relationships the specification implies
+sysmlc facts   [-nolib] <file or directory>...   the resolved facts about each element
 sysmlc eval    [-nolib] <file or directory>...   the value of each feature that has one
 sysmlc lsp                                       a language server on stdin/stdout
 sysmlc dump    [-spans] <file>...                the model as a tree

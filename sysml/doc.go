@@ -31,6 +31,10 @@
 // Workspace.Materialize writes them into the tree, as elements marked Generated
 // with isImplied set.
 //
+// Workspace.Facts gathers the resolved properties of one element (flags,
+// multiplicity, typing, members) so that a consumer need not know how the
+// metamodel encodes them.
+//
 // What it does not do yet: check every one of the specification's validation
 // constraints; Workspace.Validate checks the structural ones.
 package sysml
