@@ -75,8 +75,13 @@ func TestAConjugatedPortTypingResolvesToTheConjugatedPortDefinition(t *testing.T
 	if got.Class != "ConjugatedPortDefinition" || !got.Owner.Owner.IsA("PortDefinition") || nameOf(got.Owner.Owner) != "Fuel" {
 		t.Errorf("target = %s", model.Dump(got))
 	}
+	// a port definition that does not resolve leaves the typing unresolved
+	w, _ := resolved(t, false, `package P { part def A { port p : ~Elsewhere::Fuel; } }`)
+	if len(w.Unresolved()) != 1 {
+		t.Errorf("~ of an unknown name: %d unresolved, want 1", len(w.Unresolved()))
+	}
 	// only a port definition has one
-	w, _ := resolved(t, false, `package P { part def A; part def B { port p : ~A; } }`)
+	w, _ = resolved(t, false, `package P { part def A; part def B { port p : ~A; } }`)
 	if len(w.Unresolved()) != 1 {
 		t.Errorf("~A on a part definition: %d unresolved, want 1", len(w.Unresolved()))
 	}

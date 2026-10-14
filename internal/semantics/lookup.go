@@ -234,6 +234,9 @@ func (w *Workspace) resolveNameUncached(s scope, text string) *el {
 // The written name of a conjugated port typing is "~" and the port
 // definition's name (ConjugatedPortTyping in the Xtext grammar).
 func (w *Workspace) conjugatedPortOf(mem *el) *el {
+	if mem == nil {
+		return nil // the port definition does not resolve (it may be in another file)
+	}
 	port := w.memberElement(mem)
 	if !port.IsA("PortDefinition") {
 		return nil

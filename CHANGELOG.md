@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A conjugated port typing whose port definition does not resolve (`port p :
+  ~Pkg::Fuel` with `Pkg` in another file) crashed the resolver with a nil
+  pointer dereference since 0.10.0; it is now reported as unresolved.
+
 ## [0.11.0] - 2026-10-14
 
 ### Added
