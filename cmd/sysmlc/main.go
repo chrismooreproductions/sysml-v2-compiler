@@ -397,6 +397,48 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 					fmt.Fprintf(stdout, "  from: %s\n  to: %s\n", describeEnd(f.Source), describeEnd(f.Target))
 				}
 			}
+			if f.ControlNode != "" {
+				fmt.Fprintf(stdout, "  control node: %s\n", f.ControlNode)
+			}
+			if b := f.Behavior; b != nil {
+				for _, a := range []struct {
+					name string
+					e    *sysml.Element
+				}{{"entry", b.Entry}, {"do", b.Do}, {"exit", b.Exit}} {
+					if a.e != nil {
+						fmt.Fprintf(stdout, "  %s: %s\n", a.name, describe(a.e))
+					}
+				}
+				if b.IsParallel {
+					fmt.Fprintln(stdout, "  parallel")
+				}
+				// an unnamed trigger, guard or effect is told by where it is written
+				name := func(e *sysml.Element) string {
+					switch {
+					case e == nil:
+						return "(implicit)"
+					case e.Text("declaredName") == "" && !e.Generated:
+						return fmt.Sprintf("%s at %s", e.Class, e.Span.Start)
+					}
+					return describe(e)
+				}
+				for _, s := range b.Successions {
+					fmt.Fprintf(stdout, "  succession: %s then %s\n", describeEnd(&s.Source), describeEnd(&s.Target))
+				}
+				for _, t := range b.Transitions {
+					line := "  transition: " + name(t.Source) + " -> " + name(t.Target)
+					if t.Trigger != nil {
+						line += " accept " + name(t.Trigger)
+					}
+					if t.Guard != nil {
+						line += " if " + name(t.Guard)
+					}
+					if t.Effect != nil {
+						line += " do " + name(t.Effect)
+					}
+					fmt.Fprintln(stdout, line)
+				}
+			}
 			if len(f.Members) > 0 {
 				var parts []string
 				for _, m := range f.Members {

@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `Facts.Behavior` gives the structure of an action or state: entry, do and
+  exit actions, whether it is parallel, its successions and its transitions
+  (source, target, trigger, guard, effect). `Facts.ControlNode` says whether a
+  node is a fork, join, decision or merge. A succession end the source does
+  not write, such as the first end of `then c`, has no target: it is not
+  inferred from the order of the steps. `sysmlc facts` prints them.
 - `Facts.Value` gives a feature's value expression: whether it is `default` or
   initial, the computed value when `Workspace.Evaluate` can compute it, and the
   expression's source text. `sysmlc facts` prints it.

@@ -111,6 +111,49 @@ type FeatureValue struct {
 	Text string
 }
 
+// A Succession is a succession a behaviour writes between its steps (first a
+// then b, then c).
+type Succession struct {
+	// Element is the succession usage.
+	Element *Element
+	// Source and Target are its ends. An end the source does not write (the
+	// first end of "then c", which the specification takes from the step before
+	// it) has a nil Target.
+	Source, Target End
+}
+
+// A Transition is a transition of a state or an action: transition t first
+// idle accept Sig if ready do act then active, or the "if ready then b" of a
+// decision.
+type Transition struct {
+	// Element is the transition usage.
+	Element *Element
+	// Source is the state or step the transition leaves, nil when the source
+	// writes none.
+	Source *Element
+	// Target is the state or step it enters, nil when none is written.
+	Target *Element
+	// Trigger is the accept action that triggers it, Guard the guard
+	// expression and Effect the action it performs; each is nil when absent.
+	Trigger, Guard, Effect *Element
+}
+
+// Behavior is the structure of an action or a state: what the source writes
+// to order its steps and to move between its states. The steps themselves are
+// the Members of the element. The specification derives further successions
+// from the order of the members (the one before "then fork f" is the step
+// before it); Behavior does not, so an end without a written reference is nil.
+type Behavior struct {
+	// Entry, Do and Exit are the state's entry, do and exit actions.
+	Entry, Do, Exit *Element
+	// IsParallel is true for a state whose substates are all active at once.
+	IsParallel bool
+	// Successions are the successions the element owns, in source order.
+	Successions []Succession
+	// Transitions are the transitions the element owns, in source order.
+	Transitions []Transition
+}
+
 // Facts are the resolved, ready-to-use properties of one element, derived
 // from the generic tree so that a consumer does not need to know how the
 // metamodel encodes them. A field that does not apply to the element's
@@ -194,6 +237,14 @@ type Facts struct {
 	// Value is the feature's value expression, nil when it has none.
 	Value *FeatureValue
 
+	// ControlNode is "fork", "join", "decision" or "merge" for the control node
+	// of an action, and empty for anything else.
+	ControlNode string
+	// Behavior is the structure of an action or state, nil for an element that
+	// has no entry, do or exit action, succession or transition and is not a
+	// parallel state.
+	Behavior *Behavior
+
 	// Conjugates is the type a conjugated type is the conjugate of: from a
 	// Conjugation, or for a ConjugatedPortDefinition its port definition.
 	Conjugates []Generalization
@@ -239,6 +290,8 @@ func (w *Workspace) Facts(e *Element) Facts {
 	w.generalizations(&f)
 	w.connectorEnds(&f)
 	f.Value = w.valueOf(e)
+	f.ControlNode = controlNode(e)
+	f.Behavior = w.behaviorOf(&f)
 	return f
 }
 
@@ -613,4 +666,95 @@ func (w *Workspace) sourceText(e *Element) string {
 		}
 	}
 	return ""
+}
+
+func controlNode(e *Element) string {
+	switch {
+	case e.IsA("ForkNode"):
+		return "fork"
+	case e.IsA("JoinNode"):
+		return "join"
+	case e.IsA("DecisionNode"):
+		return "decision"
+	case e.IsA("MergeNode"):
+		return "merge"
+	}
+	return ""
+}
+
+// behaviorOf collects the entry, do and exit actions, the successions and the
+// transitions that a type owns.
+func (w *Workspace) behaviorOf(f *Facts) *Behavior {
+	e := f.Element
+	if !e.IsA("Type") || e.IsA("TransitionUsage") { // a transition is described by its owner's Transitions
+		return nil
+	}
+	b := &Behavior{IsParallel: e.IsTrue("isParallel")}
+	found := b.IsParallel
+	for _, r := range ownedRels(e) {
+		if r.IsA("StateSubactionMembership") {
+			for _, a := range r.Children("ownedRelatedElement") {
+				switch r.Text("kind") {
+				case "entry":
+					b.Entry = a
+				case "do":
+					b.Do = a
+				case "exit":
+					b.Exit = a
+				}
+				found = true
+			}
+		}
+	}
+	for _, m := range f.Members {
+		switch {
+		case m.Element.IsA("TransitionUsage"):
+			b.Transitions = append(b.Transitions, w.transitionOf(m.Element))
+			found = true
+		case m.Element.IsA("SuccessionAsUsage"):
+			sf := w.Facts(m.Element)
+			if len(sf.Ends) == 2 {
+				b.Successions = append(b.Successions, Succession{m.Element, sf.Ends[0], sf.Ends[1]})
+				found = true
+			}
+		}
+	}
+	if !found {
+		return nil
+	}
+	return b
+}
+
+// transitionOf reads a transition usage: the source it names, the trigger,
+// guard and effect it writes, and the target of the succession it owns.
+func (w *Workspace) transitionOf(t *Element) Transition {
+	out := Transition{Element: t}
+	for _, r := range ownedRels(t) {
+		switch {
+		case r.IsA("TransitionFeatureMembership"):
+			for _, x := range r.Children("ownedRelatedElement") {
+				switch r.Text("kind") {
+				case "trigger":
+					out.Trigger = x
+				case "guard":
+					out.Guard = x
+				case "effect":
+					out.Effect = x
+				}
+			}
+		case r.IsA("OwningMembership"):
+			for _, x := range r.Children("ownedRelatedElement") {
+				if x.IsA("SuccessionAsUsage") {
+					if ends := w.Facts(x).Ends; len(ends) == 2 {
+						out.Target = ends[1].Target
+					}
+				}
+			}
+		case r.IsA("Membership") && !r.IsA("OwningMembership"):
+			for _, ref := range r.Refs("memberElement") {
+				out.Source = ref.Target
+			}
+		}
+	}
+	return out
 }

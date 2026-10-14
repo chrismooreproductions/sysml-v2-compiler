@@ -395,3 +395,99 @@ func TestFactsValue(t *testing.T) {
 		}
 	}
 }
+
+const behaviorSource = `package P {
+  part def Sig;
+  state def Machine {
+    entry action init;
+    do action run;
+    exit action stop;
+    state idle;
+    state active;
+    transition t1 first idle accept Sig if true do action act1 then active;
+    transition first active then idle;
+    state par parallel { state r1; state r2; }
+  }
+  action def Flow1 {
+    action a; action b; action c;
+    first start;
+    then fork f;
+    then a;
+    then join j;
+    then decide d;
+    if true then b;
+    else c;
+    merge m;
+    first a then b;
+  }
+}`
+
+func TestFactsBehavior(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("b.sysml", []byte(behaviorSource)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) > 0 {
+		t.Fatal(ds)
+	}
+	q := func(e *Element) string {
+		if e == nil {
+			return ""
+		}
+		return w.Facts(e).QualifiedName
+	}
+
+	m := w.Facts(w.Lookup("P::Machine")).Behavior
+	if m == nil || q(m.Entry) != "P::Machine::init" || q(m.Do) != "P::Machine::run" || q(m.Exit) != "P::Machine::stop" || m.IsParallel {
+		t.Fatalf("Machine: %+v", m)
+	}
+	if len(m.Transitions) != 2 {
+		t.Fatalf("%d transitions, want 2", len(m.Transitions))
+	}
+	t1 := m.Transitions[0]
+	if q(t1.Source) != "P::Machine::idle" || q(t1.Target) != "P::Machine::active" ||
+		t1.Trigger == nil || !t1.Trigger.IsA("AcceptActionUsage") ||
+		t1.Guard == nil || t1.Guard.Class != "LiteralBoolean" || q(t1.Effect) != "P::Machine::t1::act1" ||
+		t1.Element != w.Lookup("P::Machine::t1") {
+		t.Errorf("t1: %+v", t1)
+	}
+	if t2 := m.Transitions[1]; q(t2.Source) != "P::Machine::active" || q(t2.Target) != "P::Machine::idle" ||
+		t2.Trigger != nil || t2.Guard != nil || t2.Effect != nil {
+		t.Errorf("second transition: %+v", t2)
+	}
+	if b := w.Facts(w.Lookup("P::Machine::par")).Behavior; b == nil || !b.IsParallel {
+		t.Errorf("parallel state: %+v", b)
+	}
+	// a transition is described by its owner, not as a behaviour of its own
+	if b := w.Facts(w.Lookup("P::Machine::t1")).Behavior; b != nil {
+		t.Errorf("a transition has behaviour %+v", b)
+	}
+
+	// control nodes, in the order they are written
+	for name, want := range map[string]string{"P::Flow1::f": "fork", "P::Flow1::j": "join", "P::Flow1::d": "decision", "P::Flow1::m": "merge", "P::Flow1::a": ""} {
+		if got := w.Facts(w.Lookup(name)).ControlNode; got != want {
+			t.Errorf("%s control node %q, want %q", name, got, want)
+		}
+	}
+	// the successions the action writes; an end it does not write has no target
+	flow := w.Facts(w.Lookup("P::Flow1")).Behavior
+	if flow == nil || len(flow.Successions) != 5 {
+		t.Fatalf("Flow1: %+v", flow)
+	}
+	var got []string
+	for _, s := range flow.Successions {
+		got = append(got, q(s.Source.Target)+">"+q(s.Target.Target))
+	}
+	if want := []string{">", ">P::Flow1::a", ">", ">", "P::Flow1::a>P::Flow1::b"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("successions:\n got %q\nwant %q", got, want)
+	}
+	// the guarded branches of the decision
+	if len(flow.Transitions) != 2 || flow.Transitions[0].Source != nil || q(flow.Transitions[0].Target) != "P::Flow1::b" ||
+		flow.Transitions[0].Guard == nil || q(flow.Transitions[1].Target) != "P::Flow1::c" || flow.Transitions[1].Guard != nil {
+		t.Errorf("decision transitions: %+v", flow.Transitions)
+	}
+
+	if b := w.Facts(w.Lookup("P::Sig")).Behavior; b != nil {
+		t.Errorf("a part definition has behaviour %+v", b)
+	}
+}
