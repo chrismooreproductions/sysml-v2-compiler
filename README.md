@@ -35,9 +35,10 @@ encodes them: identity, owner and members (with how each is held: owning,
 feature, parameter, import, alias), direction, composite/reference and the
 other feature flags, multiplicity as numbers (`Upper == -1` for `*`), and the
 typing, subsetting, reference subsetting, redefinition, specialization and
-conjugation relationships, written or implied. It covers the structural facts
-only: values, connector ends as pairs, behaviour structure, requirement roles
-and annotations are not there yet. `sysmlc facts` prints it.
+conjugation relationships, written or implied, and the ends of a connector
+with the feature each points to (and the source and target of a flow or
+succession). It covers the structural facts only: values, behaviour structure,
+requirement roles and annotations are not there yet. `sysmlc facts` prints it.
 
 ## Command line
 

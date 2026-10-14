@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Facts.Ends` lists the ends of a connector, connection, binding, succession,
+  flow, interface or allocation with the feature each points to (the whole
+  chain for `pa.out1`), and `Facts.Source` and `Facts.Target` give the ends of
+  a flow or succession. `sysmlc facts` prints them.
+
 ## [0.10.0] - 2026-10-14
 
 ### Added

@@ -361,6 +361,27 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 				}
 				fmt.Fprintf(stdout, "  %s: %s\n", l.name, strings.Join(parts, ", "))
 			}
+			if len(f.Ends) > 0 {
+				var parts []string
+				for _, end := range f.Ends {
+					var path []string
+					for _, p := range end.Path {
+						path = append(path, describe(p))
+					}
+					s := "(none)"
+					if len(path) > 0 {
+						s = strings.Join(path, " . ")
+					}
+					if end.Name != "" {
+						s = end.Name + " -> " + s
+					}
+					parts = append(parts, s)
+				}
+				fmt.Fprintf(stdout, "  ends: %s\n", strings.Join(parts, "; "))
+				if f.Source != nil {
+					fmt.Fprintf(stdout, "  from: %s\n  to: %s\n", describeEnd(f.Source), describeEnd(f.Target))
+				}
+			}
 			if len(f.Members) > 0 {
 				var parts []string
 				for _, m := range f.Members {
@@ -374,6 +395,14 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 			}
 		})
 	}
+}
+
+// describeEnd names what a connector end points to.
+func describeEnd(e *sysml.End) string {
+	if e.Target == nil {
+		return "(the previous step)"
+	}
+	return describe(e.Target)
 }
 
 func describe(e *sysml.Element) string {

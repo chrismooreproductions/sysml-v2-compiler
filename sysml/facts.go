@@ -74,6 +74,24 @@ type Multiplicity struct {
 	Source *Element
 }
 
+// An End is one end of a connector: the feature the connector's end points to.
+type End struct {
+	// Element is the end feature the connector owns.
+	Element *Element
+	// Name is the end feature's effective name; it is empty for an end the
+	// source does not name.
+	Name string
+	// Target is the feature the end points to: the one it references, or for
+	// a chain (pa.out1) the last feature of the chain. It is nil for an end
+	// that writes no reference, such as the first end of "then q", which the
+	// specification makes the previous step.
+	Target *Element
+	// Path is the whole chain that leads to Target (pa, out1); it has one
+	// element when the end references a feature directly, and none when
+	// Target is nil.
+	Path []*Element
+}
+
 // Facts are the resolved, ready-to-use properties of one element, derived
 // from the generic tree so that a consumer does not need to know how the
 // metamodel encodes them. A field that does not apply to the element's
@@ -145,6 +163,15 @@ type Facts struct {
 	Redefines []Generalization
 	// Specializes are the Subclassification relationships of a classifier.
 	Specializes []Generalization
+	// Ends are the ends of a connector, connection, binding, succession, flow,
+	// interface or allocation, in order, as it writes them. They are nil for
+	// anything else, and for a connector that has only ends it inherits.
+	Ends []End
+	// Source and Target are the first and last of Ends for a flow and a
+	// succession (the flow's from and to, the succession's first and then). They
+	// point into Ends, and are nil for anything else.
+	Source, Target *End
+
 	// Conjugates is the type a conjugated type is the conjugate of: from a
 	// Conjugation, or for a ConjugatedPortDefinition its port definition.
 	Conjugates []Generalization
@@ -188,6 +215,7 @@ func (w *Workspace) Facts(e *Element) Facts {
 	f.Direction = w.directionOf(e, map[*Element]bool{})
 	f.Multiplicity = w.multiplicityOf(e)
 	w.generalizations(&f)
+	w.connectorEnds(&f)
 	return f
 }
 
@@ -450,4 +478,80 @@ func (w *Workspace) generalizations(f *Facts) {
 			add(im.Kind, im.Target, true)
 		}
 	}
+}
+
+// connectorEnds fills the ends of a connector from the end features it owns.
+func (w *Workspace) connectorEnds(f *Facts) {
+	e := f.Element
+	if !e.IsA("Connector") {
+		return
+	}
+	for _, r := range ownedRels(e) {
+		if !r.IsA("EndFeatureMembership") {
+			continue
+		}
+		for _, end := range r.Children("ownedRelatedElement") {
+			if !end.Generated {
+				f.Ends = append(f.Ends, w.endOf(end))
+			}
+		}
+	}
+	if len(f.Ends) > 0 && (e.IsA("Flow") || e.IsA("Succession")) {
+		f.Source, f.Target = &f.Ends[0], &f.Ends[len(f.Ends)-1]
+	}
+}
+
+// endOf reads what an end feature points to. A reference subsetting names it
+// directly or as a chain, and the end of a flow nests the feature it takes
+// from the referenced one (the end referencing pa that redefines out1 is
+// pa.out1).
+func (w *Workspace) endOf(end *Element) End {
+	out := End{Element: end, Name: w.EffectiveName(end)}
+	for _, r := range ownedRels(end) {
+		if !r.IsA("ReferenceSubsetting") {
+			continue
+		}
+		for _, c := range r.Children("ownedRelatedElement") {
+			for _, ch := range c.Children("ownedRelationship") {
+				if ch.IsA("FeatureChaining") {
+					for _, ref := range ch.Refs("chainingFeature") {
+						if ref.Target != nil {
+							out.Path = append(out.Path, ref.Target)
+						}
+					}
+				}
+			}
+		}
+		if len(out.Path) == 0 { // not a chain: the feature is named directly
+			if t := targetOf(r); t != nil {
+				out.Path = []*Element{t}
+			}
+		}
+		break
+	}
+	if len(out.Path) == 0 {
+		return out
+	}
+	// nested redefinitions continue the path
+	for cur, seen := end, map[*Element]bool{}; !seen[cur]; {
+		seen[cur] = true
+		var next *Element
+		for _, r := range ownedRels(cur) {
+			if !r.IsA("FeatureMembership") || r.IsA("EndFeatureMembership") {
+				continue
+			}
+			for _, inner := range r.Children("ownedRelatedElement") {
+				if t := first(relationTargets(inner, "Redefinition")); t != nil && !inner.Generated {
+					out.Path = append(out.Path, t)
+					next = inner
+				}
+			}
+		}
+		if next == nil {
+			break
+		}
+		cur = next
+	}
+	out.Target = out.Path[len(out.Path)-1]
+	return out
 }

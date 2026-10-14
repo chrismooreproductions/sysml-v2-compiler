@@ -4,6 +4,7 @@ package sysml
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -252,5 +253,93 @@ func TestFactsLeaveOutWhatOtherFieldsDescribe(t *testing.T) {
 	// the ends of a connector are held as end features
 	if k := w.Facts(w.Lookup("P::k")).Members; len(k) != 2 || k[0].Relationship.Class != "EndFeatureMembership" || k[0].Kind != MemberFeature {
 		t.Errorf("k members: %+v", k)
+	}
+}
+
+const connectorSource = `package P {
+  part def A { port out1; port in1; attribute x; attribute y; action a1; action a2; }
+  part pa : A; part pb : A;
+  connection c1 connect pa to pb;
+  connection c2 connect e1 ::> pa to e2 ::> pb;
+  binding b1 bind pa.x = pb.y;
+  succession s1 first pa.a1 then pb.a2;
+  flow f1 from pa.out1 to pb.in1;
+  interface i1 connect pa.out1 to pb.in1;
+  allocation al1 allocate pa to pb;
+  action def Act { action p; action q; first p; then q; }
+}`
+
+func TestFactsConnectorEnds(t *testing.T) {
+	w, _ := NewWorkspace()
+	_, err := w.Add("c.sysml", []byte(connectorSource))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) > 0 {
+		t.Fatal(ds)
+	}
+	// ends lists "name->path" with the path's elements joined by "."
+	ends := func(f Facts) []string {
+		var out []string
+		for _, e := range f.Ends {
+			var path []string
+			for _, p := range e.Path {
+				path = append(path, w.Facts(p).QualifiedName)
+			}
+			out = append(out, e.Name+"->"+strings.Join(path, "."))
+		}
+		return out
+	}
+	for _, c := range []struct {
+		name string
+		want []string
+	}{
+		{"P::c1", []string{"->P::pa", "->P::pb"}},
+		{"P::c2", []string{"e1->P::pa", "e2->P::pb"}},
+		{"P::b1", []string{"->P::pa.P::A::x", "->P::pb.P::A::y"}},
+		{"P::s1", []string{"->P::pa.P::A::a1", "->P::pb.P::A::a2"}},
+		{"P::f1", []string{"->P::pa.P::A::out1", "->P::pb.P::A::in1"}},
+		{"P::i1", []string{"->P::pa.P::A::out1", "->P::pb.P::A::in1"}},
+		{"P::al1", []string{"->P::pa", "->P::pb"}},
+	} {
+		f := w.Facts(w.Lookup(c.name))
+		if got := ends(f); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s ends:\n got %q\nwant %q", c.name, got, c.want)
+		}
+		for i, e := range f.Ends {
+			if e.Target != e.Path[len(e.Path)-1] || !e.Element.IsTrue("isEnd") {
+				t.Errorf("%s end %d: %+v", c.name, i, e)
+			}
+		}
+	}
+
+	// source and target are the ends of a flow and of a succession only
+	for _, c := range []struct{ name, from, to string }{
+		{"P::f1", "P::A::out1", "P::A::in1"},
+		{"P::s1", "P::A::a1", "P::A::a2"},
+	} {
+		f := w.Facts(w.Lookup(c.name))
+		if f.Source == nil || f.Target == nil || f.Source.Target != w.Lookup(c.from) || f.Target.Target != w.Lookup(c.to) {
+			t.Errorf("%s: source %+v, target %+v", c.name, f.Source, f.Target)
+		}
+	}
+	for _, name := range []string{"P::c1", "P::b1", "P::i1", "P::al1", "P::pa"} {
+		if f := w.Facts(w.Lookup(name)); f.Source != nil || f.Target != nil {
+			t.Errorf("%s has a source or target", name)
+		}
+	}
+	if f := w.Facts(w.Lookup("P::pa")); f.Ends != nil {
+		t.Errorf("a part has ends: %+v", f.Ends)
+	}
+
+	// "then q" has no first end of its own: the previous step
+	var then Facts
+	for _, m := range w.Facts(w.Lookup("P::Act")).Members {
+		if m.Element.IsA("SuccessionAsUsage") {
+			then = w.Facts(m.Element) // the last one is "then q"
+		}
+	}
+	if then.Source == nil || then.Source.Target != nil || len(then.Source.Path) != 0 || then.Target.Target != w.Lookup("P::Act::q") {
+		t.Errorf("then q: %+v", then.Ends)
 	}
 }
