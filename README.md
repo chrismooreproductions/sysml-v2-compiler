@@ -36,8 +36,8 @@ feature, parameter, import, alias), direction, composite/reference and the
 other feature flags, multiplicity as numbers (`Upper == -1` for `*`), and the
 typing, subsetting, reference subsetting, redefinition, specialization and
 conjugation relationships, written or implied, and the ends of a connector
-with the feature each points to (and the source and target of a flow or
-succession), and the value expression (computed when possible, with its
+or message with the feature each points to (and the source and target of a
+flow, message or succession), and the value expression (computed when possible, with its
 source text), the control-node kind, and the behaviour an action or state
 writes (entry, do and exit actions, successions and transitions with their
 trigger, guard and effect; an end the source does not write is left nil, not

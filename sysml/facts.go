@@ -270,11 +270,17 @@ type Facts struct {
 	// Specializes are the Subclassification relationships of a classifier.
 	Specializes []Generalization
 	// Ends are the ends of a connector, connection, binding, succession, flow,
-	// interface or allocation, in order, as it writes them. They are nil for
-	// anything else, and for a connector that has only ends it inherits.
+	// message, interface or allocation, in order, as it writes them. For a
+	// message they are the event occurrences it runs between (from driver.cmd
+	// to vehicle.cmd). They are nil for anything else, and for a connector
+	// that has only ends it inherits.
 	Ends []End
-	// Source and Target are the first and last of Ends for a flow and a
-	// succession (the flow's from and to, the succession's first and then). They
+	// IsMessage is true for a message (message m from a to b) as opposed to a
+	// flow: a flow usage that specializes Flows::messages without specializing
+	// Flows::flows.
+	IsMessage bool
+	// Source and Target are the first and last of Ends for a flow or message
+	// and a succession (the flow's from and to, the succession's first and then). They
 	// point into Ends, and are nil for anything else.
 	Source, Target *End
 
@@ -626,6 +632,26 @@ func (w *Workspace) connectorEnds(f *Facts) {
 				f.Ends = append(f.Ends, w.endOf(end))
 			}
 		}
+	}
+	if len(f.Ends) == 0 && e.IsA("Flow") {
+		// A message has no end features: its ends are the event occurrences
+		// it takes as parameters (message m from a.b to c).
+		for _, r := range ownedRels(e) {
+			if !r.IsA("ParameterMembership") {
+				continue
+			}
+			for _, p := range r.Children("ownedRelatedElement") {
+				if p.IsA("EventOccurrenceUsage") && !p.Generated {
+					f.Ends = append(f.Ends, w.endOf(p))
+				}
+			}
+		}
+	}
+	if e.IsA("Flow") {
+		// every flow is also a message in the library (flows :> messages), so
+		// a message is one that is not a flow
+		msgs, flows := w.Lookup("Flows::messages"), w.Lookup("Flows::flows")
+		f.IsMessage = msgs != nil && flows != nil && w.Specializes(e, msgs) && !w.Specializes(e, flows)
 	}
 	if len(f.Ends) > 0 && (e.IsA("Flow") || e.IsA("Succession")) {
 		f.Source, f.Target = &f.Ends[0], &f.Ends[len(f.Ends)-1]

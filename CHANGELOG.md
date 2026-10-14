@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Facts.IsMessage` tells a `message` from a `flow`.
+  ([#2](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/2))
+
+### Fixed
+
+- `Facts.Ends` is no longer empty for a `message`: its ends are the event
+  occurrences it runs between (`from driver.cmd to vehicle.cmd`, with the whole
+  chain in `Path`, or `from driver to vehicle`), and `Facts.Source` and
+  `Facts.Target` are set as for a flow.
+  ([#2](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/2))
+
 ## [0.11.1] - 2026-10-14
 
 ### Fixed

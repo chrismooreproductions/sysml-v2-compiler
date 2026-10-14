@@ -668,3 +668,76 @@ func TestFactsAnnotations(t *testing.T) {
 		t.Errorf("library documentation: %+v", a)
 	}
 }
+
+const messageSource = `package SeqProbe {
+    item def Start;
+    part def Driver  { out item cmd : Start; }
+    part def Vehicle { in  item cmd : Start; }
+
+    occurrence def Ignition {
+        part driver : Driver;
+        part vehicle : Vehicle;
+        message startCmd of Start from driver.cmd to vehicle.cmd;
+        message short from driver to vehicle;
+        message bare;
+        flow f1 of Start from driver.cmd to vehicle.cmd;
+    }
+}`
+
+func TestFactsMessageEnds(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("m.sysml", []byte(messageSource)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) > 0 {
+		t.Fatal(ds)
+	}
+	// paths lists the names along each end's chain: driver.cmd is "driver cmd"
+	paths := func(f Facts) []string {
+		var out []string
+		for _, e := range f.Ends {
+			var names []string
+			for _, p := range e.Path {
+				names = append(names, w.EffectiveName(p))
+			}
+			out = append(out, strings.Join(names, " "))
+		}
+		return out
+	}
+	for _, c := range []struct {
+		name    string
+		message bool
+		paths   []string
+		from    string // the source's target, "" for none
+		to      string
+	}{
+		{"SeqProbe::Ignition::startCmd", true, []string{"driver cmd", "vehicle cmd"}, "SeqProbe::Driver::cmd", "SeqProbe::Vehicle::cmd"},
+		{"SeqProbe::Ignition::short", true, []string{"driver", "vehicle"}, "SeqProbe::Ignition::driver", "SeqProbe::Ignition::vehicle"},
+		{"SeqProbe::Ignition::bare", true, nil, "", ""},
+		// a flow in the same occurrence keeps its own ends, and is not a message
+		{"SeqProbe::Ignition::f1", false, []string{"driver cmd", "vehicle cmd"}, "SeqProbe::Driver::cmd", "SeqProbe::Vehicle::cmd"},
+	} {
+		f := w.Facts(w.Lookup(c.name))
+		if got := paths(f); !reflect.DeepEqual(got, c.paths) {
+			t.Errorf("%s ends: got %q, want %q", c.name, got, c.paths)
+		}
+		if f.IsMessage != c.message {
+			t.Errorf("%s IsMessage = %v", c.name, f.IsMessage)
+		}
+		if c.from == "" {
+			if f.Source != nil || f.Target != nil {
+				t.Errorf("%s has a source or target", c.name)
+			}
+			continue
+		}
+		if f.Source == nil || f.Target == nil || w.Facts(f.Source.Target).QualifiedName != c.from || w.Facts(f.Target.Target).QualifiedName != c.to {
+			t.Errorf("%s source %+v target %+v", c.name, f.Source, f.Target)
+		}
+	}
+	// nothing else is a message
+	for _, name := range []string{"SeqProbe::Ignition", "SeqProbe::Ignition::driver", "SeqProbe::Start"} {
+		if w.Facts(w.Lookup(name)).IsMessage {
+			t.Errorf("%s is a message", name)
+		}
+	}
+}
