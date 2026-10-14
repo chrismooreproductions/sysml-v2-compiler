@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `Facts.Annotations` gives the documentation, comments and textual
+  representations that annotate an element (those it owns, and those anywhere
+  in the workspace that name it with `about`), each with its text, locale or
+  language, and the elements it annotates. `sysmlc facts` prints them.
 - `Facts.Roles` gives the requirement roles of an element: subject, actors,
   stakeholders, objective, assumed and required constraints, the requirement a
   satisfy usage satisfies and what satisfies it, and the requirements a

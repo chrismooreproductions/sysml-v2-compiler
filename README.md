@@ -43,7 +43,8 @@ writes (entry, do and exit actions, successions and transitions with their
 trigger, guard and effect; an end the source does not write is left nil, not
 inferred), and the requirement roles (subject, actors, stakeholders,
 objective, assumed and required constraints, and what a satisfy or verify
-targets). Annotations are not there yet. `sysmlc facts` prints it.
+targets), and the documentation, comments and textual representations that
+annotate it. `sysmlc facts` prints it.
 
 ## Command line
 

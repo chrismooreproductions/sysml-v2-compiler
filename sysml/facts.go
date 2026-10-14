@@ -101,10 +101,11 @@ type FeatureValue struct {
 	// something redefines it; IsInitial is true for ":=", a value only at the
 	// start.
 	IsDefault, IsInitial bool
-	// Computed is true when Workspace.Evaluate could compute the expression,
-	// and Value then holds the result (as Evaluate returns it).
+	// Computed is true when Workspace.Evaluate could compute the expression.
 	Computed bool
-	Value    any
+	// Value is the result when Computed is true, as Evaluate returns it; it is
+	// nil otherwise.
+	Value any
 	// Text is the expression as written in the source, which is also what a
 	// reader wants for an expression that could not be computed. It is empty
 	// for a file the workspace did not read, such as the standard library.
@@ -174,6 +175,27 @@ type Roles struct {
 	// Verifies are the requirements that a verification case, or its
 	// objective, verifies (verify r2).
 	Verifies []*Element
+}
+
+// An Annotation is a piece of documentation, a comment or a textual
+// representation attached to an element.
+type Annotation struct {
+	// Element is the Documentation, Comment or TextualRepresentation.
+	Element *Element
+	// Kind is "documentation" (doc), "comment" or "textualRepresentation"
+	// (rep).
+	Kind string
+	// Name is its declared name, empty for most.
+	Name string
+	// Body is the text without the comment delimiters, trimmed of
+	// surrounding space.
+	Body string
+	// Locale is the language of a comment's text ("en-US"), empty if none is
+	// written; Language is the language of a textual representation ("OCL").
+	Locale, Language string
+	// Annotates are the elements it annotates: those it names with "about",
+	// or the element that owns it when it names none.
+	Annotates []*Element
 }
 
 // Facts are the resolved, ready-to-use properties of one element, derived
@@ -270,6 +292,12 @@ type Facts struct {
 	// Roles are the requirement roles of the element, nil when it has none.
 	Roles *Roles
 
+	// Annotations are the documentation, comments and textual representations
+	// that annotate the element: those it owns that do not name another
+	// element, then those anywhere in the workspace's files that name it with
+	// "about".
+	Annotations []Annotation
+
 	// Conjugates is the type a conjugated type is the conjugate of: from a
 	// Conjugation, or for a ConjugatedPortDefinition its port definition.
 	Conjugates []Generalization
@@ -318,6 +346,7 @@ func (w *Workspace) Facts(e *Element) Facts {
 	f.ControlNode = controlNode(e)
 	f.Behavior = w.behaviorOf(&f)
 	f.Roles = w.rolesOf(e)
+	f.Annotations = w.annotationsOf(e)
 	return f
 }
 
@@ -867,4 +896,81 @@ func (w *Workspace) valueReference(subject *Element) *Element {
 		}
 	}
 	return nil
+}
+
+// annotationsOf finds what annotates an element: its own unaddressed comments
+// and the comments that name it.
+func (w *Workspace) annotationsOf(e *Element) []Annotation {
+	var out []Annotation
+	seen := map[*Element]bool{}
+	add := func(a *Element) {
+		if !seen[a] {
+			seen[a] = true
+			out = append(out, w.annotation(a))
+		}
+	}
+	for _, r := range ownedRels(e) {
+		if !r.IsA("Membership") {
+			continue
+		}
+		for _, a := range r.Children("ownedRelatedElement") {
+			if a.IsA("AnnotatingElement") && !a.Generated && len(annotated(a)) == 0 {
+				add(a)
+			}
+		}
+	}
+	if w.annotated == nil {
+		w.annotated = map[*Element][]*Element{}
+		for _, d := range w.docs {
+			d.Root.Walk(func(a *Element) {
+				if a.IsA("AnnotatingElement") {
+					for _, t := range annotated(a) {
+						w.annotated[t] = append(w.annotated[t], a)
+					}
+				}
+			})
+		}
+	}
+	for _, a := range w.annotated[e] {
+		add(a)
+	}
+	return out
+}
+
+// annotated are the elements an annotating element names with "about".
+func annotated(a *Element) []*Element {
+	var out []*Element
+	for _, r := range ownedRels(a) {
+		if r.IsA("Annotation") {
+			for _, ref := range r.Refs("annotatedElement") {
+				if ref.Target != nil {
+					out = append(out, ref.Target)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func (w *Workspace) annotation(a *Element) Annotation {
+	out := Annotation{
+		Element:   a,
+		Name:      a.Text("declaredName"),
+		Body:      strings.TrimSpace(a.Text("body")),
+		Locale:    a.Text("locale"),
+		Language:  a.Text("language"),
+		Annotates: annotated(a),
+	}
+	switch {
+	case a.IsA("Documentation"):
+		out.Kind = "documentation"
+	case a.IsA("TextualRepresentation"):
+		out.Kind = "textualRepresentation"
+	default:
+		out.Kind = "comment"
+	}
+	if len(out.Annotates) == 0 && a.Owner.IsA("Membership") {
+		out.Annotates = []*Element{a.Owner.Owner}
+	}
+	return out
 }

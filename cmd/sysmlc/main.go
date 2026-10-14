@@ -460,6 +460,17 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 				one("satisfied by", r.SatisfiedBy)
 				many("verifies", r.Verifies)
 			}
+			for _, a := range f.Annotations {
+				var to []string
+				for _, t := range a.Annotates {
+					to = append(to, describe(t))
+				}
+				label := a.Kind
+				if a.Language != "" {
+					label += " " + a.Language
+				}
+				fmt.Fprintf(stdout, "  %s: %q (about %s)\n", label, a.Body, strings.Join(to, ", "))
+			}
 			if len(f.Members) > 0 {
 				var parts []string
 				for _, m := range f.Members {

@@ -135,6 +135,8 @@ func ParseAs(lang Language, name string, src []byte) (*Document, error) {
 type Workspace struct {
 	w    *semantics.Workspace
 	docs []*Document
+
+	annotated map[*Element][]*Element // what annotates each element; see Facts
 }
 
 type config struct{ library bool }
@@ -182,6 +184,7 @@ func (w *Workspace) AddAs(lang Language, name string, src []byte) (*Document, er
 	}
 	d := &Document{Name: name, Language: lang, Root: root, src: src}
 	w.docs = append(w.docs, d)
+	w.annotated = nil
 	return d, nil
 }
 
@@ -202,6 +205,7 @@ func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*Syntax
 	if root != nil {
 		doc = &Document{Name: name, Language: lang, Root: root, src: src}
 		w.docs = append(w.docs, doc)
+		w.annotated = nil
 	}
 	return doc, errs
 }
@@ -219,6 +223,7 @@ func (w *Workspace) Replace(name string, src []byte) (*Document, []*SyntaxError)
 
 // Remove drops the document with a name from the workspace, if there is one.
 func (w *Workspace) Remove(name string) {
+	w.annotated = nil
 	var kept []*Document
 	for _, d := range w.docs {
 		if d.Name == name {
@@ -253,6 +258,7 @@ func (d Diagnostic) String() string {
 // Target. It returns a diagnostic for each name in the added files that does
 // not resolve, in source order; names in the standard library are not reported.
 func (w *Workspace) Resolve() []Diagnostic {
+	w.annotated = nil
 	w.w.Resolve()
 	var out []Diagnostic
 	for _, u := range w.w.Unresolved() {

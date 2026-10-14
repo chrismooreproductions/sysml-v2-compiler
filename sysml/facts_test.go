@@ -589,3 +589,82 @@ func TestFactsRequirementRoles(t *testing.T) {
 		}
 	}
 }
+
+const annotationSource = `package P {
+  doc /* about P */
+  part def Car {
+    doc /* a car */
+    comment c1 /* free note */
+    comment about Car /* about car */
+    comment c3 about Car, Truck locale "en-US" /* both */
+    rep r1 language "OCL" /* x > 0 */
+    part wheel;
+  }
+  part def Truck;
+  /* bracket comment */
+  part def Bike;
+  comment cx about Bike /* about bike */
+}`
+
+func TestFactsAnnotations(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("a.sysml", []byte(annotationSource)); err != nil {
+		t.Fatal(err)
+	}
+	w.Resolve()
+	// summary lists "kind body -> annotated" for each annotation
+	summary := func(name string) []string {
+		out := []string{}
+		for _, a := range w.Facts(w.Lookup(name)).Annotations {
+			var to []string
+			for _, e := range a.Annotates {
+				to = append(to, w.Facts(e).QualifiedName)
+			}
+			s := a.Kind + " " + a.Body + " -> " + strings.Join(to, ",")
+			if a.Locale != "" || a.Language != "" {
+				s += " [" + a.Locale + a.Language + "]"
+			}
+			if a.Name != "" {
+				s += " #" + a.Name
+			}
+			out = append(out, s)
+		}
+		return out
+	}
+	for _, c := range []struct {
+		name string
+		want []string
+	}{
+		{"P", []string{"documentation about P -> P", "comment bracket comment -> P"}},
+		// what Car owns without naming another element, then what names it
+		{"P::Car", []string{
+			"documentation a car -> P::Car",
+			"comment free note -> P::Car #c1",
+			"textualRepresentation x > 0 -> P::Car [OCL] #r1",
+			"comment about car -> P::Car",
+			"comment both -> P::Car,P::Truck [en-US] #c3",
+		}},
+		// a comment owned by Car that is about Truck annotates Truck too
+		{"P::Truck", []string{"comment both -> P::Car,P::Truck [en-US] #c3"}},
+		// a comment elsewhere that names the element
+		{"P::Bike", []string{"comment about bike -> P::Bike #cx"}},
+		{"P::Car::wheel", []string{}},
+	} {
+		if got := summary(c.name); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s:\n got %q\nwant %q", c.name, got, c.want)
+		}
+	}
+
+	// the index follows the files: replacing one forgets what it said
+	w.Replace("a.sysml", []byte("package P { part def Bike; part def Truck; }"))
+	w.Resolve()
+	if got := summary("P::Bike"); len(got) != 0 {
+		t.Errorf("after Replace, Bike has %q", got)
+	}
+
+	// the documentation of a library element is found through the element that owns it
+	if a := w.Facts(w.Lookup("ScalarValues")).Annotations; len(a) == 0 || a[0].Kind != "documentation" ||
+		!strings.HasPrefix(a[0].Body, "This package contains a basic set of primitive scalar") {
+		t.Errorf("library documentation: %+v", a)
+	}
+}
