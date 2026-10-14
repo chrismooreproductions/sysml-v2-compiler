@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-14
+
 ### Fixed
 
 - `expose` no longer fails validation with "An expose must import all", and a
