@@ -202,6 +202,9 @@ func (w *Workspace) resolveName(s scope, text string) *el {
 }
 
 func (w *Workspace) resolveNameUncached(s scope, text string) *el {
+	if rest, ok := strings.CutPrefix(text, "~"); ok {
+		return w.conjugatedPortOf(w.resolveName(s, rest))
+	}
 	segs := splitName(text)
 	if segs[0] == "$" {
 		w.gaps["global-qualified"]++
@@ -224,6 +227,23 @@ func (w *Workspace) resolveNameUncached(s scope, text string) *el {
 		m = w.resolveVisible(e, seg)
 	}
 	return m
+}
+
+// conjugatedPortOf is the membership of the ConjugatedPortDefinition that a
+// port definition owns, given the membership that names the port definition.
+// The written name of a conjugated port typing is "~" and the port
+// definition's name (ConjugatedPortTyping in the Xtext grammar).
+func (w *Workspace) conjugatedPortOf(mem *el) *el {
+	port := w.memberElement(mem)
+	if !port.IsA("PortDefinition") {
+		return nil
+	}
+	for _, m := range w.ownedMemberships(port) {
+		if w.memberElement(m).IsA("ConjugatedPortDefinition") {
+			return m
+		}
+	}
+	return nil
 }
 
 // libraryElement resolves a qualified library name from the global scope.

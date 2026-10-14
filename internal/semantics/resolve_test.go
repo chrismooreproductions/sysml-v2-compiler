@@ -69,6 +69,19 @@ func TestResolvesQualifiedNames(t *testing.T) {
 	}
 }
 
+func TestAConjugatedPortTypingResolvesToTheConjugatedPortDefinition(t *testing.T) {
+	_, roots := resolved(t, false, `package P { package Q { port def Fuel; } part def A { port p : ~Q::Fuel; } }`)
+	got := targetOf(t, roots[0], "ConjugatedPortTyping", "conjugatedPortDefinition")
+	if got.Class != "ConjugatedPortDefinition" || !got.Owner.Owner.IsA("PortDefinition") || nameOf(got.Owner.Owner) != "Fuel" {
+		t.Errorf("target = %s", model.Dump(got))
+	}
+	// only a port definition has one
+	w, _ := resolved(t, false, `package P { part def A; part def B { port p : ~A; } }`)
+	if len(w.Unresolved()) != 1 {
+		t.Errorf("~A on a part definition: %d unresolved, want 1", len(w.Unresolved()))
+	}
+}
+
 func TestOnlyVisibleMembersAreReachableByQualification(t *testing.T) {
 	// a private member is not visible from outside its package
 	_, roots := resolved(t, false, `package P { package Q { private part def Hidden; part def Shown; } part x : Q::Hidden; part y : Q::Shown; }`)
