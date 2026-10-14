@@ -6,14 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
-
-- `QualifiedName` names a feature that has no declared name by the feature it
-  redefines (`P::Car::eng`, not `P::Car`), as `Workspace.EffectiveName` does.
-  Call it after `Resolve`; before that such a feature is skipped as before.
-
-- A conjugated port typing (`port p : ~Fuel`) now resolves to the conjugated
-  port definition of `Fuel`; the name was reported as unresolved.
+## [0.10.0] - 2026-10-14
 
 ### Added
 
@@ -22,6 +15,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   multiplicity as numbers, and the typing, subsetting, reference subsetting,
   redefinition, specialization and conjugation relationships, written and
   implied. `sysmlc facts` prints them.
+
+### Fixed
+
+- A conjugated port typing (`port p : ~Fuel`) now resolves to the conjugated
+  port definition of `Fuel`; the name was reported as unresolved.
+- `QualifiedName` names a feature that has no declared name by the feature it
+  redefines (`P::Car::eng`, not `P::Car`), as `Workspace.EffectiveName` does.
+  Call it after `Resolve`; before that such a feature is skipped as before.
 
 ## [0.9.1] - 2026-10-13
 
