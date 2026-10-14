@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `Facts.Value` gives a feature's value expression: whether it is `default` or
+  initial, the computed value when `Workspace.Evaluate` can compute it, and the
+  expression's source text. `sysmlc facts` prints it.
 - `Facts.Ends` lists the ends of a connector, connection, binding, succession,
   flow, interface or allocation with the feature each points to (the whole
   chain for `pa.out1`), and `Facts.Source` and `Facts.Target` give the ends of

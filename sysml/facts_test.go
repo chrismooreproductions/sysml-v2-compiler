@@ -343,3 +343,55 @@ func TestFactsConnectorEnds(t *testing.T) {
 		t.Errorf("then q: %+v", then.Ends)
 	}
 }
+
+func TestFactsValue(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("v.sysml", []byte(`package P {
+  part def A {
+    attribute a : ScalarValues::Integer = 2 + 3;
+    attribute b : ScalarValues::Integer := 7;
+    attribute c : ScalarValues::Integer default = 9;
+    attribute d : ScalarValues::Real = a * 2.5;
+    attribute e = NumericalFunctions::abs(a);
+    attribute s = "hi";
+    attribute n;
+  }
+}`)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) > 0 {
+		t.Fatal(ds)
+	}
+	for _, c := range []struct {
+		name, text      string
+		computed        bool
+		value           any
+		isDefault, init bool
+	}{
+		{"P::A::a", "2 + 3", true, int64(5), false, false},
+		{"P::A::b", "7", true, int64(7), false, true},
+		{"P::A::c", "9", true, int64(9), true, false},
+		{"P::A::d", "a * 2.5", true, 12.5, false, false},
+		{"P::A::s", `"hi"`, true, "hi", false, false},
+		// a call of a library function cannot be computed yet: the text is what is left
+		{"P::A::e", "NumericalFunctions::abs(a)", false, nil, false, false},
+	} {
+		v := w.Facts(w.Lookup(c.name)).Value
+		if v == nil {
+			t.Errorf("%s: no value", c.name)
+			continue
+		}
+		if v.Text != c.text || v.Computed != c.computed || v.Value != c.value || v.IsDefault != c.isDefault || v.IsInitial != c.init || v.Expression == nil {
+			t.Errorf("%s: %+v, want text %q computed %v value %v", c.name, *v, c.text, c.computed, c.value)
+		}
+	}
+	if v := w.Facts(w.Lookup("P::A::n")).Value; v != nil {
+		t.Errorf("a feature with no value has %+v", *v)
+	}
+	// the standard library's text is not kept
+	for _, m := range w.Facts(w.Lookup("ScalarValues")).Members {
+		if v := w.Facts(m.Element).Value; v != nil && v.Text != "" {
+			t.Errorf("library value text %q", v.Text)
+		}
+	}
+}

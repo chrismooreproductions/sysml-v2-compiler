@@ -103,6 +103,8 @@ type Document struct {
 	// Root is the file's Namespace, which owns its top-level packages and
 	// elements through memberships.
 	Root *Element
+
+	src []byte // the text, for Facts to quote an expression from
 }
 
 // Parse parses one file and builds its model, without resolving any names (every
@@ -178,7 +180,7 @@ func (w *Workspace) AddAs(lang Language, name string, src []byte) (*Document, er
 	if err != nil {
 		return nil, withLanguageHint(lang, name, src, err)
 	}
-	d := &Document{Name: name, Language: lang, Root: root}
+	d := &Document{Name: name, Language: lang, Root: root, src: src}
 	w.docs = append(w.docs, d)
 	return d, nil
 }
@@ -198,7 +200,7 @@ func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*Syntax
 	}
 	var doc *Document
 	if root != nil {
-		doc = &Document{Name: name, Language: lang, Root: root}
+		doc = &Document{Name: name, Language: lang, Root: root, src: src}
 		w.docs = append(w.docs, doc)
 	}
 	return doc, errs

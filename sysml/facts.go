@@ -92,6 +92,25 @@ type End struct {
 	Path []*Element
 }
 
+// A FeatureValue is the value expression a feature is given (= 5, := 5,
+// default = 5).
+type FeatureValue struct {
+	// Expression is the value expression.
+	Expression *Element
+	// IsDefault is true for "default = ...", a value the feature has unless
+	// something redefines it; IsInitial is true for ":=", a value only at the
+	// start.
+	IsDefault, IsInitial bool
+	// Computed is true when Workspace.Evaluate could compute the expression,
+	// and Value then holds the result (as Evaluate returns it).
+	Computed bool
+	Value    any
+	// Text is the expression as written in the source, which is also what a
+	// reader wants for an expression that could not be computed. It is empty
+	// for a file the workspace did not read, such as the standard library.
+	Text string
+}
+
 // Facts are the resolved, ready-to-use properties of one element, derived
 // from the generic tree so that a consumer does not need to know how the
 // metamodel encodes them. A field that does not apply to the element's
@@ -172,6 +191,9 @@ type Facts struct {
 	// point into Ends, and are nil for anything else.
 	Source, Target *End
 
+	// Value is the feature's value expression, nil when it has none.
+	Value *FeatureValue
+
 	// Conjugates is the type a conjugated type is the conjugate of: from a
 	// Conjugation, or for a ConjugatedPortDefinition its port definition.
 	Conjugates []Generalization
@@ -216,6 +238,7 @@ func (w *Workspace) Facts(e *Element) Facts {
 	f.Multiplicity = w.multiplicityOf(e)
 	w.generalizations(&f)
 	w.connectorEnds(&f)
+	f.Value = w.valueOf(e)
 	return f
 }
 
@@ -554,4 +577,40 @@ func (w *Workspace) endOf(end *Element) End {
 	}
 	out.Target = out.Path[len(out.Path)-1]
 	return out
+}
+
+// valueOf reads the value expression of a feature.
+func (w *Workspace) valueOf(e *Element) *FeatureValue {
+	for _, r := range ownedRels(e) {
+		if !r.IsA("FeatureValue") || r.Generated {
+			continue
+		}
+		for _, x := range r.Children("ownedRelatedElement") {
+			if x.Generated {
+				continue
+			}
+			v := &FeatureValue{Expression: x, IsDefault: r.IsTrue("isDefault"), IsInitial: r.IsTrue("isInitial")}
+			if val, err := w.Evaluate(x); err == nil {
+				v.Computed, v.Value = true, val
+			}
+			v.Text = w.sourceText(x)
+			return v
+		}
+	}
+	return nil
+}
+
+// sourceText is the text an element was parsed from, if its file is one the
+// workspace was given.
+func (w *Workspace) sourceText(e *Element) string {
+	name := w.FileOf(e)
+	for _, d := range w.docs {
+		if d.Name == name {
+			a, b := e.Span.Start.Offset, e.Span.End.Offset
+			if a >= 0 && a <= b && b <= len(d.src) {
+				return string(d.src[a:b])
+			}
+		}
+	}
+	return ""
 }

@@ -302,7 +302,8 @@ func printImplied(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnost
 func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
 	for _, doc := range docs {
 		doc.Root.Walk(func(e *sysml.Element) {
-			if e.Generated || e == doc.Root || !(e.IsA("Package") || e.IsA("Type")) || e.IsA("Expression") || e.IsA("Multiplicity") {
+			if e.Generated || e == doc.Root || !(e.IsA("Package") || e.IsA("Type")) || e.IsA("Expression") || e.IsA("Multiplicity") ||
+				e.Owner.IsA("ParameterMembership") && e.Owner.Owner.IsA("Expression") {
 				return
 			}
 			f := w.Facts(e)
@@ -360,6 +361,20 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 					parts = append(parts, s)
 				}
 				fmt.Fprintf(stdout, "  %s: %s\n", l.name, strings.Join(parts, ", "))
+			}
+			if v := f.Value; v != nil {
+				kind := "="
+				switch {
+				case v.IsDefault:
+					kind = "default ="
+				case v.IsInitial:
+					kind = ":="
+				}
+				if v.Computed {
+					fmt.Fprintf(stdout, "  value: %s %s (%s)\n", kind, v.Text, sysml.FormatValue(v.Value))
+				} else {
+					fmt.Fprintf(stdout, "  value: %s %s (not computed)\n", kind, v.Text)
+				}
 			}
 			if len(f.Ends) > 0 {
 				var parts []string
