@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `QualifiedName` names a feature that has no declared name by the feature it
+  redefines (`P::Car::eng`, not `P::Car`), as `Workspace.EffectiveName` does.
+  Call it after `Resolve`; before that such a feature is skipped as before.
+
 - A conjugated port typing (`port p : ~Fuel`) now resolves to the conjugated
   port definition of `Fuel`; the name was reported as unresolved.
 

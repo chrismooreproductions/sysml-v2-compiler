@@ -82,6 +82,19 @@ func TestAConjugatedPortTypingResolvesToTheConjugatedPortDefinition(t *testing.T
 	}
 }
 
+func TestQualifiedNameOfAFeatureThatTakesItsNameFromWhatItRedefines(t *testing.T) {
+	_, roots := resolved(t, false, `package P { part def Base { part eng; } part def Car :> Base { part :>> eng; } }`)
+	var got []string
+	roots[0].Walk(func(e *model.Element) {
+		if e.IsA("PartUsage") {
+			got = append(got, QualifiedName(e))
+		}
+	})
+	if want := []string{"P::Base::eng", "P::Car::eng"}; len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestOnlyVisibleMembersAreReachableByQualification(t *testing.T) {
 	// a private member is not visible from outside its package
 	_, roots := resolved(t, false, `package P { package Q { private part def Hidden; part def Shown; } part x : Q::Hidden; part y : Q::Shown; }`)

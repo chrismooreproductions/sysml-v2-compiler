@@ -404,9 +404,10 @@ func (w *Workspace) Features(t *Element) []*Element { return w.w.Features(t) }
 // TypesOf lists the types of a feature: its own, implied and inherited types.
 func (w *Workspace) TypesOf(f *Element) []*Element { return w.w.TypesOf(f) }
 
-// QualifiedName names an element by the declared names along its ownership
-// chain, such as "Vehicles::Car::engine". It is "" for an element with no
-// named owner. A name that is not a plain identifier is quoted.
+// QualifiedName names an element by the names along its ownership chain, such
+// as "Vehicles::Car::engine". A feature without a declared name takes the name
+// of the feature it redefines, once the workspace is resolved. It is "" for an
+// element with no named owner. A name that is not a plain identifier is quoted.
 func QualifiedName(e *Element) string { return semantics.QualifiedName(e) }
 
 // FileOf is the name of the file an element came from. It is "library:" followed

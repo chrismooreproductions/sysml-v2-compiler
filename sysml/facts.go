@@ -89,9 +89,8 @@ type Facts struct {
 	Name string
 	// ShortName is the declared short name (the alias in <angle brackets>).
 	ShortName string
-	// QualifiedName is as the function QualifiedName gives it, except that a
-	// feature without a declared name is qualified by its effective name; it
-	// is empty for an element with no named owner.
+	// QualifiedName is as the function QualifiedName gives it; it is empty
+	// for an element with no named owner.
 	QualifiedName string
 	// IsLibrary is true for an element of the standard library.
 	IsLibrary bool
@@ -164,12 +163,6 @@ func (w *Workspace) Facts(e *Element) Facts {
 		QualifiedName: QualifiedName(e),
 		IsLibrary:     strings.HasPrefix(w.FileOf(e), "library:"),
 	}
-	if e.Text("declaredName") == "" && f.Name != "" && e.Owner.IsA("Membership") {
-		// a feature that takes its name from the feature it redefines is
-		// qualified by that name, which QualifiedName does not know
-		f.QualifiedName = QualifiedName(e.Owner.Owner) + "::" + quoteName(f.Name)
-		f.QualifiedName = strings.TrimPrefix(f.QualifiedName, "::")
-	}
 	f.ShortName = e.Text("declaredShortName")
 	if f.ShortName == "" && e.Text("declaredName") == "" {
 		f.ShortName = w.effectiveShortName(e)
@@ -207,17 +200,6 @@ func flag(e *Element, name string) bool {
 		return p.Default == "true"
 	}
 	return false
-}
-
-// quoteName writes a name that is not a plain identifier in quotes.
-func quoteName(n string) string {
-	for i, c := range n {
-		if c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || i > 0 && c >= '0' && c <= '9' {
-			continue
-		}
-		return "'" + n + "'"
-	}
-	return n
 }
 
 // effectiveShortName is the short name of a feature that has no name of its own

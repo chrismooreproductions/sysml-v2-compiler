@@ -36,15 +36,15 @@ func (w *Workspace) Unresolved() []Unresolved {
 	return out
 }
 
-// QualifiedName names an element by the declared names along its ownership
-// chain, such as "Vehicles::Car::engine". An element with no name on its chain
-// gets "". A name that is not a plain identifier is quoted.
+// QualifiedName names an element by the names along its ownership chain, such
+// as "Vehicles::Car::engine". A feature without a declared name is named, as
+// Element.effectiveName has it, by the feature it redefines (once the
+// workspace is resolved). An element with no name on its chain gets "". A name
+// that is not a plain identifier is quoted.
 func QualifiedName(e *el) string {
 	var parts []string
 	for ; e != nil; e = e.Owner {
-		if n := e.Text("declaredName"); n != "" {
-			parts = append(parts, quoteName(n))
-		} else if n := e.Text("declaredShortName"); n != "" {
+		if n := nameForQualification(e, map[*el]bool{}); n != "" {
 			parts = append(parts, quoteName(n))
 		}
 	}
@@ -52,6 +52,34 @@ func QualifiedName(e *el) string {
 		parts[i], parts[j] = parts[j], parts[i]
 	}
 	return strings.Join(parts, "::")
+}
+
+// nameForQualification is the name an element has in a qualified name: its
+// declared name, else its declared short name, else for a feature the name of
+// the first feature it redefines.
+func nameForQualification(e *el, seen map[*el]bool) string {
+	if n := e.Text("declaredName"); n != "" {
+		return n
+	}
+	if n := e.Text("declaredShortName"); n != "" {
+		return n
+	}
+	if !e.IsA("Feature") || seen[e] {
+		return ""
+	}
+	seen[e] = true
+	for _, r := range e.Children("ownedRelationship") {
+		if r.IsTrue("isImplied") || !r.IsA("Redefinition") {
+			continue
+		}
+		for _, ref := range r.Refs("redefinedFeature") {
+			if ref.Target != nil {
+				return nameForQualification(ref.Target, seen)
+			}
+		}
+		return "" // only the first redefinition names the feature
+	}
+	return ""
 }
 
 func quoteName(n string) string {
