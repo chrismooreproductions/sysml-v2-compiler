@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-15
+
 ### Added
 
 - `Facts.IsMessage` tells a `message` from a `flow`.
