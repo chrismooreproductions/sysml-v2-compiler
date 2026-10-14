@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A conjugated port typing (`port p : ~Fuel`) now resolves to the conjugated
+  port definition of `Fuel`; the name was reported as unresolved.
+
 ### Added
 
 - `Workspace.Facts` returns the resolved facts about an element: identity,

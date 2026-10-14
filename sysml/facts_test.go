@@ -4,7 +4,6 @@ package sysml
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -28,6 +27,7 @@ const factsSource = `package P {
     constant attribute k : Integer = 1;
     derived attribute d : Integer;
     abstract part x;
+    exhibit state st;
     variation part v { part v1; }
   }
   connection def Link { end part left : Base; end part right : Base; }
@@ -45,10 +45,7 @@ func factsWorkspace(t *testing.T) *Workspace {
 		t.Fatal(err)
 	}
 	for _, d := range w.Resolve() {
-		// ~Fuel is a conjugated port name that the resolver does not know yet
-		if !strings.Contains(d.Message, "~Fuel") {
-			t.Fatalf("unexpected diagnostic: %v", d)
-		}
+		t.Fatalf("unexpected diagnostic: %v", d)
 	}
 	return w
 }
@@ -129,6 +126,8 @@ func TestFactsFeatureProperties(t *testing.T) {
 		{"P::Car::k", props{Reference: true, Constant: true, Unique: true}},
 		{"P::Car::d", props{Reference: true, Derived: true, Unique: true}},
 		{"P::Car::o", props{Composite: true, Ordered: true}},
+		// the pilot makes an exhibited state non-composite, so it is referential
+		{"P::Car::st", props{Reference: true, Unique: true}},
 		{"P::Car::x", props{Composite: true, Unique: true, Abstract: true}},
 		{"P::Car::v", props{Composite: true, Unique: true, Abstract: true, Var: true}},
 		{"P::Fuel::g", props{Direction: "out", Reference: true, Unique: true}},
@@ -214,9 +213,10 @@ func TestFactsRelationshipsAreSplitByKind(t *testing.T) {
 
 func TestFactsConjugation(t *testing.T) {
 	w := factsWorkspace(t)
-	// the port typed ~Fuel is marked conjugated although the name does not resolve
-	if p := w.Facts(w.Lookup("P::Car::p")); !p.Conjugated {
-		t.Errorf("P::Car::p is not conjugated: %+v", p)
+	// the port typed ~Fuel is conjugated, and its typing is Fuel's conjugated port definition
+	p := w.Facts(w.Lookup("P::Car::p"))
+	if !p.Conjugated || len(p.Types) < 1 || p.Types[0].Kind != "ConjugatedPortTyping" || !p.Types[0].Target.IsA("ConjugatedPortDefinition") {
+		t.Errorf("P::Car::p: conjugated %v, types %q", p.Conjugated, w.kinds(p.Types))
 	}
 	if w.Facts(w.Lookup("P::Car::driver")).Conjugated {
 		t.Error("an ordinary port is conjugated")
