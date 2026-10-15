@@ -19,8 +19,8 @@ import (
 // fails, and a fix lowers the number. Lower them to what is measured, never
 // raise them.
 const (
-	maxSysMLExampleDiagnostics = 31
-	maxKerMLExampleDiagnostics = 29
+	maxSysMLExampleDiagnostics = 21
+	maxKerMLExampleDiagnostics = 28
 )
 
 // exampleDiagnostics checks every model with an extension under a directory as

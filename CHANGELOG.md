@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The feature an assignment assigns is found among the features of the
+  expression it is assigned on (`assign counter.count := 0`,
+  `assign counting.counter.count := ...`), and a feature chain can follow the
+  result of a call (`Increment(c).count`) or of a constructor
+  (`new A().g.g`). The release's SysML example models report 21 diagnostics
+  instead of 31, and the KerML ones 28 instead of 29.
+  ([#24](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/24),
+  [#25](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/25))
 - A variant that names an existing usage (`variant q { ... }`) and a `perform`
   that names an action (`perform ActionTree::providePower;`) are called what
   they reference, so `v::q` and `perform action :>> providePower { ... }`

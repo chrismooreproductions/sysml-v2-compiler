@@ -675,3 +675,30 @@ func TestAReferenceVariantAndAPerformTakeTheNameOfWhatTheyReference(t *testing.T
 		t.Fatal(diags)
 	}
 }
+
+// The feature an assignment assigns is looked up among the features of the
+// expression it is assigned on (assign counter.count := 0), and a chain can
+// follow the result of a call or of a constructor.
+func TestAChainResolvesFromAnAssignmentTargetACallAndAConstructor(t *testing.T) {
+	_, _, diags := checked(t, "a.sysml", []byte(`package A {
+    part def Counter { attribute count : ScalarValues::Integer; part g : Counter; }
+    state def Counting { part counter : Counter; }
+    calc def Increment { in c : Counter; return : Counter; c }
+
+    state def Running {
+        part counter : Counter;
+        entry assign counter.count := 0;
+        do assign counter.count := counter.count + 1;
+    }
+    action a {
+        state counting : Counting;
+        assign counting.counter.count := counting.counter.count + 1;
+        assign counting.counter.count := Increment(counting.counter).count;
+    }
+    part h = new Counter().g;
+    part i = new Counter().g.g.g;
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+}

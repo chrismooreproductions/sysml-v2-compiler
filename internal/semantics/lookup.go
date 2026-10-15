@@ -283,6 +283,25 @@ func (w *Workspace) libraryElement(qn string) *el {
 	return e
 }
 
+// assignmentTarget is the feature the expression an assignment is made on
+// names: the counter of "assign counter.count := 0". It is the result of the
+// expression the assignment's first parameter is bound to.
+func (w *Workspace) assignmentTarget(a *el) *el {
+	for _, m := range w.rels(a, "ParameterMembership") {
+		p := first(w.ownedRelated(m))
+		if p == nil {
+			continue
+		}
+		for _, fv := range w.rels(p, "FeatureValue") {
+			if x := first(w.ownedRelated(fv)); x != nil {
+				return w.chainResult(x)
+			}
+		}
+		return nil
+	}
+	return nil
+}
+
 // chainResult returns the feature an expression's result is, for the
 // expressions that name one: a feature reference, or a feature chain's target.
 // Other kinds of expression need type inference and are a gap.
@@ -290,6 +309,12 @@ func (w *Workspace) chainResult(e *el) *el {
 	switch {
 	case e.IsA("FeatureChainExpression"), e.IsA("FeatureReferenceExpression"):
 		return w.chainTarget(e)
+	case e.IsA("ConstructorExpression"), e.IsA("InvocationExpression") && !e.IsA("OperatorExpression"):
+		// new A().g, f(x).g: the result of the expression, which is typed by
+		// the type it instantiates or by what the function returns
+		if r := w.resultOf(e); r != nil {
+			return r
+		}
 	case e.IsA("IndexExpression"), e.IsA("SelectExpression"):
 		// IndexExpressionAdapter and SelectExpressionAdapter: the result
 		// subsets the result of the first argument, unless that is a collection
@@ -387,6 +412,13 @@ func (w *Workspace) scopeFor(owner *el, role string) scope {
 		if rel == nil || rel.Owner == nil {
 			return scope{}
 		}
+		// the feature path an assignment assigns (assign a.b.c := 1 chains b and
+		// c from what a is)
+		if rel.IsA("Membership") && rel.Owner.IsA("AssignmentActionUsage") {
+			if target := w.assignmentTarget(rel.Owner); target != nil {
+				return scope{ns: target, inside: false}
+			}
+		}
 		// a feature that chains (feature c chains a.b) is a member of its
 		// namespace: look from where it sits
 		if rel.IsA("Membership") {
@@ -417,6 +449,13 @@ func (w *Workspace) scopeFor(owner *el, role string) scope {
 		if owner.Class == "Membership" && owner.Owner.IsA("FeatureChainExpression") {
 			// the target of a chain: look among the members of the source
 			return scope{ns: w.chainSource(owner.Owner), inside: false}
+		}
+		if owner.Class == "Membership" && owner.Owner.IsA("AssignmentActionUsage") {
+			// the feature an assignment assigns (counter.count := 0): look among
+			// the features of the expression it is assigned on (counter)
+			if target := w.assignmentTarget(owner.Owner); target != nil {
+				return scope{ns: target, inside: false}
+			}
 		}
 		return scope{ns: w.nonExpressionNamespaceFor(owner), inside: true}
 	case owner.IsA("Relationship"):
