@@ -305,13 +305,7 @@ var structuralChecks = []check{
 		return e.Text("kind") == "effect" && !first(w.ownedRelated(e)).IsA("ActionUsage")
 	}},
 	{class: "OccurrenceUsage", constraint: "validateOccurrenceUsageIndividualDefinition", violated: func(w *Workspace, e *el) bool {
-		n := 0
-		for _, r := range w.rels(e, "FeatureTyping") {
-			if g := w.refTarget(r, "type"); g.IsA("OccurrenceDefinition") && g.IsTrue("isIndividual") {
-				n++
-			}
-		}
-		return n > 1
+		return w.individualDefinitions(e) > 1
 	}},
 	// -- ports --
 	{class: "PortDefinition", constraint: "validatePortDefinitionOwnedUsagesNotComposite", at: compositeUsages},
@@ -325,13 +319,7 @@ var structuralChecks = []check{
 		if !e.IsTrue("isIndividual") {
 			return false
 		}
-		n := 0
-		for _, r := range w.rels(e, "FeatureTyping") {
-			if g := w.refTarget(r, "type"); g.IsA("OccurrenceDefinition") && g.IsTrue("isIndividual") {
-				n++
-			}
-		}
-		return n != 1
+		return w.individualDefinitions(e) != 1
 	}},
 	// -- references and conjugation --
 	{class: "FeatureReferenceExpression", constraint: "validateFeatureReferenceExpressionReferentIsFeature", violated: func(w *Workspace, e *el) bool {
@@ -473,4 +461,17 @@ func nonUsageEnds(w *Workspace, e *el) []*el {
 		return []*el{e}
 	}
 	return owned
+}
+
+// individualDefinitions counts the individual definitions among a usage's types:
+// the occurrence definitions in OccurrenceUsage.occurrenceDefinition, which are
+// the types the usage has, written, implied or inherited by subsetting.
+func (w *Workspace) individualDefinitions(e *el) int {
+	n := 0
+	for _, t := range w.typesOf(e) {
+		if t.IsA("OccurrenceDefinition") && t.IsTrue("isIndividual") {
+			n++
+		}
+	}
+	return n
 }

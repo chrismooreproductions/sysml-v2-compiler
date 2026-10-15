@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- An individual usage typed through what it subsets (`individual timeslice t3
+  :> ind;`) is no longer reported as "must be typed by one individual
+  definition": the constraints count the individual definitions among the
+  usage's types, not only the ones it writes.
+  ([#28](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/28))
 - The feature an assignment assigns is found among the features of the
   expression it is assigned on (`assign counter.count := 0`,
   `assign counting.counter.count := ...`), and a feature chain can follow the

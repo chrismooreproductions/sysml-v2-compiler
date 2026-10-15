@@ -4,6 +4,7 @@ package sysml
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -700,5 +701,40 @@ func TestAChainResolvesFromAnAssignmentTargetACallAndAConstructor(t *testing.T) 
 }`))
 	if len(diags) != 0 {
 		t.Fatal(diags)
+	}
+}
+
+// An individual must have exactly one individual definition among its types,
+// including the types it has by subsetting; the constraint reports a count of
+// zero and of two, not an individual typed through what it subsets.
+func TestAnIndividualCanBeTypedThroughWhatItSubsets(t *testing.T) {
+	good := `package J {
+    occurrence def Occ;
+    individual occurrence def Ind { snapshot s2; }
+    individual occurrence ind : Ind, Occ {
+        individual timeslice t3 :> ind;
+        individual snapshot s4 : Ind;
+    }
+}`
+	if _, _, diags := checked(t, "good.sysml", []byte(good)); len(diags) != 0 {
+		t.Errorf("valid: %v", diags)
+	}
+	for name, c := range map[string]struct {
+		src  string
+		want []string
+	}{
+		"none": {`package J { occurrence def Occ; individual occurrence i : Occ; }`,
+			[]string{"An individual must be typed by one individual definition."}},
+		"two": {`package J { individual occurrence def A; individual occurrence def B; individual occurrence i : A, B; }`,
+			[]string{"At most one individual definition is allowed.", "An individual must be typed by one individual definition."}},
+	} {
+		_, _, diags := checked(t, name+".sysml", []byte(c.src))
+		var got []string
+		for _, d := range diags {
+			got = append(got, d.Message)
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: %q, want %q", name, got, c.want)
+		}
 	}
 }
