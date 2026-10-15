@@ -198,6 +198,11 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 		w.addParticipantSubsetting(t, add)
 		w.addCrossingSpecialization(t, add)
 		w.addRedefinitions(t, add) // FeatureAdapter.addRedefinitions
+		// the payload of a transition subsets its trigger's payload, as the
+		// chain [accept action, payload] (TransitionUsageAdapter)
+		if accepter, accepted := w.transitionPayload(t); accepted != nil {
+			add("Subsetting", w.chainFeatures(accepter, accepted))
+		}
 		w.addBoundValue(t, add)
 		w.addPushedByOwner(t, add)
 	}

@@ -35,6 +35,16 @@ func (w *Workspace) resolve(includeLibrary bool) {
 			roots = append(roots, root)
 		}
 	}
+	// A transition names its payload after its trigger's, and that name is one
+	// the references that follow look for (accept pub : Sig if pub.x > 0), so
+	// it is set before they are resolved.
+	for _, root := range roots {
+		root.Walk(func(e *el) {
+			if e.IsA("TransitionUsage") {
+				w.transitionRules(e)
+			}
+		})
+	}
 	for _, root := range roots {
 		root.Walk(func(e *el) {
 			for _, p := range e.Props {
@@ -119,15 +129,47 @@ func (w *Workspace) applyResolutionRules(e *el) {
 	if e.IsA("Usage") && e.IsTrue("isEnd") && w.mayTimeVary(e) {
 		e.Set("isConstant", model.Bool(true))
 	}
-	if e.IsA("TransitionUsage") {
-		w.transitionRules(e)
-	}
 	if w.wantsDefaultMultiplicity(e) {
 		mult := &el{Class: "Multiplicity", Generated: true}
 		mem := &el{Class: "OwningMembership", Generated: true}
 		mem.Add("ownedRelatedElement", "+=", mult)
 		e.Add("ownedRelationship", "+=", mem)
 	}
+}
+
+// transitionPayload is, for a feature that is the payload parameter of a
+// transition (its second parameter), the trigger's accept action and that
+// action's payload parameter; both are nil for any other feature.
+func (w *Workspace) transitionPayload(f *el) (accepter, accepted *el) {
+	m := f.Owner
+	if !m.IsA("ParameterMembership") || m.IsA("ReturnParameterMembership") {
+		return nil, nil
+	}
+	t := m.Owner
+	if !t.IsA("TransitionUsage") {
+		return nil, nil
+	}
+	n := 0
+	var payload *el
+	for _, r := range t.Children("ownedRelationship") {
+		if r.IsA("ParameterMembership") && !r.IsA("ReturnParameterMembership") {
+			if n++; n == 2 {
+				payload = first(w.ownedRelated(r))
+			}
+		}
+		if r.IsA("TransitionFeatureMembership") && r.Text("kind") == "trigger" && accepter == nil {
+			accepter = first(w.ownedRelated(r))
+		}
+	}
+	if payload != f || accepter == nil {
+		return nil, nil
+	}
+	for _, r := range w.rels(accepter, "ParameterMembership") {
+		if !r.IsA("ReturnParameterMembership") {
+			return accepter, first(w.ownedRelated(r))
+		}
+	}
+	return nil, nil
 }
 
 // transitionRules follows TransitionUsageAdapter and ReferenceUsageAdapter: a
@@ -138,7 +180,12 @@ func (w *Workspace) transitionRules(t *el) {
 	hasLink := false
 	var params []*el
 	var accepter *el
-	for _, r := range w.rels(t, "") {
+	// the tree itself, not w.rels: the memoized list does not see the link
+	// feature an earlier Resolve added, and this runs on every Resolve
+	for _, r := range t.Children("ownedRelationship") {
+		if r.IsTrue("isImplied") {
+			continue
+		}
 		switch {
 		case r.IsA("ParameterMembership"):
 			params = append(params, first(w.ownedRelated(r)))

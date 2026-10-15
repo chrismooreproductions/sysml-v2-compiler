@@ -49,9 +49,7 @@ func TestLibraryFilesListsTheEmbeddedLibrary(t *testing.T) {
 }
 
 // The library compiles on its own: given to a workspace of its own, its files
-// resolve as models a consumer can show. One reference still does not resolve,
-// the payload of a transition's accept action in Actions.sysml (a gap shared
-// with the conformance run); a new diagnostic is a regression.
+// resolve with no diagnostics, as models a consumer can show.
 func TestTheLibraryFilesCompileOnTheirOwn(t *testing.T) {
 	files, _ := LibraryFiles()
 	w, err := NewWorkspace(WithoutStandardLibrary())
@@ -63,11 +61,8 @@ func TestTheLibraryFilesCompileOnTheirOwn(t *testing.T) {
 			t.Fatalf("%s: %v", f.Path, err)
 		}
 	}
-	const known = `Systems Library/Actions.sysml:238:37: cannot resolve "apayload" (searched from Actions::AcceptAction::aState::aTransition)`
 	for _, d := range w.Resolve() {
-		if d.String() != known {
-			t.Errorf("unexpected diagnostic: %v", d)
-		}
+		t.Errorf("unexpected diagnostic: %v", d)
 	}
 	if n := len(w.Documents()); n != len(files) {
 		t.Errorf("%d documents, want %d", n, len(files))

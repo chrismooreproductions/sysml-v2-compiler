@@ -8,6 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The payload an `accept` declares is visible to the rest of its transition
+  (`accept pub : Sig if pub.topic > 0 do ...`), and has the type the accept
+  gives it. The transition's payload parameter takes the accept's name before
+  references are resolved, and subsets the chain from the accept to its payload
+  as the pilot does. This was the standard library's last unresolved reference
+  (`apayload` in `Actions.sysml`): the library now compiles on its own with no
+  diagnostics, and 19,115 of its 19,119 references match the pilot (19,114
+  before). The release's SysML example models report 48 diagnostics instead of
+  71. ([#27](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/27))
+- `Resolve` added a link feature to every transition that has a succession each
+  time it was called (so `sysmlc check`, which resolves twice, made two); it is
+  added once.
 - A port typed by a conjugated port definition (`port p : ~FuelPort`) has the
   features of `FuelPort`: `p.fuel` and `in item :>> fuel` resolve. The port had
   no type from `~FuelPort`, and the conjugated definition inherited nothing

@@ -19,7 +19,7 @@ import (
 // fails, and a fix lowers the number. Lower them to what is measured, never
 // raise them.
 const (
-	maxSysMLExampleDiagnostics = 71
+	maxSysMLExampleDiagnostics = 48
 	maxKerMLExampleDiagnostics = 29
 )
 

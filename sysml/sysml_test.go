@@ -596,3 +596,55 @@ func TestAConjugatedPortHasTheFeaturesOfItsOriginal(t *testing.T) {
 		t.Errorf("fuel is %v", f)
 	}
 }
+
+// The payload of an accept is visible to the rest of its transition, by the
+// name the accept gives it, and has the accept's type.
+func TestATransitionsPayloadIsVisibleToItsGuardAndEffect(t *testing.T) {
+	_, _, diags := checked(t, "p.sysml", []byte(`package P {
+    attribute def Sig { attribute topic : ScalarValues::Integer; }
+    port def Pt { in item sig : Sig; }
+    state def S1 {
+        state a; state b;
+        transition t1 first a accept pub : Sig if pub.topic > 0 then b;
+    }
+    state def S2 {
+        port pp : Pt;
+        state a; state b;
+        transition t2 first a accept pub : Sig via pp if pub.topic > 0 then b;
+    }
+    state def S3 {
+        state a; state b;
+        transition t3 first a accept pub : Sig do action x { in v = pub.topic; } then b;
+    }
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+}
+
+// Resolve can be called again: the link feature a transition with a succession
+// gets is added once, not on every call.
+func TestResolveAddsATransitionsLinkFeatureOnce(t *testing.T) {
+	w, doc, _ := checked(t, "p.sysml", []byte(`package P {
+    attribute def Sig;
+    state def S1 { state a; state b; transition t1 first a accept pub : Sig then b; }
+}`))
+	w.Resolve()
+	w.Resolve()
+	links := 0
+	doc.Root.Walk(func(e *Element) {
+		if e.Class != "TransitionUsage" {
+			return
+		}
+		for _, r := range e.Children("ownedRelationship") {
+			for _, x := range r.Children("ownedRelatedElement") {
+				if x.Generated && x.Class == "ReferenceUsage" {
+					links++
+				}
+			}
+		}
+	})
+	if links != 1 {
+		t.Errorf("%d generated link features, want 1", links)
+	}
+}
