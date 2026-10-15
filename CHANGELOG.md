@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-15
+
 ### Added
 
 - `Workspace.EvalConstraint` says whether a constraint holds, `EvalRequirement`
