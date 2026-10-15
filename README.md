@@ -29,6 +29,10 @@ source span and ordered properties named as in the specification; `IsA`,
 `Children`, `Child`, `Text`, `IsTrue` and `Refs` read it. Every exported
 identifier is documented; run `go doc github.com/chrismooreproductions/sysml-v2-compiler/sysml`.
 
+`LibraryFiles` returns the standard library's files (path, language, source)
+for a consumer that wants to show them; `Workspace.FileOf` names the file of a
+library element `library:` and that path.
+
 `Workspace.Facts(e)` returns the resolved properties of one element so that a
 consumer that draws or tabulates models need not know how the metamodel
 encodes them: identity, owner and members (with how each is held: owning,

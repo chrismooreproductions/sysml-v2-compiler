@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `LibraryFiles` lists the files of the embedded standard library, each with
+  its `Path`, `Language` and `Source`, in path order, so a consumer can show
+  the library or compile it itself (`NewWorkspace(WithoutStandardLibrary())`,
+  then `AddAs` each file). `Workspace.FileOf` names the file of a library
+  element `library:` followed by that `Path`. All but one of the library's
+  references resolve when its files are compiled this way.
+  ([#4](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/4))
+
 ### Fixed
 
 - A feature with no declared name takes the name of the feature it
