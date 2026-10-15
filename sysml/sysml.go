@@ -347,10 +347,15 @@ type Seq = semantics.Seq
 
 // Quantity is a number with its unit: the value of 1800 [kg]. Number is an
 // int64 or a float64, Unit is the unit feature (SI::kilogram), and Symbol is
-// the unit's short name (kg). Within one unit a quantity can be added,
-// subtracted, compared and scaled by a plain number; converting between units
-// and derived units (a product or quotient of units) are not supported, and an
-// expression that needs them is not evaluable.
+// the unit's short name (kg). Quantities can be added, subtracted, compared and
+// scaled by a plain number. Another unit of the same quantity is converted
+// through the conversions the standard library declares (3 [m] + 2 [km] is
+// 2003 [m]), into the left operand's unit; units of different quantities, and
+// derived units (a product or quotient of quantities), are not evaluable.
+// Inexact is true when the number depends on a conversion factor the library
+// gives as approximate, such as the dalton's; comparisons are decided with a
+// relative tolerance of 1e-12 after a conversion, and one that is equal only
+// to within an inexact factor is not decided.
 type Quantity = semantics.Quantity
 
 // EvalError says why an expression could not be evaluated, and where.

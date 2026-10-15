@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Quantities in different units of the same quantity convert through the
+  conversions the standard library declares: by prefix (`km` to `m`) and by
+  convention (`ft` to `m`, `h` to `min` to `s`). `3 [m] + 2 [km]` is
+  `2003 [m]` (in the left operand's unit), `3 [ft] == 0.9144 [m]` is true, and
+  `1800 [kg] <= 2000 [kg]` still works. Units of different quantities are
+  reported as such (`kg and m measure different quantities`). A conversion the
+  library gives as approximate (`isExact = false`, the dalton, the degree) marks
+  the result `Quantity.Inexact`, and a comparison that is equal only to within
+  an inexact factor is not decided. Derived units (`mass * extra`, `[m/s]`) are
+  still not evaluable. ([#19](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/19))
+
 ## [0.18.1] - 2026-10-15
 
 Name resolution and validation fixes, found by checking the release's example

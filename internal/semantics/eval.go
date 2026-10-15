@@ -444,6 +444,13 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 		}
 		l, _ := lv.([]Value)
 		r, _ := rv.([]Value)
+		if len(l) == 1 && len(r) == 1 && (isQuantity(l[0]) || isQuantity(r[0])) {
+			v, why := ev.quantityOp(op, l[0], r[0])
+			if why != "" {
+				return nil, ev.fail(e, "%s", why)
+			}
+			return []Value{v}, nil
+		}
 		if why := quantitiesComparable(op, l, r); why != "" {
 			return nil, ev.fail(e, "%s", why)
 		}
@@ -474,7 +481,7 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 		return nil, err
 	}
 	if isQuantity(l) || isQuantity(r) {
-		v, why := quantityOp(op, l, r)
+		v, why := ev.quantityOp(op, l, r)
 		if why != "" {
 			return nil, ev.fail(e, "%s", why)
 		}
