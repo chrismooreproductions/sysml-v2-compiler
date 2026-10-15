@@ -394,7 +394,9 @@ func (w *Workspace) Members(namespace *Element) []*Element { return w.w.Members(
 func (w *Workspace) OwnedMembers(namespace *Element) []*Element { return w.w.OwnedMembers(namespace) }
 
 // EffectiveName is the name of an element: its declared name, or for a feature
-// without one the name of the feature it redefines.
+// without one the name of the feature it redefines, whether the source writes
+// the redefinition or the specification implies it (an unnamed return parameter
+// is "result", an unnamed connector end "source" or "target").
 func (w *Workspace) EffectiveName(e *Element) string { return w.w.EffectiveName(e) }
 
 // Supertypes lists the types a type specializes directly, whether the source

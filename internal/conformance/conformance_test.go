@@ -70,7 +70,7 @@ func TestStructureMatchesTheOracle(t *testing.T) {
 // The ratchet for name resolution: every reference in the standard library is
 // resolved and its target compared with the oracle's, by position.
 const (
-	minMatchingRefs  = 19110
+	minMatchingRefs  = 19114
 	maxResolvedDiffs = 0
 	minResolvedExact = 94
 )

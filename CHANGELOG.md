@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A feature with no declared name takes the name of the feature it
+  *implicitly* redefines, as the pilot does, not only one the source writes:
+  an unnamed `return : T[1]` is `result`, so `F::result::dimension` resolves to
+  `F`'s own return parameter instead of the inherited `result` (the reference
+  was unresolved). Against the pilot's own output, 19,114 of the standard
+  library's 19,119 references now match (19,110 before). `EffectiveName` now
+  says `source` or `target` for an unnamed connector end; `Facts.End.Name` is
+  still the declared name.
+
 ## [0.12.1] - 2026-10-15
 
 ### Fixed

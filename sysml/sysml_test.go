@@ -506,3 +506,30 @@ func TestResolveAddsADefaultMultiplicityOnce(t *testing.T) {
 		t.Errorf("%d multiplicities on the rendering usage, want 1", count)
 	}
 }
+
+// F::result is F's own unnamed return parameter, which takes the name of the
+// result it implicitly redefines, not the result it inherits; so its members
+// are found.
+func TestAnUnnamedReturnParameterIsNamedForTheResultItImplicitlyRedefines(t *testing.T) {
+	w, err := NewWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Add("q.kerml", []byte(`package Q {
+	datatype V { feature dimension : ScalarValues::Natural; }
+	function F { in x : ScalarValues::Real; return : V[1] { :>> dimension = 3; } }
+	function G specializes F {
+		return : V[1] { feature :>> F::result::dimension; }
+	}
+}`)); err != nil {
+		t.Fatal(err)
+	}
+	if diags := w.Resolve(); len(diags) != 0 {
+		t.Fatalf("unresolved: %v", diags)
+	}
+	f := w.Lookup("Q::F")
+	res := w.Member(f, "result")
+	if res == nil || res.Owner == nil || res.Owner.Owner != f {
+		t.Errorf("F::result is %v, want the return parameter F owns", res)
+	}
+}

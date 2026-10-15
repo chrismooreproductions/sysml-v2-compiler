@@ -78,8 +78,9 @@ type Multiplicity struct {
 type End struct {
 	// Element is the end feature the connector owns.
 	Element *Element
-	// Name is the end feature's effective name; it is empty for an end the
-	// source does not name.
+	// Name is the end feature's declared name; it is empty for an end the
+	// source does not name (not "source" or "target", which such an end takes
+	// as its effective name from the feature it implicitly redefines).
 	Name string
 	// Target is the feature the end points to: the one it references, or for
 	// a chain (pa.out1) the last feature of the chain. It is nil for an end
@@ -663,7 +664,7 @@ func (w *Workspace) connectorEnds(f *Facts) {
 // from the referenced one (the end referencing pa that redefines out1 is
 // pa.out1).
 func (w *Workspace) endOf(end *Element) End {
-	out := End{Element: end, Name: w.EffectiveName(end)}
+	out := End{Element: end, Name: end.Text("declaredName")}
 	for _, r := range ownedRels(end) {
 		if !r.IsA("ReferenceSubsetting") {
 			continue

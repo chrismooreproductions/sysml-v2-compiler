@@ -227,6 +227,16 @@ func (w *Workspace) effectiveNames(e *el) (short, name string) {
 		if f := w.refTarget(reds[0], "redefinedFeature"); f != nil {
 			short, name = w.effectiveNames(f)
 		}
+	} else {
+		// the namingFeature is the first ownedRedefinition, which in the
+		// pilot includes the ones the transformation adds: an unnamed return
+		// parameter is named for the result it implicitly redefines
+		for _, im := range w.implicit(e) {
+			if im.kind == "Redefinition" {
+				short, name = w.effectiveNames(im.target)
+				break
+			}
+		}
 	}
 	if w.cut == cutBefore { // only cache a result no circular cut influenced
 		w.effNames[e] = [2]string{short, name}
