@@ -110,6 +110,30 @@ func (r Result) String() string {
 // determined.
 func (w *Workspace) Eval(expression *Element) Result {
 	v, err := w.Evaluate(expression)
+	return resultOf(expression, v, err)
+}
+
+// Matches evaluates a filter condition for an element: whether the element
+// passes the filter. The forms it supports are @T (the element is an instance
+// of the metaclass T, as @SysML::PartUsage, or has metadata whose type is or
+// specializes T, as @Safety), not, and, or and implies over those, and
+// comparisons and arithmetic on the values of the element's metadata
+// (@Safety and Safety::level > 2). The result is a boolean when Determined.
+// An element that has the metadata but no value for the field the condition
+// reads is NotDetermined; a form that is not supported (@ on an expression
+// other than the element, a call of a library function) is NotEvaluable, with
+// the part of the condition responsible as Source. Call it after Resolve.
+func (w *Workspace) Matches(f Filter, e *Element) Result {
+	v, err := w.w.EvaluateFor(f.Element, e)
+	r := resultOf(f.Element, v, err)
+	if r.Status == Determined && r.Kind != KindBoolean {
+		return Result{Status: NotEvaluable, Reason: fmt.Sprintf("a filter condition must be a boolean, not %s", r.Kind), Source: f.Element, Span: f.Element.Span}
+	}
+	return r
+}
+
+// resultOf makes a Result of what evaluating an expression gave.
+func resultOf(expression *Element, v any, err error) Result {
 	if err == nil {
 		return determined(expression, v)
 	}

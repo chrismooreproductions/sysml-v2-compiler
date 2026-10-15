@@ -142,3 +142,96 @@ func TestResultString(t *testing.T) {
 		t.Error("String methods are wrong")
 	}
 }
+
+const filterSource = `package P {
+    private import SysML::*;
+    metadata def Safety { attribute level : ScalarValues::Integer; }
+    metadata def Critical :> Safety;
+    part def Vehicle;
+    part car : Vehicle { @Safety { level = 3; } }
+    part truck : Vehicle { @Critical { level = 5; } }
+    part bike : Vehicle;
+    port def Fuel;
+    port tank : Fuel;
+    part noLevel : Vehicle { @Safety; }
+    part def W;
+    @Safety about W { level = 1; }
+    package F {
+        filter @SysML::PartUsage;
+        filter @Safety;
+        filter @Safety and Safety::level > 2;
+        filter not (@Safety);
+        filter @SysML::PartUsage and not (@Safety);
+        filter @Critical;
+        filter Safety::level > 2;
+        filter @SysML::Usage;
+        filter @SysML::PortUsage;
+        filter RealFunctions::sqrt(4.0) > 1;
+        filter 1 + 1;
+    }
+}`
+
+// T, F, "?" for not determined and "!" for not evaluable.
+func TestMatchesEvaluatesAFilterForAnElement(t *testing.T) {
+	w, _, diags := checked(t, "f.sysml", []byte(filterSource))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	filters := w.Facts(w.Lookup("P::F")).Filters
+	if len(filters) != 11 {
+		t.Fatalf("%d filters, want 11", len(filters))
+	}
+	elements := []string{"P::car", "P::truck", "P::bike", "P::tank", "P::noLevel", "P::W"}
+	mark := func(r Result) string {
+		switch {
+		case r.Status == NotDetermined:
+			return "?"
+		case r.Status == NotEvaluable:
+			return "!"
+		case r.Value == true:
+			return "T"
+		}
+		return "F"
+	}
+	// one letter per element: car truck bike tank noLevel W
+	table := map[int]string{
+		0:  "TTTFTF", // @SysML::PartUsage
+		1:  "TTFFTT", // @Safety: Critical specializes Safety, and W has it by "about"
+		2:  "TTFF?F", // @Safety and Safety::level > 2: false and x is false; no level is not determined
+		3:  "FFTTFF", // not @Safety
+		4:  "FFTFFF", // @SysML::PartUsage and not @Safety
+		5:  "FTFFFF", // @Critical
+		6:  "TT???F", // Safety::level > 2 alone: no Safety metadata is not determined
+		7:  "TTTTTF", // @SysML::Usage: a kind of, and W is a definition
+		8:  "FFFTFF", // @SysML::PortUsage
+		9:  "!!!!!!", // a call of a library function
+		10: "!!!!!!", // an integer is not a condition
+	}
+	for i, wantRow := range table {
+		for j, name := range elements {
+			e := w.Lookup(name)
+			if e == nil {
+				t.Fatalf("%s not found", name)
+			}
+			got := mark(w.Matches(filters[i], e))
+			if got != string(wantRow[j]) {
+				t.Errorf("filter %d (%s) for %s: %s, want %c", i, filters[i].Text, name, got, wantRow[j])
+			}
+		}
+	}
+
+	// failures say why, and where
+	r := w.Matches(filters[9], w.Lookup("P::car"))
+	if r.Status != NotEvaluable || r.Reason != "cannot evaluate a InvocationExpression" || r.Source == nil {
+		t.Errorf("call: %+v", r)
+	}
+	if r := w.Matches(filters[10], w.Lookup("P::car")); r.Reason != "a filter condition must be a boolean, not integer" {
+		t.Errorf("integer: %+v", r)
+	}
+	if r := w.Matches(filters[6], w.Lookup("P::bike")); r.Reason != "P::bike has no P::Safety metadata" || r.Source.Class != "FeatureReferenceExpression" {
+		t.Errorf("no metadata: %+v", r)
+	}
+	if r := w.Matches(filters[2], w.Lookup("P::noLevel")); r.Reason != "P::noLevel gives P::Safety::level no value" {
+		t.Errorf("no level: %+v", r)
+	}
+}

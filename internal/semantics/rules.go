@@ -28,6 +28,7 @@ func (w *Workspace) Resolve() { w.resolve(false) }
 func (w *Workspace) ResolveAll() { w.resolve(true) }
 
 func (w *Workspace) resolve(includeLibrary bool) {
+	w.metaIndex = nil // the targets of the annotations it indexes change
 	var roots []*el
 	for _, root := range w.roots {
 		if includeLibrary || !w.isLibrary(root) {

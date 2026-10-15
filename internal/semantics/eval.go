@@ -50,6 +50,22 @@ func (w *Workspace) Evaluate(e *el) (Value, error) {
 	return collapse(vs), nil
 }
 
+// EvaluateFor evaluates an expression for an element, the way a filter
+// condition is evaluated for each member it may keep. The implicit operand of
+// "@T" (the "filter @SysML::PartUsage" form) is the element, and a reference to
+// a feature of a metadata definition ("Safety::level") is read from the
+// element's own metadata. Without an element those are not evaluable.
+func (w *Workspace) EvaluateFor(e, self *el) (Value, error) {
+	if e == nil {
+		return nil, &EvalError{Msg: "no expression"}
+	}
+	vs, err := (&evaluator{w: w, active: map[*el]bool{}, self: self}).eval(e)
+	if err != nil {
+		return nil, err
+	}
+	return collapse(vs), nil
+}
+
 func collapse(vs []Value) Value {
 	if len(vs) == 1 {
 		return vs[0]
@@ -60,6 +76,7 @@ func collapse(vs []Value) Value {
 type evaluator struct {
 	w      *Workspace
 	active map[*el]bool // features whose value is being computed, to stop cycles
+	self   *el          // the element a filter is evaluated for; nil for no element
 }
 
 func (ev *evaluator) fail(e *el, format string, args ...any) error {
@@ -210,6 +227,9 @@ func (ev *evaluator) reference(e *el) ([]Value, error) {
 		if m.IsA("FeatureMembership") && r.IsA("Expression") {
 			return ev.eval(r) // a deferred operand
 		}
+		if vs, ok, err := ev.metadataField(r, e); ok {
+			return vs, err
+		}
 		return ev.featureValue(r, e)
 	}
 	return nil, ev.fail(e, "a reference to nothing")
@@ -271,6 +291,8 @@ func displayName(f *el) string {
 // operator evaluates an operator expression.
 func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 	switch op {
+	case "@":
+		return ev.metaclassTest(e)
 	case "if":
 		args, err := ev.operands(e, 3)
 		if err != nil {

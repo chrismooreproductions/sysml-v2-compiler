@@ -15,6 +15,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Source` element and its `Span`. It never guesses a value.
   ([#10](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/10))
 - `EvalError.Unbound` says that a failure is only a missing value.
+- `Workspace.Matches` evaluates a `filter` condition for an element: `@T` (the
+  element is an instance of the metaclass, as `@SysML::PartUsage`, or has
+  metadata whose type is or specializes `T`, as `@Safety`), `not`, `and`, `or`
+  and `implies` over those, and comparisons on the element's metadata values
+  (`@Safety and Safety::level > 2`). A condition it cannot evaluate is
+  `NotEvaluable` with the reason and the part responsible; an element with the
+  metadata but no value for the field is `NotDetermined`. `Workspace.EvaluateFor`
+  does the same at the lower level.
+  ([#11](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/11))
 
 ### Changed
 

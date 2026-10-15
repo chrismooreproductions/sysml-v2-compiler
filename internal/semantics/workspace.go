@@ -23,7 +23,9 @@ type el = model.Element
 // scope.
 type Workspace struct {
 	roots []*el
-	files map[*el]string // the file name of each root
+
+	metaIndex map[*el][]*el  // metadata that names each element with "about"; see metadataOf
+	files     map[*el]string // the file name of each root
 
 	memo         map[*model.Ref]*el // resolved references, nil results included
 	done         map[*model.Ref]bool
@@ -57,7 +59,10 @@ func NewWorkspace() *Workspace {
 }
 
 // Add puts a file's root Namespace in the workspace.
-func (w *Workspace) Add(root *el) { w.roots = append(w.roots, root) }
+func (w *Workspace) Add(root *el) {
+	w.roots = append(w.roots, root)
+	w.metaIndex = nil
+}
 
 // Gaps reports the situations the resolver met and does not yet handle, by
 // description.
@@ -383,6 +388,7 @@ func (w *Workspace) Remove(root *el) {
 		}
 	}
 	w.roots = kept
+	w.metaIndex = nil
 	// the elements and references whose results are to be forgotten
 	user := map[*el]bool{}
 	var refs []*model.Ref
