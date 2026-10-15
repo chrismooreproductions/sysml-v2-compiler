@@ -533,3 +533,40 @@ func TestAnUnnamedReturnParameterIsNamedForTheResultItImplicitlyRedefines(t *tes
 		t.Errorf("F::result is %v, want the return parameter F owns", res)
 	}
 }
+
+// The name an import brings in can come through another import of the same
+// namespace (private import RiskMetadata::*; private import RiskLevelEnum::*;).
+// A name that failed to resolve while the first import was still being
+// resolved was remembered as unresolved.
+func TestAnImportsNameCanComeThroughAnotherImport(t *testing.T) {
+	src := `package A { enum def E { enum a; enum b; } part def D; }
+package B1 { private import A::*; attribute x : E; }
+package B2 { private import A::*; private import D::*; }
+package B3 { private import A::*; private import A::E::*; attribute y = a; }
+package B4 { private import A::*; private import E; }
+package B5 { private import A::*; part def Z; private import Z::*; }
+package B6 { private import A::*; private import E::*; attribute z = a; }
+package B7 { public import A::*; private import E::*; }`
+	w, doc, diags := checked(t, "i.sysml", []byte(src))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	// each second import resolved to the element the first one brought in
+	n := 0
+	doc.Root.Walk(func(e *Element) {
+		if e.IsA("NamespaceImport") || e.IsA("MembershipImport") {
+			for _, r := range e.Refs("importedNamespace") {
+				if r.Target == nil {
+					t.Errorf("import of %q has no target", r.Name)
+				}
+				n++
+			}
+		}
+	})
+	if n == 0 {
+		t.Error("no imports found")
+	}
+	if e := w.Lookup("A::E"); e == nil || e.Class != "EnumerationDefinition" {
+		t.Errorf("A::E is %v", e)
+	}
+}

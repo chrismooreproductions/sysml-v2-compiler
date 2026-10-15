@@ -15,12 +15,12 @@ import (
 // should report nothing. They do not yet: each diagnostic is a name the
 // compiler does not resolve, or a constraint it applies wrongly, that the
 // pilot gets right (see the issue "Examples: the release's example models
-// report 154 diagnostics"). These are ratchets: a change that adds a diagnostic
+// report 154 diagnostics"; 154 and 48 before the first fix). These are ratchets: a change that adds a diagnostic
 // fails, and a fix lowers the number. Lower them to what is measured, never
 // raise them.
 const (
-	maxSysMLExampleDiagnostics = 154
-	maxKerMLExampleDiagnostics = 48
+	maxSysMLExampleDiagnostics = 119
+	maxKerMLExampleDiagnostics = 29
 )
 
 // exampleDiagnostics checks every model with an extension under a directory as

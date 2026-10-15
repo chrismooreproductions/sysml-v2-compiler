@@ -480,6 +480,7 @@ func (w *Workspace) target(owner *el, role string, ref *model.Ref) *el {
 		return nil
 	}
 	w.busy[ref] = true
+	cutBefore := w.cut
 	m := w.resolveName(w.scopeFor(owner, role), ref.Name)
 	delete(w.busy, ref)
 	var out *el
@@ -489,6 +490,12 @@ func (w *Workspace) target(owner *el, role string, ref *model.Ref) *el {
 		} else {
 			out = w.memberElement(m)
 		}
+	}
+	if out == nil && w.cut != cutBefore {
+		// A reference still being resolved (a sibling import, say) was cut out
+		// of the search, so what was missing may be there once it is resolved:
+		// do not remember the failure.
+		return nil
 	}
 	w.done[ref] = true
 	w.memo[ref] = out

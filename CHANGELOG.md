@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- An import whose name comes through another import of the same namespace
+  (`private import RiskMetadata::*; private import RiskLevelEnum::*;`) now
+  resolves; it was reported as unresolved. The resolver remembered a lookup
+  that failed only because a sibling import was still being resolved. The
+  release's example models report 119 diagnostics instead of 154 (SysML) and 29
+  instead of 48 (KerML) as a result.
+  ([#21](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/21))
+
 ## [0.18.0] - 2026-10-15
 
 ### Added
