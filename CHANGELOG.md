@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-15
+
 ### Added
 
 - `LibraryFiles` lists the files of the embedded standard library, each with
