@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-15
+
+Name resolution and validation fixes, found by checking the release's example
+models together: the SysML examples go from 154 diagnostics to 20, and the KerML
+ones from 48 to 28. The standard library now compiles on its own with no
+diagnostics, and 19,115 of its 19,119 references match the pilot's (19,114
+before). The counts in the entries below are the ones after each fix.
+
 ### Fixed
 
 - An individual usage typed through what it subsets (`individual timeslice t3

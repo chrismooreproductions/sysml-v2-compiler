@@ -124,9 +124,9 @@ each connection gets a server of its own.
   and boolean operators, calls of the model's own calculations, constraints,
   views and filters. Calls of library functions are mostly not evaluated (287
   of the library's 394 functions have no body), and units are not converted.
-- **Known gaps:** names in some of the release's example models do not resolve
-  (the pilot's own examples report 154 diagnostics for SysML and 48 for KerML
-  when checked together; each cause is an open issue), and there are no typed
+- **Known gaps:** a few names in the release's example models do not resolve
+  (checked together, the pilot's own examples report 20 diagnostics for SysML
+  and 28 for KerML; each cause is an open issue), and there are no typed
   accessors per metaclass.
 
 ## Status
@@ -140,7 +140,7 @@ each are in [CHANGELOG.md](CHANGELOG.md).
 
 The tests compare against the pilot implementation's XMI for the standard
 library (pinned in `UPSTREAM`): all 94 library files match structurally
-exactly, and 19,114 of the 19,119 name references (99.97%) resolve to the same
+exactly, and 19,115 of the 19,119 name references (99.98%) resolve to the same
 element the pilot chooses. The remaining differences are listed and ratcheted in
 `internal/conformance`. The XMI files (25 MB and 120 MB) are fetched by
 `tools/fetch-oracle.sh` into `.oracle/`; tests that need them skip when absent
