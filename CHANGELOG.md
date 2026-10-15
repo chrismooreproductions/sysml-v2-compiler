@@ -23,7 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `1 [km] / 1 [m]` is `1000`), and a derived unit of the library is expanded
   through its definition, so `5 [kg] * 2 [m/s^2]` equals `10 [N]` and
   `10 [N] * 2 [m]` equals `20 [J]`. `Quantity.Factors`, `UnitFactors()` and
-  `UnitFactor` describe a derived unit.
+  `UnitFactor` describe a derived unit. Conversions are the library's own, as
+  released: its `tonne` is defined with a factor of `1.0e-3` against `kg` (every
+  other entry reads "reference units per one of this unit", which would make a
+  tonne 1000 kg) and its astronomical unit as `149597870691e11` metres (about
+  1.5e22; the real value is 1.5e11), so quantities in those two convert as
+  defined, not as physics. The vendored library is not edited.
   ([#19](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/19))
 
 ## [0.18.1] - 2026-10-15
