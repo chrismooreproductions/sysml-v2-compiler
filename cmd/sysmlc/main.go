@@ -422,6 +422,9 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 					}
 					return describe(e)
 				}
+				if b.Condition != nil {
+					fmt.Fprintf(stdout, "  condition: %s\n", b.ConditionText)
+				}
 				for _, s := range b.Successions {
 					fmt.Fprintf(stdout, "  succession: %s then %s\n", describeEnd(&s.Source), describeEnd(&s.Target))
 				}
@@ -500,7 +503,11 @@ func describeEnd(e *sysml.End) string {
 	if e.Target == nil {
 		return "(the previous step)"
 	}
-	return describe(e.Target)
+	s := describeRole(e.Target)
+	if e.Implied {
+		s += " (implied)"
+	}
+	return s
 }
 
 func describe(e *sysml.Element) string {

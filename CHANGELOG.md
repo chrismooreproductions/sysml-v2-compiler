@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Facts.Behavior.Condition` and `ConditionText` give the condition of an `if`
+  or `while` action (`count > 0`), as written.
+  ([#5](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/5))
+
+### Changed
+
+- A succession that is a step of an action or state and writes no reference
+  for an end (`first start; then action receive;`, `then if ... { }`,
+  `then while ...`) now has the step before it as its first end and the member
+  after it as its second, in `Facts.Ends`, `Facts.Source`, `Facts.Target` and
+  `Behavior.Successions`, marked `End.Implied`. They were nil. The rule agrees
+  with the pilot's output for the standard library; the guarded branches of a
+  decision and a transition's source are still not inferred.
+  ([#5](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/5))
+
 ## [0.13.0] - 2026-10-15
 
 ### Added

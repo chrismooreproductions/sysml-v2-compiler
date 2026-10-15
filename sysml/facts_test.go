@@ -332,14 +332,15 @@ func TestFactsConnectorEnds(t *testing.T) {
 		t.Errorf("a part has ends: %+v", f.Ends)
 	}
 
-	// "then q" has no first end of its own: the previous step
+	// "then q" writes no first end: it is the step before, marked implied
 	var then Facts
 	for _, m := range w.Facts(w.Lookup("P::Act")).Members {
 		if m.Element.IsA("SuccessionAsUsage") {
 			then = w.Facts(m.Element) // the last one is "then q"
 		}
 	}
-	if then.Source == nil || then.Source.Target != nil || len(then.Source.Path) != 0 || then.Target.Target != w.Lookup("P::Act::q") {
+	if then.Source == nil || then.Source.Target != w.Lookup("P::Act::p") || !then.Source.Implied ||
+		then.Target.Target != w.Lookup("P::Act::q") || then.Target.Implied {
 		t.Errorf("then q: %+v", then.Ends)
 	}
 }
@@ -478,7 +479,10 @@ func TestFactsBehavior(t *testing.T) {
 	for _, s := range flow.Successions {
 		got = append(got, q(s.Source.Target)+">"+q(s.Target.Target))
 	}
-	if want := []string{">", ">P::Flow1::a", ">", ">", "P::Flow1::a>P::Flow1::b"}; !reflect.DeepEqual(got, want) {
+	// the ends the source leaves out are the step before and the member after
+	// (first start; then fork f; then a; then join j; then decide d; ...): the
+	// start the action inherits, the fork, a reference to a, and so on
+	if want := []string{"Actions::Action::start>P::Flow1::f", "P::Flow1::f>P::Flow1::a", "P::Flow1::f>P::Flow1::j", "P::Flow1::j>P::Flow1::d", "P::Flow1::a>P::Flow1::b"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("successions:\n got %q\nwant %q", got, want)
 	}
 	// the guarded branches of the decision
@@ -768,5 +772,100 @@ func TestFactsAnnotationsLeaveOutMetadata(t *testing.T) {
 		if a := w.Facts(w.Lookup(name)).Annotations; len(a) != 0 {
 			t.Errorf("%s: %+v", name, a)
 		}
+	}
+}
+
+const inlineStepsSource = `package P {
+    action def Process {
+        in attribute count : ScalarValues::Integer;
+        first start;
+        then action receive;
+        then if count > 0 { action pack; } else { action reject; }
+        then while count > 0 { action step; }
+        then for n in 1..3 { action each; }
+        then done;
+    }
+}`
+
+func TestFactsInlineStepsAndConditions(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("p.sysml", []byte(inlineStepsSource)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) != 0 {
+		t.Fatal(ds)
+	}
+	process := w.Lookup("P::Process")
+	var steps []*Element // the unnamed if, while and for, in order
+	for _, m := range w.Facts(process).Members {
+		if m.Element.IsA("IfActionUsage") || m.Element.IsA("WhileLoopActionUsage") || m.Element.IsA("ForLoopActionUsage") {
+			steps = append(steps, m.Element)
+		}
+	}
+	if len(steps) != 3 {
+		t.Fatalf("%d if/while/for steps, want 3", len(steps))
+	}
+	receive := w.Lookup("P::Process::receive")
+	start, done := w.Lookup("Actions::Action::start"), w.Lookup("Actions::Action::done")
+	if start == nil || done == nil {
+		t.Fatal("the library start and done are missing")
+	}
+
+	// every succession has both ends: first start, then receive, if, while, for, done
+	b := w.Facts(process).Behavior
+	if b == nil || len(b.Successions) != 5 {
+		t.Fatalf("Process: %+v", b)
+	}
+	for i, want := range [][2]*Element{{start, receive}, {receive, steps[0]}, {steps[0], steps[1]}, {steps[1], steps[2]}, {steps[2], done}} {
+		s := b.Successions[i]
+		if s.Source.Target != want[0] || s.Target.Target != want[1] {
+			t.Errorf("succession %d: %v -> %v, want %v -> %v", i, s.Source.Target, s.Target.Target, want[0], want[1])
+		}
+		// "then done" writes its target; every other end is read from the position
+		if wantImplied := want[1] != done; s.Target.Implied != wantImplied || !s.Source.Implied {
+			t.Errorf("succession %d implied: source %v, target %v", i, s.Source.Implied, s.Target.Implied)
+		}
+	}
+	// the succession's own facts agree, and carry a source and a target
+	if f := w.Facts(b.Successions[0].Element); f.Source == nil || f.Source.Target != start || f.Target.Target != receive {
+		t.Errorf("Facts of the first succession: %+v %+v", f.Source, f.Target)
+	}
+
+	// the condition of an if and a while, as written; a for has none
+	for i, want := range []string{"count > 0", "count > 0", ""} {
+		cb := w.Facts(steps[i]).Behavior
+		got := ""
+		if cb != nil {
+			got = cb.ConditionText
+			if (cb.Condition != nil) != (want != "") {
+				t.Errorf("step %d condition %v", i, cb.Condition)
+			}
+		}
+		if got != want {
+			t.Errorf("step %d condition %q, want %q", i, got, want)
+		}
+	}
+}
+
+// The pilot's own output (the implied oracle) gives the unwritten ends of the
+// "then private action whileLoop" in the library's ForLoopAction as the member
+// before and the member after.
+func TestImpliedSuccessionEndsAgreeWithThePilotOnTheLibrary(t *testing.T) {
+	w, _ := NewWorkspace()
+	loop := w.Lookup("Actions::ForLoopAction")
+	var got *Succession
+	for _, m := range w.Facts(loop).Members {
+		if m.Element.IsA("SuccessionAsUsage") && w.Facts(m.Element).Source != nil && w.Facts(m.Element).Source.Implied {
+			s := Succession{Element: m.Element, Source: *w.Facts(m.Element).Source, Target: *w.Facts(m.Element).Target}
+			got = &s
+		}
+	}
+	if got == nil {
+		t.Fatal("no succession with implied ends in ForLoopAction")
+	}
+	// (private members, so Lookup cannot find them: compare by name)
+	from, to := w.Facts(got.Source.Target).QualifiedName, w.Facts(got.Target.Target).QualifiedName
+	if from != "Actions::ForLoopAction::initialization" || to != "Actions::ForLoopAction::whileLoop" {
+		t.Errorf("%s -> %s", from, to)
 	}
 }

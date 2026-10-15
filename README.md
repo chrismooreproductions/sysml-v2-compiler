@@ -44,8 +44,9 @@ or message with the feature each points to (and the source and target of a
 flow, message or succession), and the value expression (computed when possible, with its
 source text), the control-node kind, and the behaviour an action or state
 writes (entry, do and exit actions, successions and transitions with their
-trigger, guard and effect; an end the source does not write is left nil, not
-inferred), and the requirement roles (subject, actors, stakeholders,
+trigger, guard and effect, and the condition of an if or while; a succession
+end the source does not write is the step before or the member after it, marked
+implied), and the requirement roles (subject, actors, stakeholders,
 objective, assumed and required constraints, and what a satisfy or verify
 targets), and the documentation, comments and textual representations that
 annotate it. `sysmlc facts` prints it.

@@ -84,13 +84,17 @@ type End struct {
 	Name string
 	// Target is the feature the end points to: the one it references, or for
 	// a chain (pa.out1) the last feature of the chain. It is nil for an end
-	// that writes no reference, such as the first end of "then q", which the
-	// specification makes the previous step.
+	// that writes no reference, except for the ends of a succession that is a
+	// step of an action or state: see Facts.Ends.
 	Target *Element
 	// Path is the whole chain that leads to Target (pa, out1); it has one
 	// element when the end references a feature directly, and none when
 	// Target is nil.
 	Path []*Element
+	// Implied is true when the source writes no reference and Target was
+	// taken from the position of the succession among the steps of its owner:
+	// see Facts.Ends.
+	Implied bool
 }
 
 // A FeatureValue is the value expression a feature is given (= 5, := 5,
@@ -119,8 +123,8 @@ type Succession struct {
 	// Element is the succession usage.
 	Element *Element
 	// Source and Target are its ends. An end the source does not write (the
-	// first end of "then c", which the specification takes from the step before
-	// it) has a nil Target.
+	// first end of "then c") is the step before it, or the member after it,
+	// marked Implied; see Facts.Ends.
 	Source, Target End
 }
 
@@ -142,9 +146,10 @@ type Transition struct {
 
 // Behavior is the structure of an action or a state: what the source writes
 // to order its steps and to move between its states. The steps themselves are
-// the Members of the element. The specification derives further successions
-// from the order of the members (the one before "then fork f" is the step
-// before it); Behavior does not, so an end without a written reference is nil.
+// the Members of the element. A succession that writes no reference for an end
+// ("then fork f;") has the step before or the member after it there, marked
+// Implied (see Facts.Ends); the guarded branches of a decision do not, and a
+// Transition with no source written has a nil Source.
 type Behavior struct {
 	// Entry, Do and Exit are the state's entry, do and exit actions.
 	Entry, Do, Exit *Element
@@ -154,6 +159,11 @@ type Behavior struct {
 	Successions []Succession
 	// Transitions are the transitions the element owns, in source order.
 	Transitions []Transition
+	// Condition is the condition of an if or while action (the count > 0 of
+	// "if count > 0 { ... }"), and ConditionText is it as written. Both are
+	// empty for any other element.
+	Condition     *Element
+	ConditionText string
 }
 
 // Roles are the parts a requirement, a concern, a case or a use case gives
@@ -275,6 +285,13 @@ type Facts struct {
 	// message they are the event occurrences it runs between (from driver.cmd
 	// to vehicle.cmd). They are nil for anything else, and for a connector
 	// that has only ends it inherits.
+	//
+	// A succession that is a step of an action or state ("then action b;",
+	// "first start;" followed by "then ...") may write no reference for an
+	// end. The first end is then the step before it in the owner (the nearest
+	// member that is not another succession, a transition or a comment), the
+	// second the member after it, and the End is marked Implied. Any other
+	// end that writes no reference has a nil Target.
 	Ends []End
 	// IsMessage is true for a message (message m from a to b) as opposed to a
 	// flow: a flow usage that specializes Flows::messages without specializing
@@ -654,6 +671,9 @@ func (w *Workspace) connectorEnds(f *Facts) {
 		msgs, flows := w.Lookup("Flows::messages"), w.Lookup("Flows::flows")
 		f.IsMessage = msgs != nil && flows != nil && w.Specializes(e, msgs) && !w.Specializes(e, flows)
 	}
+	if e.IsA("Succession") && len(f.Ends) == 2 && e.Owner.IsA("FeatureMembership") {
+		w.impliedSuccessionEnds(f)
+	}
 	if len(f.Ends) > 0 && (e.IsA("Flow") || e.IsA("Succession")) {
 		f.Source, f.Target = &f.Ends[0], &f.Ends[len(f.Ends)-1]
 	}
@@ -786,6 +806,21 @@ func (w *Workspace) behaviorOf(f *Facts) *Behavior {
 				}
 				found = true
 			}
+		}
+	}
+	if e.IsA("IfActionUsage") || e.IsA("WhileLoopActionUsage") {
+		// the condition is the first parameter, ahead of the bodies
+		for _, r := range ownedRels(e) {
+			if !r.IsA("ParameterMembership") {
+				continue
+			}
+			for _, c := range r.Children("ownedRelatedElement") {
+				if c.IsA("Expression") && !c.Generated && b.Condition == nil {
+					b.Condition, b.ConditionText = c, w.sourceText(c)
+					found = true
+				}
+			}
+			break
 		}
 	}
 	for _, m := range f.Members {
@@ -1007,4 +1042,46 @@ func (w *Workspace) annotation(a *Element) Annotation {
 		out.Annotates = []*Element{a.Owner.Owner}
 	}
 	return out
+}
+
+// impliedSuccessionEnds fills an end of a succession that is a step of an
+// action or state and writes no reference, from where the succession sits
+// among the members of its owner.
+func (w *Workspace) impliedSuccessionEnds(f *Facts) {
+	e := f.Element
+	members := w.membersOf(e.Owner.Owner)
+	at := -1
+	for i, m := range members {
+		if m.Element == e {
+			at = i
+		}
+	}
+	if at < 0 {
+		return
+	}
+	imply := func(end *End, t *Element) {
+		if end.Target == nil && t != nil {
+			end.Target, end.Path, end.Implied = t, []*Element{t}, true
+		}
+	}
+	// the step before: not another succession, a transition or an annotation
+	for i := at - 1; i >= 0; i-- {
+		x := members[i].Element
+		if x.IsA("Succession") || x.IsA("TransitionUsage") || x.IsA("AnnotatingElement") || x.IsA("Multiplicity") {
+			continue
+		}
+		imply(&f.Ends[0], x)
+		break
+	}
+	// the member after: what an "then fork f;" or "then action b;" declares
+	for i := at + 1; i < len(members); i++ {
+		x := members[i].Element
+		if x.IsA("AnnotatingElement") {
+			continue
+		}
+		if !x.IsA("Succession") {
+			imply(&f.Ends[1], x)
+		}
+		break
+	}
 }
