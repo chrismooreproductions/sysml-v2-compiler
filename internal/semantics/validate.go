@@ -467,11 +467,11 @@ func nonUsageEnds(w *Workspace, e *el) []*el {
 // the occurrence definitions in OccurrenceUsage.occurrenceDefinition, which are
 // the types the usage has, written, implied or inherited by subsetting.
 func (w *Workspace) individualDefinitions(e *el) int {
-	n := 0
+	seen := map[*el]bool{} // a type reached twice (written, and through a subsetting) counts once
 	for _, t := range w.typesOf(e) {
 		if t.IsA("OccurrenceDefinition") && t.IsTrue("isIndividual") {
-			n++
+			seen[t] = true
 		}
 	}
-	return n
+	return len(seen)
 }
