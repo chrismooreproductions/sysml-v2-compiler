@@ -315,13 +315,16 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 			}{
 				{f.IsLibrary, "library"}, {f.IsAbstract, "abstract"}, {f.IsVariation, "variation"},
 				{f.IsComposite, "composite"}, {f.IsReference, "reference"}, {f.IsEnd, "end"},
-				{f.IsPortion, "portion"}, {f.IsConstant, "constant"}, {f.IsDerived, "derived"},
+				{f.IsPortion && f.PortionKind == "", "portion"}, {f.IsConstant, "constant"}, {f.IsDerived, "derived"},
 				{f.IsOrdered, "ordered"}, {e.IsA("Feature") && !f.IsUnique, "nonunique"},
 				{f.Conjugated, "conjugated"}, {f.IsMessage, "message"},
 			} {
 				if x.on {
 					flags = append(flags, x.name)
 				}
+			}
+			if f.PortionKind != "" {
+				flags = append(flags, f.PortionKind)
 			}
 			if f.Direction != "" {
 				flags = append([]string{f.Direction}, flags...)

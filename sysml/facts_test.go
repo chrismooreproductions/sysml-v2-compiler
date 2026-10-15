@@ -869,3 +869,49 @@ func TestImpliedSuccessionEndsAgreeWithThePilotOnTheLibrary(t *testing.T) {
 		t.Errorf("%s -> %s", from, to)
 	}
 }
+
+func TestFactsPortionKind(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("t.sysml", []byte(`package P {
+    part def Person;
+    part def Vehicle {
+        timeslice assembly;
+        first assembly then delivery;
+        snapshot delivery { attribute deliveryDate : ScalarValues::String; }
+        then timeslice ownership[0..*] ordered {
+            snapshot sale = start;
+            timeslice driven[0..*] { ref item driver : Person[1]; }
+        }
+        snapshot junked = done;
+        part plain;
+    }
+}`)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) != 0 {
+		t.Fatal(ds)
+	}
+	for name, want := range map[string]string{
+		"P::Vehicle::assembly":                  "timeslice",
+		"P::Vehicle::delivery":                  "snapshot",
+		"P::Vehicle::ownership":                 "timeslice",
+		"P::Vehicle::ownership::sale":           "snapshot",
+		"P::Vehicle::ownership::driven":         "timeslice",
+		"P::Vehicle::junked":                    "snapshot",
+		"P::Vehicle::plain":                     "",
+		"P::Vehicle":                            "",
+		"P::Vehicle::ownership::driven::driver": "",
+	} {
+		e := w.Lookup(name)
+		if e == nil {
+			t.Fatalf("%s not found", name)
+		}
+		f := w.Facts(e)
+		if f.PortionKind != want {
+			t.Errorf("%s: PortionKind %q, want %q", name, f.PortionKind, want)
+		}
+		if f.IsPortion != (want != "") {
+			t.Errorf("%s: IsPortion %v with kind %q", name, f.IsPortion, want)
+		}
+	}
+}

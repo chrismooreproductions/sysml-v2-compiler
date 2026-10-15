@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Facts.PortionKind` says whether a portion of an occurrence is a
+  `"timeslice"` or a `"snapshot"`; it is empty for anything else.
+  `sysmlc facts` prints it. ([#6](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/6))
+
 ## [0.14.0] - 2026-10-15
 
 ### Added

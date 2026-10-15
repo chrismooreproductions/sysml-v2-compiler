@@ -254,6 +254,10 @@ type Facts struct {
 	IsEnd bool
 	// IsPortion, IsConstant and IsDerived are the feature's flags.
 	IsPortion, IsConstant, IsDerived bool
+	// PortionKind says which kind of portion of its owner an occurrence usage
+	// is: "timeslice" or "snapshot". It is empty for anything that does not
+	// write one, including a feature that is a portion without a kind.
+	PortionKind string
 	// IsOrdered and IsUnique are the feature's ordering and uniqueness; a
 	// feature is unique unless it is written nonunique.
 	IsOrdered, IsUnique bool
@@ -353,6 +357,7 @@ func (w *Workspace) Facts(e *Element) Facts {
 	f.IsComposite = flag(e, "isComposite")
 	f.IsEnd = flag(e, "isEnd")
 	f.IsPortion = flag(e, "isPortion")
+	f.PortionKind = e.Text("portionKind")
 	f.IsConstant = flag(e, "isConstant")
 	f.IsDerived = flag(e, "isDerived")
 	f.IsOrdered = flag(e, "isOrdered")
