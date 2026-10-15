@@ -345,18 +345,26 @@ func (w *Workspace) Validate() []Diagnostic {
 // which is null) evaluates to.
 type Seq = semantics.Seq
 
-// Quantity is a number with its unit: the value of 1800 [kg]. Number is an
-// int64 or a float64, Unit is the unit feature (SI::kilogram), and Symbol is
-// the unit's short name (kg). Quantities can be added, subtracted, compared and
+// Quantity is a number with its unit: the value of 1800 [kg] or 100 [km/h].
+// Number is an int64 or a float64. The unit is Unit, a unit feature
+// (SI::kilogram), or for a derived unit (km/h, kg*m/s^2) Factors, the units it
+// is a product of; UnitFactors gives either, and Symbol writes the unit.
+//
+// Quantities can be added, subtracted, compared, multiplied and divided, and
 // scaled by a plain number. Another unit of the same quantity is converted
-// through the conversions the standard library declares (3 [m] + 2 [km] is
-// 2003 [m]), into the left operand's unit; units of different quantities, and
-// derived units (a product or quotient of quantities), are not evaluable.
-// Inexact is true when the number depends on a conversion factor the library
-// gives as approximate, such as the dalton's; comparisons are decided with a
-// relative tolerance of 1e-12 after a conversion, and one that is equal only
-// to within an inexact factor is not decided.
+// through the conversions the standard library declares, by prefix (km to m)
+// and by convention (ft to m, h to min to s), and a named derived unit such as
+// the newton is expanded through its definition (kg*m/s^2): 3 [m] + 2 [km] is
+// 2003 [m], in the left operand's unit, and 5 [kg] * 2 [m/s^2] equals 10 [N].
+// Units of different quantities do not mix, and the expression is not
+// evaluable. Inexact is true when the number depends on a conversion factor the
+// library gives as approximate, such as the dalton's; comparisons are decided
+// with a relative tolerance of 1e-12 after a conversion, and one that is equal
+// only to within an inexact factor is not decided.
 type Quantity = semantics.Quantity
+
+// A UnitFactor is a unit raised to a whole power, a factor of a derived unit.
+type UnitFactor = semantics.UnitFactor
 
 // EvalError says why an expression could not be evaluated, and where.
 type EvalError = semantics.EvalError

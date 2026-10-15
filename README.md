@@ -62,7 +62,9 @@ models can use without knowing how the metamodel encodes things:
     model's own calculations;
   - a number with a unit (`1800 [kg]`) is a `Quantity` that carries its unit.
     Units of the same quantity convert through the library's conversions
-    (`3 [m] + 2 [km]` is `2003 [m]`); derived units are not supported yet.
+    (`3 [m] + 2 [km]` is `2003 [m]`), and derived units work
+    (`100 [km] / 2 [h]` is `50 [km/h]`, and `5 [kg] * 2 [m/s^2]` equals
+    `10 [N]`); units of different quantities do not mix.
 - **`LibraryFiles`** returns the standard library's files (path, language,
   source) for a consumer that wants to show them; `Workspace.FileOf` names the
   file of a library element `library:` and that path.

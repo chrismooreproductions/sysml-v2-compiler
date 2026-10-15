@@ -11,13 +11,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Quantities in different units of the same quantity convert through the
   conversions the standard library declares: by prefix (`km` to `m`) and by
   convention (`ft` to `m`, `h` to `min` to `s`). `3 [m] + 2 [km]` is
-  `2003 [m]` (in the left operand's unit), `3 [ft] == 0.9144 [m]` is true, and
-  `1800 [kg] <= 2000 [kg]` still works. Units of different quantities are
-  reported as such (`kg and m measure different quantities`). A conversion the
-  library gives as approximate (`isExact = false`, the dalton, the degree) marks
-  the result `Quantity.Inexact`, and a comparison that is equal only to within
-  an inexact factor is not decided. Derived units (`mass * extra`, `[m/s]`) are
-  still not evaluable. ([#19](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/19))
+  `2003 [m]` (in the left operand's unit) and `3 [ft] == 0.9144 [m]` is true.
+  Units of different quantities are reported as such (`kg and m measure
+  different quantities`). A conversion the library gives as approximate
+  (`isExact = false`, the dalton, the degree) marks the result
+  `Quantity.Inexact`, and a comparison that is equal only to within an inexact
+  factor is not decided.
+- Derived units: a unit in `[ ]` can be a product, quotient or whole power of
+  units (`100 [km/h]`, `9.81 [m/s^2]`), quantities can be multiplied and
+  divided (`100 [km] / 2 [h]` is `50 [km/h]`; units of one quantity cancel, so
+  `1 [km] / 1 [m]` is `1000`), and a derived unit of the library is expanded
+  through its definition, so `5 [kg] * 2 [m/s^2]` equals `10 [N]` and
+  `10 [N] * 2 [m]` equals `20 [J]`. `Quantity.Factors`, `UnitFactors()` and
+  `UnitFactor` describe a derived unit.
+  ([#19](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/19))
 
 ## [0.18.1] - 2026-10-15
 
