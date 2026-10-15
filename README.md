@@ -51,6 +51,13 @@ objective, assumed and required constraints, and what a satisfy or verify
 targets), the filter conditions of a view or package, and the documentation, comments and textual representations that
 annotate it. `sysmlc facts` prints it.
 
+`Workspace.Eval` evaluates an expression to a typed `Result` (a value, "not
+determined" when an input has no value, or "not evaluable" with the reason and
+the element responsible; it never guesses). `Workspace.Matches` evaluates a
+`filter` condition for an element (`@SysML::PartUsage`, `@Safety and
+Safety::level > 2`), and `Workspace.ViewContent` evaluates a view: the elements
+its `expose`s bring in that pass its filters.
+
 ## Command line
 
 ```

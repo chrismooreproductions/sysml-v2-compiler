@@ -44,29 +44,50 @@ func (w *Workspace) imported(ns *el, inside bool, seen map[*el]bool) []*el {
 		if !inside && w.visibility(imp) != "public" {
 			continue
 		}
-		recursive := imp.IsTrue("isRecursive")
-		all := imp.IsTrue("isImportAll")
-		if imp.IsA("NamespaceImport") {
-			target := w.refTarget(imp, "importedNamespace")
-			if target == nil || seen[target] {
-				continue
-			}
-			seen[target] = true
-			out = append(out, w.visibleMemberships(target, recursive, all, seen)...)
-			delete(seen, target)
-		} else {
-			m := w.refTarget(imp, "importedMembership")
-			if m == nil {
-				continue
-			}
-			out = append(out, m)
-			if recursive {
-				if e := w.memberElement(m); e.IsA("Namespace") && !seen[e] {
-					seen[e] = true
-					out = append(out, w.visibleMemberships(e, true, all, seen)...)
-					delete(seen, e)
-				}
-			}
+		out = append(out, w.importedBy(imp, seen)...)
+	}
+	return out
+}
+
+// importedBy are the memberships one import brings in: Import.importedMemberships.
+func (w *Workspace) importedBy(imp *el, seen map[*el]bool) []*el {
+	var out []*el
+	recursive := imp.IsTrue("isRecursive")
+	all := imp.IsTrue("isImportAll")
+	if imp.IsA("NamespaceImport") {
+		target := w.refTarget(imp, "importedNamespace")
+		if target == nil || seen[target] {
+			return nil
+		}
+		seen[target] = true
+		out = append(out, w.visibleMemberships(target, recursive, all, seen)...)
+		delete(seen, target)
+		return out
+	}
+	m := w.refTarget(imp, "importedMembership")
+	if m == nil {
+		return nil
+	}
+	out = append(out, m)
+	if recursive {
+		if e := w.memberElement(m); e.IsA("Namespace") && !seen[e] {
+			seen[e] = true
+			out = append(out, w.visibleMemberships(e, true, all, seen)...)
+			delete(seen, e)
+		}
+	}
+	return out
+}
+
+// ImportedElements are the elements one import brings in, in order, with the
+// memberships' visibility and the import's isRecursive and isImportAll taken
+// into account (Import.importedMemberships). It is nil when the import does not
+// resolve.
+func (w *Workspace) ImportedElements(imp *el) []*el {
+	var out []*el
+	for _, m := range w.importedBy(imp, map[*el]bool{}) {
+		if e := w.memberElement(m); e != nil {
+			out = append(out, e)
 		}
 	}
 	return out

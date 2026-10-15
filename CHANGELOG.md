@@ -15,6 +15,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Source` element and its `Span`. It never guesses a value.
   ([#10](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/10))
 - `EvalError.Unbound` says that a failure is only a missing value.
+- `Workspace.ViewContent` evaluates a view: the elements its exposes bring in
+  (membership, namespace and recursive forms; a view that specializes another
+  has its exposes, and the filters of the view and of its definition) that pass
+  its filters, in order, each with the expose that brought it in. A filter that
+  cannot be decided for an element removes nothing: the result says which
+  filters were not applied and why, and which elements they could not be decided
+  for. Annotations and the members a model's namespace inherits from the
+  standard library are not content. `Workspace.ImportedElements` is the
+  lower-level operation.
+  ([#12](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/12),
+  [#8](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/8))
 - `Workspace.Matches` evaluates a `filter` condition for an element: `@T` (the
   element is an instance of the metaclass, as `@SysML::PartUsage`, or has
   metadata whose type is or specializes `T`, as `@Safety`), `not`, `and`, `or`
