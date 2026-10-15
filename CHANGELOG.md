@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-15
+
 ### Added
 
 - `Facts.Filters` lists the filter conditions of a view or package
