@@ -741,3 +741,32 @@ func TestFactsMessageEnds(t *testing.T) {
 		}
 	}
 }
+
+func TestFactsAnnotationsLeaveOutMetadata(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("md.sysml", []byte(`package P {
+    metadata def Owner { attribute team : ScalarValues::String; }
+    part def V {
+        @Owner { team = "x"; }
+        comment about V /* The text. */
+    }
+    part def W;
+    part def X { @Owner about W { team = "y"; } }
+}`)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) > 0 {
+		t.Fatal(ds)
+	}
+	// only the comment: the metadata usage in the body is not an annotation
+	v := w.Facts(w.Lookup("P::V")).Annotations
+	if len(v) != 1 || v[0].Kind != "comment" || v[0].Body != "The text." {
+		t.Errorf("V: %+v", v)
+	}
+	// and neither is one that names another element
+	for _, name := range []string{"P::W", "P::X"} {
+		if a := w.Facts(w.Lookup(name)).Annotations; len(a) != 0 {
+			t.Errorf("%s: %+v", name, a)
+		}
+	}
+}

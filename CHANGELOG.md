@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- `Facts.Annotations` no longer lists a metadata usage (`@Owner { ... }`) as a
+  comment with an empty body. It holds documentation, comments and textual
+  representations only. ([#3](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/3))
+
 ## [0.12.0] - 2026-10-15
 
 ### Added

@@ -940,7 +940,7 @@ func (w *Workspace) annotationsOf(e *Element) []Annotation {
 			continue
 		}
 		for _, a := range r.Children("ownedRelatedElement") {
-			if a.IsA("AnnotatingElement") && !a.Generated && len(annotated(a)) == 0 {
+			if isAnnotation(a) && !a.Generated && len(annotated(a)) == 0 {
 				add(a)
 			}
 		}
@@ -949,7 +949,7 @@ func (w *Workspace) annotationsOf(e *Element) []Annotation {
 		w.annotated = map[*Element][]*Element{}
 		for _, d := range w.docs {
 			d.Root.Walk(func(a *Element) {
-				if a.IsA("AnnotatingElement") {
+				if isAnnotation(a) {
 					for _, t := range annotated(a) {
 						w.annotated[t] = append(w.annotated[t], a)
 					}
@@ -961,6 +961,13 @@ func (w *Workspace) annotationsOf(e *Element) []Annotation {
 		add(a)
 	}
 	return out
+}
+
+// isAnnotation is true for what Facts.Annotations holds: documentation,
+// comments and textual representations. Other annotating elements, such as a
+// metadata usage, are not.
+func isAnnotation(a *Element) bool {
+	return a.IsA("Comment") || a.IsA("TextualRepresentation")
 }
 
 // annotated are the elements an annotating element names with "about".
