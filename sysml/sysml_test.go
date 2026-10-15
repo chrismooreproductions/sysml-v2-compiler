@@ -648,3 +648,30 @@ func TestResolveAddsATransitionsLinkFeatureOnce(t *testing.T) {
 		t.Errorf("%d generated link features, want 1", links)
 	}
 }
+
+// A variant that names an existing usage, and a perform that names an action,
+// are that usage or action under their owner, and are called what it is called.
+func TestAReferenceVariantAndAPerformTakeTheNameOfWhatTheyReference(t *testing.T) {
+	_, _, diags := checked(t, "v.sysml", []byte(`package V {
+    part def P { attribute a; }
+    part def Q :> P;
+    part q : Q;
+    variation part v : P {
+        variant q { attribute b : ScalarValues::Integer :>> a; }
+    }
+    part y : P = v::q;
+
+    part def Engines { variation part engine { variant part '4cyl'; variant part '6cyl'; } }
+    part e1 : Engines = Engines::engine::'4cyl';
+
+    action def Gen;
+    package ActionTree { action providePower { action generate : Gen; } }
+    part vehicle { perform ActionTree::providePower; }
+    part car :> vehicle {
+        perform action :>> providePower { action :>> generate; }
+    }
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+}

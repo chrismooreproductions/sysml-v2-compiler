@@ -232,6 +232,12 @@ func (w *Workspace) effectiveNames(e *el) (short, name string) {
 		if f := w.refTarget(reds[0], "redefinedFeature"); f != nil {
 			short, name = w.effectiveNames(f)
 		}
+	} else if (e.Owner.IsA("VariantMembership") || e.IsA("PerformActionUsage")) && len(w.rels(e, "ReferenceSubsetting")) > 0 {
+		// a variant that names an existing usage (variant q { ... }) is that
+		// usage under the variation point, and is called what it is
+		if f := w.refTarget(w.rels(e, "ReferenceSubsetting")[0], "referencedFeature"); f != nil {
+			short, name = w.effectiveNames(f)
+		}
 	} else {
 		// the namingFeature is the first ownedRedefinition, which in the
 		// pilot includes the ones the transformation adds: an unnamed return

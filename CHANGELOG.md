@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A variant that names an existing usage (`variant q { ... }`) and a `perform`
+  that names an action (`perform ActionTree::providePower;`) are called what
+  they reference, so `v::q` and `perform action :>> providePower { ... }`
+  resolve. The release's SysML example models report 31 diagnostics instead of
+  48. ([#26](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/26))
 - The payload an `accept` declares is visible to the rest of its transition
   (`accept pub : Sig if pub.topic > 0 do ...`), and has the type the accept
   gives it. The transition's payload parameter takes the accept's name before
