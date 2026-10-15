@@ -211,11 +211,13 @@ func TestDumpImpliedShowsWhatTheSpecificationAdds(t *testing.T) {
 	}
 }
 
-func TestEvalPrintsTheValuesItCanCompute(t *testing.T) {
+func TestEvalPrintsValuesAndSaysWhyItCannotComputeTheRest(t *testing.T) {
 	dir := t.TempDir()
-	f := write(t, dir, "m.sysml", "package P {\n  attribute a = 4500;\n  attribute b = a * 2 + 1;\n  attribute c = RealFunctions::sqrt(4.0);\n}\n")
+	f := write(t, dir, "m.sysml", "package P {\n  attribute a = 4500;\n  attribute b = a * 2 + 1;\n  attribute c = RealFunctions::sqrt(4.0);\n  attribute d;\n  attribute e = d + 1;\n}\n")
 	status, out, errs := invoke("eval", f)
-	want := f + ":2:3: P::a = 4500\n" + f + ":3:3: P::b = 9001\n"
+	want := f + ":2:3: P::a = 4500\n" + f + ":3:3: P::b = 9001\n" +
+		f + ":4:3: P::c = not evaluable: cannot evaluate a InvocationExpression (at 4:17)\n" +
+		f + ":6:3: P::e = not determined: P::d has no value (at 6:17)\n"
 	if status != 0 || errs != "" || out != want {
 		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
 	}

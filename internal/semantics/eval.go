@@ -20,10 +20,16 @@ type Value = any
 // Seq is a sequence of values with none of them a sequence.
 type Seq []Value
 
-// EvalError says why an expression cannot be evaluated.
+// EvalError says why an expression cannot be evaluated, and where.
 type EvalError struct {
+	// Element is the expression or feature the failure is about.
 	Element *model.Element
 	Msg     string
+	// Unbound is true when the expression is evaluable but a value it needs is
+	// missing: a feature it refers to has no value. Binding the value would let
+	// it be computed. It is false for what the evaluator does not support, and
+	// for a model that is wrong (an unresolved reference, a type mismatch).
+	Unbound bool
 }
 
 func (e *EvalError) Error() string { return e.Msg }
@@ -35,7 +41,7 @@ func (e *EvalError) Error() string { return e.Msg }
 // supported).
 func (w *Workspace) Evaluate(e *el) (Value, error) {
 	if e == nil {
-		return nil, &EvalError{nil, "no expression"}
+		return nil, &EvalError{Msg: "no expression"}
 	}
 	vs, err := (&evaluator{w: w, active: map[*el]bool{}}).eval(e)
 	if err != nil {
@@ -57,7 +63,7 @@ type evaluator struct {
 }
 
 func (ev *evaluator) fail(e *el, format string, args ...any) error {
-	return &EvalError{e, fmt.Sprintf(format, args...)}
+	return &EvalError{Element: e, Msg: fmt.Sprintf(format, args...)}
 }
 
 // eval returns the sequence of values of an expression.
@@ -228,7 +234,31 @@ func (ev *evaluator) featureValue(f, at *el) ([]Value, error) {
 			}
 		}
 	}
-	return nil, ev.fail(at, "%s has no value", displayName(f))
+	return nil, &EvalError{Element: at, Msg: fmt.Sprintf("%s has no value", displayName(f)), Unbound: true}
+}
+
+// both evaluates two operands, and reports the failure that matters most: one
+// that no value would fix (unsupported, or a wrong model) before one that only
+// says a value is missing, so that "not determined" always means that binding
+// the missing value could determine the result.
+func (ev *evaluator) both(args []*el, f func(*el) (Value, error)) (l, r Value, err error) {
+	l, lerr := f(args[0])
+	r, rerr := f(args[1])
+	switch {
+	case lerr != nil && !unbound(lerr):
+		return nil, nil, lerr
+	case rerr != nil && !unbound(rerr):
+		return nil, nil, rerr
+	case lerr != nil:
+		return nil, nil, lerr
+	}
+	return l, r, rerr
+}
+
+// unbound is true if err says only that a value is missing.
+func unbound(err error) bool {
+	e, ok := err.(*EvalError)
+	return ok && e.Unbound
 }
 
 func displayName(f *el) string {
@@ -269,9 +299,24 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 			}
 			return ev.eval(ev.deferred(args[1]))
 		}
-		l, err := ev.boolean(args[0])
-		if err != nil {
-			return nil, err
+		l, lerr := ev.boolean(args[0])
+		if lerr != nil {
+			if !unbound(lerr) {
+				return nil, lerr
+			}
+			// The left operand is missing a value. The right one can still
+			// decide the result (false and x, true or x, x implies true);
+			// otherwise it is not determined.
+			r, rerr := ev.boolean(args[1])
+			switch {
+			case rerr != nil && !unbound(rerr):
+				return nil, rerr
+			case rerr != nil:
+				return nil, lerr
+			case op == "and" && !r, op == "or" && r, op == "implies" && r:
+				return []Value{op != "and"}, nil
+			}
+			return nil, lerr
 		}
 		switch {
 		case op == "and" && !l:
@@ -352,28 +397,29 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 	}
 	switch op {
 	case "==", "!=", "===", "!==":
-		l, err := ev.eval(args[0])
+		lv, rv, err := ev.both(args, func(a *el) (Value, error) {
+			vs, err := ev.eval(a)
+			return vs, err
+		})
 		if err != nil {
 			return nil, err
 		}
-		r, err := ev.eval(args[1])
-		if err != nil {
-			return nil, err
-		}
+		l, _ := lv.([]Value)
+		r, _ := rv.([]Value)
 		eq := equal(l, r)
 		if op == "!=" || op == "!==" {
 			eq = !eq
 		}
 		return []Value{eq}, nil
 	case "xor", "&", "|":
-		l, err := ev.boolean(args[0])
+		lv, rv, err := ev.both(args, func(a *el) (Value, error) {
+			b, err := ev.boolean(a)
+			return b, err
+		})
 		if err != nil {
 			return nil, err
 		}
-		r, err := ev.boolean(args[1])
-		if err != nil {
-			return nil, err
-		}
+		l, r := lv.(bool), rv.(bool)
 		switch op {
 		case "xor":
 			return []Value{l != r}, nil
@@ -382,17 +428,13 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 		}
 		return []Value{l || r}, nil
 	}
-	l, err := ev.single(args[0])
-	if err != nil {
-		return nil, err
-	}
-	r, err := ev.single(args[1])
+	l, r, err := ev.both(args, ev.single)
 	if err != nil {
 		return nil, err
 	}
 	v, ok := binary(op, l, r)
 	if !ok {
-		return nil, ev.fail(e, "cannot apply %s to %v and %v", op, l, r)
+		return nil, ev.fail(e, "cannot apply %s to %s and %s", op, FormatValue(l), FormatValue(r))
 	}
 	return []Value{v}, nil
 }

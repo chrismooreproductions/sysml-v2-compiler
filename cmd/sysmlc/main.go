@@ -253,8 +253,9 @@ func printReferences(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagn
 	}
 }
 
-// printValues prints each feature with a value expression and the value, for
-// those the evaluator can compute.
+// printValues prints each feature with a value expression and the value. One
+// the evaluator cannot compute is reported as not determined (an input has no
+// value) or not evaluable (unsupported), with where the reason lies.
 func printValues(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
 	for _, doc := range docs {
 		doc.Root.Walk(func(e *sysml.Element) {
@@ -266,9 +267,12 @@ func printValues(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnosti
 					continue
 				}
 				for _, x := range r.Children("ownedRelatedElement") {
-					if v, err := w.Evaluate(x); err == nil {
-						fmt.Fprintf(stdout, "%s:%s: %s = %s\n", doc.Name, e.Span.Start, describe(e), sysml.FormatValue(v))
+					r := w.Eval(x)
+					if r.Status == sysml.Determined {
+						fmt.Fprintf(stdout, "%s:%s: %s = %s\n", doc.Name, e.Span.Start, describe(e), r)
+						continue
 					}
+					fmt.Fprintf(stdout, "%s:%s: %s = %s (at %s)\n", doc.Name, e.Span.Start, describe(e), r, r.Span.Start)
 				}
 			}
 		})

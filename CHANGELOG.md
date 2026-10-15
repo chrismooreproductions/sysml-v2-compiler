@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.Eval` evaluates an expression and returns a `Result`: a typed
+  value (`Kind`: boolean, integer, real, string, sequence or null), or a
+  status of `NotDetermined` (a feature it needs has no value) or
+  `NotEvaluable` (unsupported, or the model is wrong), with the `Reason`, the
+  `Source` element and its `Span`. It never guesses a value.
+  ([#10](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/10))
+- `EvalError.Unbound` says that a failure is only a missing value.
+
+### Changed
+
+- `and`, `or` and `implies` follow three-valued logic: `false and x`,
+  `true or x` and `x implies true` are decided even when `x` has no value.
+  When a missing value and an unsupported operand meet, the unsupported one is
+  reported, so "not determined" always means that binding a value would help.
+- `sysmlc eval` reports a feature it cannot compute as `not determined: ...` or
+  `not evaluable: ...` with the position, instead of leaving it out.
+- The "cannot apply" evaluation error writes strings quoted.
+
 ## [0.16.0] - 2026-10-15
 
 ### Added
