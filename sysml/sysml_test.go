@@ -570,3 +570,29 @@ package B7 { public import A::*; private import E::*; }`
 		t.Errorf("A::E is %v", e)
 	}
 }
+
+// A port typed by a conjugated port definition (p : ~FuelPort) has the
+// features of the port definition it conjugates.
+func TestAConjugatedPortHasTheFeaturesOfItsOriginal(t *testing.T) {
+	w, _, diags := checked(t, "b.sysml", []byte(`package B {
+    port def FuelPort { out item fuel; }
+    part t2 { port p : ~FuelPort; attribute z = p.fuel; }
+    part def Tank2 { port fuelInPort : ~FuelPort; }
+    part car : Tank2 { port :>> fuelInPort { in item :>> fuel; } }
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	p := w.Lookup("B::t2::p")
+	types := w.TypesOf(p)
+	if len(types) == 0 || types[0].Class != "ConjugatedPortDefinition" {
+		t.Fatalf("types of p: %v", types)
+	}
+	// the conjugated definition specializes the port definition it conjugates
+	if sup := w.Supertypes(types[0]); len(sup) != 1 || sup[0] != w.Lookup("B::FuelPort") {
+		t.Errorf("the conjugated definition specializes %v", sup)
+	}
+	if f := w.Member(types[0], "fuel"); f == nil || QualifiedName(f) != "B::FuelPort::fuel" {
+		t.Errorf("fuel is %v", f)
+	}
+}

@@ -34,7 +34,7 @@ func (ev *evaluator) metaclassTest(e *el) ([]Value, error) {
 	}
 	var typ *el
 	for _, ft := range w.rels(params[1], "FeatureTyping") {
-		typ = w.refTarget(ft, "type")
+		typ = w.typingTarget(ft)
 	}
 	if typ == nil {
 		return nil, ev.fail(e, "the type of @ does not resolve")

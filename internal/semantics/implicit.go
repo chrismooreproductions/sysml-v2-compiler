@@ -75,7 +75,11 @@ func (w *Workspace) computeGeneralTypes(t *el) []*el {
 		}
 	}
 	for _, r := range w.rels(t, "Conjugation") {
-		if g := w.refTarget(r, "originalType"); g != nil {
+		g := w.refTarget(r, "originalType")
+		if g == nil { // a PortConjugation holds it as the original port definition
+			g = w.refTarget(r, "originalPortDefinition")
+		}
+		if g != nil {
 			out = append(out, g)
 		}
 	}
@@ -624,7 +628,7 @@ func (w *Workspace) instantiatedType(e *el) *el {
 
 func (w *Workspace) hasType(f *el, class string, implicit []implied) bool {
 	for _, r := range w.rels(f, "FeatureTyping") {
-		if g := w.refTarget(r, "type"); g.IsA(class) {
+		if g := w.typingTarget(r); g.IsA(class) {
 			return true
 		}
 	}
@@ -1018,7 +1022,7 @@ func (w *Workspace) collectTypes(f *el, visited map[*el]bool) []*el {
 		via = append(via, c[len(c)-1])
 	} else {
 		for _, r := range w.rels(f, "FeatureTyping") {
-			if g := w.refTarget(r, "type"); g != nil {
+			if g := w.typingTarget(r); g != nil {
 				out = append(out, g)
 			}
 		}
@@ -1057,6 +1061,15 @@ func (w *Workspace) collectTypes(f *el, visited map[*el]bool) []*el {
 		}
 	}
 	return out
+}
+
+// typingTarget is the type a feature typing gives its feature: its type, or for
+// a conjugated port typing (p : ~Fuel) the conjugated port definition.
+func (w *Workspace) typingTarget(r *el) *el {
+	if t := w.refTarget(r, "type"); t != nil {
+		return t
+	}
+	return w.refTarget(r, "conjugatedPortDefinition")
 }
 
 // redefinedWithComputed is FeatureUtil.getRedefinedFeaturesWithComputedOf.

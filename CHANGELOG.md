@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A port typed by a conjugated port definition (`port p : ~FuelPort`) has the
+  features of `FuelPort`: `p.fuel` and `in item :>> fuel` resolve. The port had
+  no type from `~FuelPort`, and the conjugated definition inherited nothing
+  from the definition it conjugates. The release's SysML example models report
+  71 diagnostics instead of 119.
+  ([#22](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/22))
 - An import whose name comes through another import of the same namespace
   (`private import RiskMetadata::*; private import RiskLevelEnum::*;`) now
   resolves; it was reported as unresolved. The resolver remembered a lookup
