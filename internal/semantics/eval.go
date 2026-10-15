@@ -77,6 +77,10 @@ type evaluator struct {
 	w      *Workspace
 	active map[*el]bool // features whose value is being computed, to stop cycles
 	self   *el          // the element a filter is evaluated for; nil for no element
+
+	bound   map[*el][]Value // values given for features (the inputs of a call)
+	context *el             // the usage whose redefinitions give a feature its value
+	depth   int             // how many calls deep
 }
 
 func (ev *evaluator) fail(e *el, format string, args ...any) error {
@@ -131,6 +135,8 @@ func (ev *evaluator) eval(e *el) ([]Value, error) {
 			return nil, nil // out of range is null
 		}
 		return []Value{seq[i-1]}, nil
+	case e.IsA("InvocationExpression") && !e.IsA("OperatorExpression"):
+		return ev.invoke(e)
 	case e.IsA("OperatorExpression") && !e.IsA("FeatureChainExpression") && !e.IsA("SelectExpression") && !e.IsA("CollectExpression"):
 		return ev.operator(e, w.operatorOf(e))
 	}
@@ -240,6 +246,14 @@ func (ev *evaluator) reference(e *el) ([]Value, error) {
 func (ev *evaluator) featureValue(f, at *el) ([]Value, error) {
 	if !f.IsA("Feature") {
 		return nil, ev.fail(at, "%s is not a feature", QualifiedName(f))
+	}
+	if vs, ok := ev.bound[f]; ok {
+		return vs, nil
+	}
+	if ev.context != nil {
+		if vs, ok, err := ev.contextValue(f); ok {
+			return vs, err
+		}
 	}
 	if ev.active[f] {
 		return nil, ev.fail(at, "%s is defined in terms of itself", QualifiedName(f))

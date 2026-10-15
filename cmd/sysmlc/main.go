@@ -253,13 +253,36 @@ func printReferences(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagn
 	}
 }
 
-// printValues prints each feature with a value expression and the value. One
+// printValues prints each feature with a value expression and the value, and
+// whether the constraints of each requirement and each named constraint hold
+// and what each calculation gives. One
 // the evaluator cannot compute is reported as not determined (an input has no
 // value) or not evaluable (unsupported), with where the reason lies.
 func printValues(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic, stdout io.Writer) {
 	for _, doc := range docs {
 		doc.Root.Walk(func(e *sysml.Element) {
-			if e.Generated || !e.IsA("Feature") || e.Text("declaredName") == "" {
+			if e.Generated {
+				return
+			}
+			report := func(label string, r sysml.Result) {
+				if r.Status == sysml.Determined {
+					fmt.Fprintf(stdout, "%s:%s: %s = %s\n", doc.Name, e.Span.Start, label, r)
+				} else {
+					fmt.Fprintf(stdout, "%s:%s: %s = %s (at %s)\n", doc.Name, e.Span.Start, label, r, r.Span.Start)
+				}
+			}
+			switch {
+			case e.IsA("RequirementUsage"):
+				// whether each constraint of the requirement holds, for it
+				for _, o := range w.EvalRequirement(e) {
+					report(describe(e)+" "+o.Kind+" constraint at "+o.Constraint.Span.Start.String(), o.Result)
+				}
+			case e.IsA("ConstraintUsage") && !e.Owner.IsA("RequirementConstraintMembership") && e.Text("declaredName") != "":
+				report(describe(e), w.EvalConstraint(e, nil))
+			case e.IsA("CalculationUsage") && e.Text("declaredName") != "":
+				report(describe(e), w.EvalCalculation(e, nil))
+			}
+			if !e.IsA("Feature") || e.Text("declaredName") == "" {
 				return
 			}
 			for _, r := range e.Children("ownedRelationship") {

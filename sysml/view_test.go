@@ -143,7 +143,7 @@ func TestViewContent(t *testing.T) {
 	if want := []string{"P::Parts::a", "P::Parts::b", "P::Parts::c", "P::Parts::d"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("call: %q", got)
 	}
-	if f := res.Filters[0]; f.Applied || f.Undecided != 4 || f.Failure != NotEvaluable || f.Reason != "cannot evaluate a InvocationExpression" {
+	if f := res.Filters[0]; f.Applied || f.Undecided != 4 || f.Failure != NotEvaluable || f.Reason != "cannot evaluate a call of RealFunctions::sqrt: it has no body" {
 		t.Errorf("call filter: %+v", f)
 	}
 

@@ -88,8 +88,8 @@ func TestEvalSaysNotEvaluableForWhatIsUnsupported(t *testing.T) {
 		attribute text = "a" - 1;
 	}`)
 	for name, reason := range map[string]string{
-		"call":  "cannot evaluate a InvocationExpression",
-		"mixed": "cannot evaluate a InvocationExpression", // unsupported wins over a missing value
+		"call":  "cannot evaluate a call of RealFunctions::sqrt: it has no body",
+		"mixed": "cannot evaluate a call of RealFunctions::sqrt: it has no body", // unsupported wins over a missing value
 		"text":  `cannot apply - to "a" and 1`,
 	} {
 		r := got[name]
@@ -222,7 +222,7 @@ func TestMatchesEvaluatesAFilterForAnElement(t *testing.T) {
 
 	// failures say why, and where
 	r := w.Matches(filters[9], w.Lookup("P::car"))
-	if r.Status != NotEvaluable || r.Reason != "cannot evaluate a InvocationExpression" || r.Source == nil {
+	if r.Status != NotEvaluable || r.Reason != "cannot evaluate a call of RealFunctions::sqrt: it has no body" || r.Source == nil {
 		t.Errorf("call: %+v", r)
 	}
 	if r := w.Matches(filters[10], w.Lookup("P::car")); r.Reason != "a filter condition must be a boolean, not integer" {

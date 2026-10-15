@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.EvalConstraint` says whether a constraint holds, `EvalRequirement`
+  does so for each assumed and required constraint of a requirement (its own
+  and those it inherits), and `EvalCalculation` computes a calculation, for
+  given inputs or the inputs a usage binds. A requirement usage gives its
+  definition's attributes values by redefining them
+  (`requirement r : MassReq { :>> massActual = 1800; }`), and a value that is
+  missing makes the result not determined, naming it.
+  ([#13](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/13))
+- A call of a calculation, function or constraint the model defines is
+  evaluated (`Range(40, 8)`, `Range(tankSize = 40, consumption = 8)`); a call
+  of a library function says it has no body, instead of "cannot evaluate a
+  InvocationExpression". A calculation that calls itself without end is not
+  evaluable.
+- `sysmlc eval` prints whether each requirement's constraints hold, and the
+  value of each calculation usage and named constraint.
+
 ## [0.17.0] - 2026-10-15
 
 ### Added

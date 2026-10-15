@@ -216,7 +216,7 @@ func TestEvalPrintsValuesAndSaysWhyItCannotComputeTheRest(t *testing.T) {
 	f := write(t, dir, "m.sysml", "package P {\n  attribute a = 4500;\n  attribute b = a * 2 + 1;\n  attribute c = RealFunctions::sqrt(4.0);\n  attribute d;\n  attribute e = d + 1;\n}\n")
 	status, out, errs := invoke("eval", f)
 	want := f + ":2:3: P::a = 4500\n" + f + ":3:3: P::b = 9001\n" +
-		f + ":4:3: P::c = not evaluable: cannot evaluate a InvocationExpression (at 4:17)\n" +
+		f + ":4:3: P::c = not evaluable: cannot evaluate a call of RealFunctions::sqrt: it has no body (at 4:17)\n" +
 		f + ":6:3: P::e = not determined: P::d has no value (at 6:17)\n"
 	if status != 0 || errs != "" || out != want {
 		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
@@ -282,6 +282,32 @@ func TestFactsPrintsTheResolvedFactsOfEachElement(t *testing.T) {
 		"  multiplicity: 1..2\n" +
 		"  types: ScalarValues::Integer\n" +
 		"  subsets: Base::dataValues (implied)\n"
+	if status != 0 || errs != "" || out != want {
+		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
+	}
+}
+
+func TestEvalReportsRequirementsConstraintsAndCalculations(t *testing.T) {
+	dir := t.TempDir()
+	f := write(t, dir, "m.sysml", `package P {
+  requirement def MassReq {
+    attribute massActual : ScalarValues::Integer;
+    attribute massLimit : ScalarValues::Integer = 2000;
+    require constraint { massActual <= massLimit }
+  }
+  requirement ok : MassReq { attribute :>> massActual = 1800; }
+  requirement over : MassReq { attribute :>> massActual = 2500; }
+  requirement unknown : MassReq;
+  calc def Half { in attribute x : ScalarValues::Integer; x / 2 }
+  calc h : Half { in attribute :>> x = 8; }
+}
+`)
+	status, out, errs := invoke("eval", f)
+	want := f + ":4:5: P::MassReq::massLimit = 2000\n" +
+		f + ":7:3: P::ok require constraint at 5:13 = true\n" +
+		f + ":8:3: P::over require constraint at 5:13 = false\n" +
+		f + ":9:3: P::unknown require constraint at 5:13 = not determined: P::MassReq::massActual has no value (at 5:26)\n" +
+		f + ":11:3: P::h = 4\n"
 	if status != 0 || errs != "" || out != want {
 		t.Errorf("status %d, stderr %q, stdout:\n%s\nwant:\n%s", status, errs, out, want)
 	}
