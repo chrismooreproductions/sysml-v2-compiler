@@ -715,6 +715,9 @@ func TestAnIndividualCanBeTypedThroughWhatItSubsets(t *testing.T) {
         individual timeslice t3 :> ind;
         individual snapshot s4 : Ind;
     }
+    individual part def V1;
+    individual part v1 : V1;
+    individual part v2 : V1 :> v1;
 }`
 	if _, _, diags := checked(t, "good.sysml", []byte(good)); len(diags) != 0 {
 		t.Errorf("valid: %v", diags)
