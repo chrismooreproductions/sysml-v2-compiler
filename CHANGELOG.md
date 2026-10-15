@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Facts.Filters` lists the filter conditions of a view or package
+  (`filter @SysML::PartUsage;`) in source order, each with its expression and
+  its text as written. `sysmlc facts` prints them.
+  ([#7](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/7))
+
+### Changed
+
+- `Facts.Members` no longer lists the condition expression of a `filter` as a
+  member; it is in `Facts.Filters`.
+
 ## [0.15.0] - 2026-10-15
 
 ### Added

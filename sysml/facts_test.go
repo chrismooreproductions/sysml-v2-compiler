@@ -915,3 +915,64 @@ func TestFactsPortionKind(t *testing.T) {
 		}
 	}
 }
+
+func TestFactsFilters(t *testing.T) {
+	w, _ := NewWorkspace()
+	if _, err := w.Add("v.sysml", []byte(`package P {
+    private import Views::*;
+    private import SysML::*;
+    part def Vehicle;
+    metadata def Safety;
+    view def TreeView2;
+    view def PartsView :> TreeView2 {
+        filter @SysML::PartUsage;
+    }
+    view vehicleParts : PartsView {
+        expose Vehicle::*;
+        filter @Safety;
+        filter @Safety and @SysML::PartUsage;
+    }
+    package Filtered {
+        public import P::*;
+        filter @Safety;
+    }
+}`)); err != nil {
+		t.Fatal(err)
+	}
+	if ds := w.Resolve(); len(ds) != 0 {
+		t.Fatal(ds)
+	}
+	text := func(name string) []string {
+		out := []string{}
+		for _, f := range w.Facts(w.Lookup(name)).Filters {
+			if f.Element == nil {
+				t.Errorf("%s: a filter without an expression", name)
+			}
+			out = append(out, f.Text)
+		}
+		return out
+	}
+	for name, want := range map[string][]string{
+		"P::PartsView":    {"@SysML::PartUsage"},
+		"P::vehicleParts": {"@Safety", "@Safety and @SysML::PartUsage"}, // in source order
+		"P::Filtered":     {"@Safety"},                                  // a package filters its imports
+		"P::Vehicle":      {},
+		"P":               {},
+		"P::TreeView2":    {},
+	} {
+		if got := text(name); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s filters: got %q, want %q", name, got, want)
+		}
+	}
+	// the expose is a member (an import), the filter conditions are not
+	var members []string
+	for _, m := range w.Facts(w.Lookup("P::vehicleParts")).Members {
+		members = append(members, string(m.Kind)+" "+w.Facts(m.Element).QualifiedName)
+	}
+	if want := []string{"import P::Vehicle"}; !reflect.DeepEqual(members, want) {
+		t.Errorf("vehicleParts members: got %q, want %q", members, want)
+	}
+	if f := w.Facts(w.Lookup("P::PartsView")).Filters[0]; f.Element.Class != "OperatorExpression" {
+		t.Errorf("filter expression is a %s", f.Element.Class)
+	}
+}

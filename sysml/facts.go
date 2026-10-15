@@ -188,6 +188,16 @@ type Roles struct {
 	Verifies []*Element
 }
 
+// A Filter is one filter condition of a namespace: the "@SysML::PartUsage" of
+// "filter @SysML::PartUsage;".
+type Filter struct {
+	// Element is the condition expression.
+	Element *Element
+	// Text is the condition as written in the source. It is empty for a file
+	// the workspace did not read, such as the standard library.
+	Text string
+}
+
 // An Annotation is a piece of documentation, a comment or a textual
 // representation attached to an element.
 type Annotation struct {
@@ -236,8 +246,8 @@ type Facts struct {
 	Membership MembershipKind
 	// Members are the entries of the element's namespace in source order:
 	// what it owns, its imports and its aliases. Elements the transformation
-	// generates, the multiplicity (see Multiplicity) and the feature value
-	// expression, are left out.
+	// generates, the multiplicity (see Multiplicity), the feature value
+	// expression and the filter conditions (see Filters), are left out.
 	Members []Member
 
 	// Direction is "in", "out" or "inout" for a directed feature and empty
@@ -320,6 +330,11 @@ type Facts struct {
 	// Roles are the requirement roles of the element, nil when it has none.
 	Roles *Roles
 
+	// Filters are the filter conditions of a namespace, in source order: the
+	// conditions a view narrows what it exposes by, or a package what it
+	// imports. They are nil for an element that has none.
+	Filters []Filter
+
 	// Annotations are the documentation, comments and textual representations
 	// that annotate the element: those it owns that do not name another
 	// element, then those anywhere in the workspace's files that name it with
@@ -376,6 +391,7 @@ func (w *Workspace) Facts(e *Element) Facts {
 	f.Behavior = w.behaviorOf(&f)
 	f.Roles = w.rolesOf(e)
 	f.Annotations = w.annotationsOf(e)
+	f.Filters = w.filtersOf(e)
 	return f
 }
 
@@ -477,7 +493,7 @@ func (w *Workspace) membersOf(ns *Element) []Member {
 				}
 				continue
 			}
-			if r.IsA("FeatureValue") {
+			if r.IsA("FeatureValue") || r.IsA("ElementFilterMembership") {
 				continue
 			}
 			for _, m := range owned {
@@ -1089,4 +1105,20 @@ func (w *Workspace) impliedSuccessionEnds(f *Facts) {
 		}
 		break
 	}
+}
+
+// filtersOf reads the filter conditions a namespace owns.
+func (w *Workspace) filtersOf(e *Element) []Filter {
+	var out []Filter
+	for _, r := range ownedRels(e) {
+		if !r.IsA("ElementFilterMembership") {
+			continue
+		}
+		for _, c := range r.Children("ownedRelatedElement") {
+			if !c.Generated {
+				out = append(out, Filter{c, w.sourceText(c)})
+			}
+		}
+	}
+	return out
 }

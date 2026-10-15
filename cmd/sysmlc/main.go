@@ -466,6 +466,9 @@ func printFacts(w *sysml.Workspace, docs []*sysml.Document, _ []sysml.Diagnostic
 				one("satisfied by", r.SatisfiedBy)
 				many("verifies", r.Verifies)
 			}
+			for _, fl := range f.Filters {
+				fmt.Fprintf(stdout, "  filter: %s\n", fl.Text)
+			}
 			for _, a := range f.Annotations {
 				var to []string
 				for _, t := range a.Annotates {

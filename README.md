@@ -48,7 +48,7 @@ trigger, guard and effect, and the condition of an if or while; a succession
 end the source does not write is the step before or the member after it, marked
 implied), and the requirement roles (subject, actors, stakeholders,
 objective, assumed and required constraints, and what a satisfy or verify
-targets), and the documentation, comments and textual representations that
+targets), the filter conditions of a view or package, and the documentation, comments and textual representations that
 annotate it. `sysmlc facts` prints it.
 
 ## Command line
