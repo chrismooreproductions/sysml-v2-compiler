@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-15
+
 ### Added
 
 - `Workspace.Eval` evaluates an expression and returns a `Result`: a typed
@@ -22,8 +24,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cannot be decided for an element removes nothing: the result says which
   filters were not applied and why, and which elements they could not be decided
   for. Annotations and the members a model's namespace inherits from the
-  standard library are not content. `Workspace.ImportedElements` is the
-  lower-level operation.
+  standard library are not content.
   ([#12](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/12),
   [#8](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/8))
 - `Workspace.Matches` evaluates a `filter` condition for an element: `@T` (the
@@ -32,8 +33,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `implies` over those, and comparisons on the element's metadata values
   (`@Safety and Safety::level > 2`). A condition it cannot evaluate is
   `NotEvaluable` with the reason and the part responsible; an element with the
-  metadata but no value for the field is `NotDetermined`. `Workspace.EvaluateFor`
-  does the same at the lower level.
+  metadata but no value for the field is `NotDetermined`.
   ([#11](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/11))
 
 ### Changed
