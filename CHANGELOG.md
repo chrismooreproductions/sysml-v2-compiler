@@ -23,6 +23,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   evaluable.
 - `sysmlc eval` prints whether each requirement's constraints hold, and the
   value of each calculation usage and named constraint.
+- A number with a unit (`1800 [kg]`) evaluates to a `Quantity` (`KindQuantity`)
+  that carries its unit (`SI::kilogram`, symbol `kg`), instead of "SI::kilogram
+  has no value". Within one unit quantities can be added, subtracted, compared
+  and scaled by a number, and `mass / extra` in the same unit is a plain number.
+  Converting between units (`3 [m] + 2 [km]`) and derived units (`mass * extra`,
+  `[m/s]`) are not supported: they are not evaluable, with the reason, and
+  never approximated. ([#14](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/14);
+  the rest is [#19](https://github.com/chrismooreproductions/sysml-v2-compiler/issues/19))
 
 ## [0.17.0] - 2026-10-15
 

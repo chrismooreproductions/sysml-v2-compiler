@@ -305,6 +305,8 @@ func displayName(f *el) string {
 // operator evaluates an operator expression.
 func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 	switch op {
+	case "[":
+		return ev.quantity(e)
 	case "@":
 		return ev.metaclassTest(e)
 	case "if":
@@ -442,6 +444,9 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 		}
 		l, _ := lv.([]Value)
 		r, _ := rv.([]Value)
+		if why := quantitiesComparable(op, l, r); why != "" {
+			return nil, ev.fail(e, "%s", why)
+		}
 		eq := equal(l, r)
 		if op == "!=" || op == "!==" {
 			eq = !eq
@@ -467,6 +472,13 @@ func (ev *evaluator) operator(e *el, op string) ([]Value, error) {
 	l, r, err := ev.both(args, ev.single)
 	if err != nil {
 		return nil, err
+	}
+	if isQuantity(l) || isQuantity(r) {
+		v, why := quantityOp(op, l, r)
+		if why != "" {
+			return nil, ev.fail(e, "%s", why)
+		}
+		return []Value{v}, nil
 	}
 	v, ok := binary(op, l, r)
 	if !ok {
@@ -583,6 +595,15 @@ func equal(l, r []Value) bool {
 		return false
 	}
 	for i := range l {
+		if lq, ok := l[i].(Quantity); ok { // same unit: quantitiesComparable has checked
+			rq, ok := r[i].(Quantity)
+			lf, _ := toFloat(lq.Number)
+			rf, _ := toFloat(rq.Number)
+			if !ok || lf != rf {
+				return false
+			}
+			continue
+		}
 		if lf, ok := toFloat(l[i]); ok {
 			if rf, ok := toFloat(r[i]); ok && lf == rf {
 				continue
@@ -613,6 +634,8 @@ func FormatValue(v Value) string {
 		return strconv.FormatFloat(x, 'g', -1, 64)
 	case string:
 		return strconv.Quote(x)
+	case Quantity:
+		return x.String()
 	case Seq:
 		if len(x) == 0 {
 			return "null"

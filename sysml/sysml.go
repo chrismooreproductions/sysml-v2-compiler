@@ -345,6 +345,14 @@ func (w *Workspace) Validate() []Diagnostic {
 // which is null) evaluates to.
 type Seq = semantics.Seq
 
+// Quantity is a number with its unit: the value of 1800 [kg]. Number is an
+// int64 or a float64, Unit is the unit feature (SI::kilogram), and Symbol is
+// the unit's short name (kg). Within one unit a quantity can be added,
+// subtracted, compared and scaled by a plain number; converting between units
+// and derived units (a product or quotient of units) are not supported, and an
+// expression that needs them is not evaluable.
+type Quantity = semantics.Quantity
+
 // EvalError says why an expression could not be evaluated, and where.
 type EvalError = semantics.EvalError
 

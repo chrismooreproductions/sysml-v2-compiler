@@ -52,6 +52,8 @@ const (
 	// KindSequence is a Seq of two or more values, or of one value that is
 	// itself a sequence.
 	KindSequence
+	// KindQuantity is a Quantity: a number with the unit it is in (1800 [kg]).
+	KindQuantity
 )
 
 func (k ValueKind) String() string {
@@ -66,6 +68,8 @@ func (k ValueKind) String() string {
 		return "real"
 	case KindString:
 		return "string"
+	case KindQuantity:
+		return "quantity"
 	}
 	return "sequence"
 }
@@ -78,8 +82,8 @@ type Result struct {
 	// Status says whether there is a value.
 	Status Status
 	// Kind and Value are set when Status is Determined. Value is a bool,
-	// int64, float64 or string for a single value, a Seq for a sequence, and
-	// nil for null.
+	// int64, float64 or string for a single value, a Quantity for a number with
+	// a unit, a Seq for a sequence, and nil for null.
 	Kind  ValueKind
 	Value any
 	// Reason says why there is no value; it is empty when Status is
@@ -168,6 +172,8 @@ func determined(e *Element, v any) Result {
 		r.Kind = KindReal
 	case string:
 		r.Kind = KindString
+	case Quantity:
+		r.Kind = KindQuantity
 	case Seq:
 		r.Kind = KindSequence
 		if len(x) == 0 {
