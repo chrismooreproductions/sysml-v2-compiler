@@ -3,12 +3,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -257,10 +259,26 @@ func TestLSPServesOverTCP(t *testing.T) {
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootUri":null,"capabilities":{}}}`
 	fmt.Fprintf(conn, "Content-Length: %d\r\n\r\n%s", len(body), body)
 	conn.SetReadDeadline(time.Now().Add(20 * time.Second))
-	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
-	if err != nil || !strings.Contains(string(buf[:n]), `"hoverProvider":true`) {
-		t.Errorf("reply %q, %v", buf[:n], err)
+	// the reply is framed: headers, a blank line, then Content-Length bytes,
+	// which may arrive in separate reads
+	r := bufio.NewReader(conn)
+	length := -1
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil {
+			t.Fatalf("reading the reply's headers: %v", err)
+		}
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			break
+		}
+		if v, ok := strings.CutPrefix(line, "Content-Length: "); ok {
+			length, _ = strconv.Atoi(v)
+		}
+	}
+	reply := make([]byte, max(length, 0))
+	if _, err := io.ReadFull(r, reply); err != nil || !strings.Contains(string(reply), `"hoverProvider":true`) {
+		t.Errorf("reply %q, %v", reply, err)
 	}
 	l.Close()
 	if st := <-done; st != 0 {
