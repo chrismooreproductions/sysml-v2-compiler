@@ -236,7 +236,11 @@ func (w *Workspace) effectiveNames(e *el) (short, name string) {
 		// a variant that names an existing usage (variant q { ... }) is that
 		// usage under the variation point, and is called what it is
 		if f := w.refTarget(w.rels(e, "ReferenceSubsetting")[0], "referencedFeature"); f != nil {
-			short, name = w.effectiveNames(f)
+			// perform a.b references the anonymous chain a.b, which is
+			// called what its last feature is
+			if g := w.basicFeature(f); g != nil {
+				short, name = w.effectiveNames(g)
+			}
 		}
 	} else {
 		// the namingFeature is the first ownedRedefinition, which in the

@@ -100,6 +100,22 @@ func TestQualifiedNameOfAFeatureThatTakesItsNameFromWhatItRedefines(t *testing.T
 	}
 }
 
+func TestAPerformedChainIsNamedForItsLastFeature(t *testing.T) {
+	// perform a.b has no name of its own and is called what a.b is, so that
+	// the performer's feature can be reached as driver.turnOn
+	w, _ := resolved(t, false, `package P {
+		part def Driver;
+		part s {
+			perform action start { action turnOn; }
+			part driver : Driver { perform start.turnOn; }
+			first driver.turnOn then start.turnOn;
+		}
+	}`)
+	if u := w.Unresolved(); len(u) != 0 {
+		t.Errorf("%d unresolved, want 0: %v", len(u), u)
+	}
+}
+
 func TestOnlyVisibleMembersAreReachableByQualification(t *testing.T) {
 	// a private member is not visible from outside its package
 	_, roots := resolved(t, false, `package P { package Q { private part def Hidden; part def Shown; } part x : Q::Hidden; part y : Q::Shown; }`)

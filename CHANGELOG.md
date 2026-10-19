@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- `perform a.b;` is called `b`, so `driver.b` resolves. The Annex A
+  SimpleVehicleModel example no longer reports four unresolved names
+  (`driver.turnVehicleOn`, `vehicle.trigger1`, `vehicle.sendStatus`,
+  `driver.trigger2`).
+
 ## [0.19.0] - 2026-10-16
 
 ### Added
