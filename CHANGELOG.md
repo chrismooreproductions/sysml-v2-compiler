@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-19
+
 ### Fixed
 
 - `perform a.b;` is called `b`, so `driver.b` resolves. The Annex A
