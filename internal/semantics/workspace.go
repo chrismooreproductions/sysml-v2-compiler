@@ -39,6 +39,7 @@ type Workspace struct {
 	libCache     map[string]*el      // library elements by qualified name
 	genMemo      map[*el][]*el
 	nameMemo     map[nameKey]*el
+	ownedIdx     map[*el]map[string][]*el // a namespace's own memberships by the names they give
 	materialized map[*el]bool
 	relsMemo     map[relsKey][]*el
 	featMemo     map[*el][]*el
@@ -57,7 +58,7 @@ func NewWorkspace() *Workspace {
 		files: map[*el]string{},
 		memo:  map[*model.Ref]*el{}, done: map[*model.Ref]bool{}, busy: map[*model.Ref]bool{},
 		effNames: map[*el][2]string{}, libCache: map[string]*el{},
-		genMemo: map[*el][]*el{}, nameMemo: map[nameKey]*el{}, materialized: map[*el]bool{}, relsMemo: map[relsKey][]*el{}, featMemo: map[*el][]*el{}, snapshots: map[*el]*el{}, featBusy: map[*el]bool{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
+		genMemo: map[*el][]*el{}, nameMemo: map[nameKey]*el{}, ownedIdx: map[*el]map[string][]*el{}, materialized: map[*el]bool{}, relsMemo: map[relsKey][]*el{}, featMemo: map[*el][]*el{}, snapshots: map[*el]*el{}, featBusy: map[*el]bool{}, implMemo: map[*el][]implied{}, implBusy: map[*el]bool{},
 		chains: map[[2]*el]*el{}, chainOf: map[*el][]*el{}, gaps: map[string]int{},
 	}
 }
@@ -459,7 +460,7 @@ func (w *Workspace) privateLibrary() error {
 	w.roots = roots
 	fresh := NewWorkspace()
 	w.memo, w.done, w.busy, w.effNames, w.libCache = fresh.memo, fresh.done, fresh.busy, fresh.effNames, fresh.libCache
-	w.genMemo, w.nameMemo, w.materialized, w.relsMemo, w.featMemo = fresh.genMemo, fresh.nameMemo, fresh.materialized, fresh.relsMemo, fresh.featMemo
+	w.genMemo, w.nameMemo, w.ownedIdx, w.materialized, w.relsMemo, w.featMemo = fresh.genMemo, fresh.nameMemo, fresh.ownedIdx, fresh.materialized, fresh.relsMemo, fresh.featMemo
 	w.snapshots, w.featBusy, w.implMemo, w.implBusy, w.chains, w.chainOf = fresh.snapshots, fresh.featBusy, fresh.implMemo, fresh.implBusy, fresh.chains, fresh.chainOf
 	w.metaIndex = nil
 	w.sharedLibrary = false
@@ -530,6 +531,18 @@ func (w *Workspace) Remove(root *el) {
 			}
 		}
 		return false
+	}
+	for k, idx := range w.ownedIdx {
+		drop := user[k]
+		for _, ms := range idx {
+			if drop || touches(ms) {
+				drop = true
+				break
+			}
+		}
+		if drop {
+			delete(w.ownedIdx, k)
+		}
 	}
 	for k, v := range w.genMemo {
 		if touches(v) {

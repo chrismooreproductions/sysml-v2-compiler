@@ -130,6 +130,134 @@ func (w *Workspace) visibleMemberships(ns *el, recursive, includeAll bool, seen 
 	return out
 }
 
+// ---- the memberships that give a name ----
+//
+// The functions above list every membership a namespace sees, and a lookup
+// wants the few that give one name. The functions below walk the same
+// namespaces in the same order, changing the set of those seen the same way,
+// and keep only the memberships that give the name, so that the answer is the
+// one the lists would give without making the lists. A namespace's own
+// memberships are found in an index by name.
+
+// ownedNamed are the namespace's own memberships that give a name.
+func (w *Workspace) ownedNamed(ns *el, name string) []*el {
+	idx, ok := w.ownedIdx[ns]
+	if !ok {
+		cutBefore := w.cut
+		idx = map[string][]*el{}
+		for _, m := range w.ownedMemberships(ns) {
+			given := w.names(m)
+		names:
+			for i, n := range given {
+				for _, p := range given[:i] {
+					if p == n {
+						continue names // a membership is listed once under a name
+					}
+				}
+				idx[n] = append(idx[n], m)
+			}
+		}
+		if w.cut == cutBefore {
+			w.ownedIdx[ns] = idx
+		}
+	}
+	return idx[name]
+}
+
+func (w *Workspace) membershipsNamed(ns *el, inside bool, seen map[*el]bool, inheriting bool, name string) []*el {
+	var out []*el
+	for _, m := range w.ownedNamed(ns, name) {
+		v := w.visibility(m)
+		if inside || v == "public" || (v == "protected" && inheriting) {
+			out = append(out, m)
+		}
+	}
+	out = append(out, w.inheritedNamed(ns, seen, name)...)
+	out = append(out, w.importedNamed(ns, inside, seen, name)...)
+	return out
+}
+
+func (w *Workspace) inheritedNamed(t *el, seen map[*el]bool, name string) []*el {
+	if !t.IsA("Type") {
+		return nil
+	}
+	var out []*el
+	for _, g := range w.generalTypes(t) {
+		if seen[g] {
+			continue
+		}
+		seen[g] = true
+		out = append(out, w.membershipsNamed(g, false, seen, true, name)...)
+	}
+	return out
+}
+
+func (w *Workspace) importedNamed(ns *el, inside bool, seen map[*el]bool, name string) []*el {
+	var out []*el
+	for _, imp := range w.ownedImports(ns) {
+		if !inside && w.visibility(imp) != "public" {
+			continue
+		}
+		out = append(out, w.importedByNamed(imp, seen, name)...)
+	}
+	return out
+}
+
+func (w *Workspace) importedByNamed(imp *el, seen map[*el]bool, name string) []*el {
+	var out []*el
+	recursive := imp.IsTrue("isRecursive")
+	all := imp.IsTrue("isImportAll")
+	if imp.IsA("NamespaceImport") {
+		target := w.refTarget(imp, "importedNamespace")
+		if target == nil || seen[target] {
+			return nil
+		}
+		seen[target] = true
+		out = append(out, w.visibleNamed(target, recursive, all, seen, name)...)
+		delete(seen, target)
+		return out
+	}
+	m := w.refTarget(imp, "importedMembership")
+	if m == nil {
+		return nil
+	}
+	for _, n := range w.names(m) {
+		if n == name {
+			out = append(out, m)
+			break
+		}
+	}
+	if recursive {
+		if e := w.memberElement(m); e.IsA("Namespace") && !seen[e] {
+			seen[e] = true
+			out = append(out, w.visibleNamed(e, true, all, seen, name)...)
+			delete(seen, e)
+		}
+	}
+	return out
+}
+
+func (w *Workspace) visibleNamed(ns *el, recursive, includeAll bool, seen map[*el]bool, name string) []*el {
+	var out []*el
+	for _, m := range w.ownedNamed(ns, name) {
+		if includeAll || w.visibility(m) == "public" {
+			out = append(out, m)
+		}
+	}
+	out = append(out, w.inheritedNamed(ns, seen, name)...)
+	out = append(out, w.importedNamed(ns, includeAll, seen, name)...)
+	if recursive {
+		for _, m := range w.ownedMemberships(ns) {
+			if e := w.memberElement(m); e.IsA("Namespace") && (includeAll || w.visibility(m) == "public") && !seen[e] {
+				seen[e] = true
+				out = append(out, w.visibleNamed(e, true, includeAll, seen, name)...)
+				delete(seen, e)
+			}
+		}
+	}
+	return out
+}
+
 // ---- resolution ----
 
 // splitName splits a written qualified name into unquoted segments.
@@ -173,9 +301,9 @@ func (w *Workspace) resolveLocal(ns *el, name string, redefinition bool) *el {
 	for cur := ns; cur != nil; cur = w.parentNamespace(cur) {
 		var ms []*el
 		if redefinition && first && cur.IsA("Type") {
-			ms = w.named(w.inherited(cur, map[*el]bool{cur: true}), name)
+			ms = w.removeRedefined(w.inheritedNamed(cur, map[*el]bool{cur: true}, name))
 		} else {
-			ms = w.named(w.membershipsOf(cur, true, map[*el]bool{cur: true}, false), name)
+			ms = w.removeRedefined(w.membershipsNamed(cur, true, map[*el]bool{cur: true}, false, name))
 		}
 		first = false
 		if len(ms) > 0 {
@@ -189,7 +317,7 @@ func (w *Workspace) resolveLocal(ns *el, name string, redefinition bool) *el {
 }
 
 func (w *Workspace) resolveVisible(ns *el, name string) *el {
-	ms := w.named(w.membershipsOf(ns, false, map[*el]bool{ns: true}, true), name)
+	ms := w.removeRedefined(w.membershipsNamed(ns, false, map[*el]bool{ns: true}, true, name))
 	if len(ms) > 0 {
 		return ms[0]
 	}
