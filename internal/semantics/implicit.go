@@ -320,6 +320,10 @@ func (w *Workspace) ownedEndCount(t *el) int {
 
 // features of a type: owned, then inherited.
 func (w *Workspace) features(t *el) []*el {
+	if v, ok := w.featsMemo[t]; ok {
+		return v
+	}
+	cutBefore := w.cut
 	out := w.ownedFeatures(t)
 	for _, m := range w.inherited(t, map[*el]bool{t: true}) {
 		if m.IsA("FeatureMembership") {
@@ -327,6 +331,9 @@ func (w *Workspace) features(t *el) []*el {
 				out = append(out, f)
 			}
 		}
+	}
+	if w.cut == cutBefore {
+		w.featsMemo[t] = out
 	}
 	return out
 }
