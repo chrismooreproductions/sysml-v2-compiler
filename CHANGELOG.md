@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.5] - 2026-10-26
+
 ### Fixed
 
 - A variant is typed by the variation definition it is a variant of (an
