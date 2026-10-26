@@ -311,3 +311,44 @@ func TestLibraryAddresses(t *testing.T) {
 		t.Error("a file URI is not a library address")
 	}
 }
+
+func TestAnalysisThatRunsOutOfTimeIsAbandonedAndNotRetried(t *testing.T) {
+	var calls atomic.Int32
+	var mu sync.Mutex
+	var infos []ResolveInfo
+	h := NewHost(Options{ResolveTimeout: 50 * time.Millisecond, Debounce: time.Millisecond, Hooks: Hooks{
+		Resolved: func(_ SessionInfo, ri ResolveInfo) { mu.Lock(); infos = append(infos, ri); mu.Unlock() },
+	}})
+	h.beforeResolve = func(*Session) {
+		if calls.Add(1) == 1 {
+			time.Sleep(150 * time.Millisecond) // a resolution that takes too long
+		}
+	}
+	c := startOn(t, h, nil)
+	c.initialize()
+	uri := "file:///work/fleet.sysml"
+	c.open(uri, fleet)
+	d := c.diagnostics(uri, some)
+	if len(d) != 1 || !strings.Contains(d[0].Message, "timed out") {
+		t.Fatalf("the diagnostic: %+v", d)
+	}
+	r := c.reply("textDocument/hover", at(uri, 4, 16))
+	if r.Error == nil || r.Error.Code != -32801 {
+		t.Errorf("a request for the same text: %+v", r)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("the same text was tried again: %d resolutions", calls.Load())
+	}
+	c.change(uri, 2, fleet+"\n") // a change allows another try
+	c.diagnostics(uri, none)
+	var hv Hover
+	json.Unmarshal(c.call("textDocument/hover", at(uri, 4, 16)), &hv)
+	if !strings.Contains(hv.Contents.Value, "Fleet::Truck") {
+		t.Errorf("after the change: %q", hv.Contents.Value)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(infos) < 2 || !infos[0].TimedOut || infos[len(infos)-1].TimedOut {
+		t.Errorf("resolutions: %+v", infos)
+	}
+}

@@ -14,6 +14,7 @@ const (
 	codeInternal         = -32603
 	codeMethodNotFound   = -32601
 	codeRequestCancelled = -32800
+	codeContentModified  = -32801
 )
 
 func (s *Session) write(m *message) {
@@ -126,6 +127,8 @@ func (s *Session) answer(id json.RawMessage, result any, err error) {
 	switch {
 	case err == nil:
 		s.reply(id, result)
+	case errors.Is(err, errTimedOut):
+		s.fail(id, codeContentModified, "analysis timed out")
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		s.fail(id, codeRequestCancelled, "request cancelled")
 	default:

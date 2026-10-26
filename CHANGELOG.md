@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `lsp.Options.ResolveTimeout` bounds how long a session may hold a compute slot
+  bringing its workspace up to date. When it runs out the work is abandoned,
+  requests that waited for it fail with ContentModified (-32801), the client's
+  open documents get a diagnostic saying the analysis timed out, the workspace
+  is rebuilt, and the same text is not tried again until a document changes.
+  `ResolveInfo.TimedOut` reports it to the hook. Off by default; parsing one
+  document is not interrupted.
+
 ## [0.20.0] - 2026-10-26
 
 ### Changed

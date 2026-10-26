@@ -25,6 +25,7 @@ var (
 	ErrClosed           = errors.New("lsp: the session is closed")
 
 	errInterrupted = errors.New("lsp: a newer edit made the work obsolete")
+	errTimedOut    = errors.New("lsp: analysis timed out")
 )
 
 func toString(v any) string { return fmt.Sprint(v) }
@@ -67,6 +68,7 @@ type Session struct {
 	snaps    map[string]*document // the documents as last parsed
 	diags    []sysml.Diagnostic
 	resolved bool        // the workspace is resolved for the snapshots
+	timedOut uint64      // the generation of the documents at which resolving ran out of time
 	tainted  atomic.Bool // work on the workspace was abandoned or panicked: rebuild it
 
 	cmu        sync.Mutex // guards cancelSync
@@ -182,6 +184,7 @@ func (s *Session) store(n *source) {
 
 func (s *Session) dropLocked(key string) {
 	if d := s.docs[key]; d != nil {
+		s.gens++
 		s.bytes -= int64(len(d.text))
 		delete(s.docs, key)
 		s.removed[key] = true
@@ -299,6 +302,12 @@ func (s *Session) close(reason string, err error) {
 // and a compute slot. An edit that arrives meanwhile abandons the work and
 // returns errInterrupted; ctx ending returns its error.
 func (s *Session) syncLocked(ctx context.Context) error {
+	s.dmu.Lock()
+	gen := s.gens
+	s.dmu.Unlock()
+	if s.timedOut != 0 && s.timedOut == gen {
+		return errTimedOut // the same text again: it would take as long
+	}
 	if s.tainted.Swap(false) {
 		ws, err := sysml.NewWorkspace()
 		if err != nil {
@@ -328,7 +337,12 @@ func (s *Session) syncLocked(ctx context.Context) error {
 	}
 	s.resolved = false
 
-	sctx, cancel := context.WithCancel(ctx)
+	bctx, bcancel := ctx, context.CancelFunc(func() {})
+	if d := s.h.opts.ResolveTimeout; d > 0 {
+		bctx, bcancel = context.WithTimeout(ctx, d)
+	}
+	defer bcancel()
+	sctx, cancel := context.WithCancel(bctx)
 	defer cancel()
 	s.cmu.Lock()
 	s.cancelSync = cancel
@@ -343,6 +357,9 @@ func (s *Session) syncLocked(ctx context.Context) error {
 			return ctx.Err()
 		}
 		if sctx.Err() != nil {
+			if errors.Is(sctx.Err(), context.DeadlineExceeded) {
+				return errTimedOut
+			}
 			return errInterrupted
 		}
 		return nil
@@ -354,6 +371,10 @@ func (s *Session) syncLocked(ctx context.Context) error {
 	}
 	for _, j := range jobs {
 		if err := stopped(); err != nil {
+			if err == errTimedOut {
+				s.timedOut = gen
+				s.tainted.Store(true)
+			}
 			return err
 		}
 		_, errs := s.ws.ReplaceAs(j.lang, j.key, []byte(j.text))
@@ -371,6 +392,7 @@ func (s *Session) syncLocked(ctx context.Context) error {
 		}
 	}
 	info := ResolveInfo{Duration: time.Since(start), Cancelled: err != nil, Documents: len(s.snaps)}
+	info.TimedOut = err != nil && ctx.Err() == nil && errors.Is(sctx.Err(), context.DeadlineExceeded)
 	if f := s.h.opts.Hooks.Resolved; f != nil {
 		f(s.info(), info)
 	}
@@ -378,6 +400,10 @@ func (s *Session) syncLocked(ctx context.Context) error {
 	if err != nil {
 		s.tainted.Store(true) // what the memos hold may reflect references not yet resolved
 		if e := stopped(); e != nil {
+			if e == errTimedOut {
+				s.timedOut = gen
+				s.log.Warn("analysis timed out", "after", s.h.opts.ResolveTimeout)
+			}
 			return e
 		}
 		return err
@@ -434,7 +460,18 @@ func (s *Session) publish() {
 		}
 		return nil, nil
 	})
-	if err != nil {
+	if errors.Is(err, errTimedOut) {
+		s.dmu.Lock()
+		for _, d := range s.docs {
+			if d.open && !d.pinned {
+				out = append(out, publishDiagnosticsParams{d.uri, []Diagnostic{{
+					Severity: 1, Source: "sysml",
+					Message: fmt.Sprintf("analysis timed out after %v; change the model to try again", s.h.opts.ResolveTimeout),
+				}}})
+			}
+		}
+		s.dmu.Unlock()
+	} else if err != nil {
 		return
 	}
 	for _, p := range out {

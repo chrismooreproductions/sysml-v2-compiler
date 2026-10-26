@@ -26,6 +26,14 @@ type Options struct {
 	// resolving or answering at once, so that many sessions cannot use more of
 	// the CPU than that. Default runtime.GOMAXPROCS(0); negative for no bound.
 	Concurrency int
+	// ResolveTimeout bounds one bringing-up-to-date of a session's workspace:
+	// the parsing of changed documents, then the resolution and validation of
+	// all. When it runs out the work is abandoned, requests that waited for it
+	// fail with ContentModified, the client's documents get a diagnostic saying
+	// so, the workspace is rebuilt, and the same text is not tried again until
+	// a document changes. Parsing a single document is not interrupted, so a
+	// very large document can overrun it. Default 0: no bound.
+	ResolveTimeout time.Duration
 	// Debounce is how long a document is quiet before its diagnostics are
 	// published. Default 150 ms.
 	Debounce time.Duration
@@ -74,7 +82,8 @@ type CloseInfo struct {
 // ResolveInfo describes one resolution of a session's documents.
 type ResolveInfo struct {
 	Duration  time.Duration
-	Cancelled bool // an edit or the end of the session made the result obsolete
+	Cancelled bool // an edit, the end of the session or the timeout stopped it
+	TimedOut  bool // ResolveTimeout ran out
 	Documents int
 }
 
