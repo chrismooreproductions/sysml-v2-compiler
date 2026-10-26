@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A workspace no longer keeps every earlier version of a file in memory.
+  `Replace` (and `Remove`) forgot what had been worked out about the old file
+  by walking its tree, but resolution also makes helper elements that no tree
+  owns (the features for `a.b` chains, bindings and the payload of a
+  transition), and what was remembered about those still pointed into the old
+  tree. A language server, which replaces the file on every edit, grew by about
+  2 MB per edit for a 1,500-line model, which is why a connection's memory kept
+  climbing. It is now flat.
+
 ## [0.19.1] - 2026-10-19
 
 ### Fixed

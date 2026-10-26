@@ -437,6 +437,63 @@ func (w *Workspace) Remove(root *el) {
 			delete(w.nameMemo, k)
 		}
 	}
+	// Resolution makes helper elements that no tree owns (the chain features of
+	// a.b, the features for the snapshots of a type). The walk above cannot find
+	// them, so what is remembered about them is found by what it points at: an
+	// entry whose value is in a forgotten tree is dropped, and with it the last
+	// thing that kept the tree alive.
+	touches := func(es []*el) bool {
+		for _, x := range es {
+			if user[x] {
+				return true
+			}
+		}
+		return false
+	}
+	for k, v := range w.genMemo {
+		if touches(v) {
+			delete(w.genMemo, k)
+		}
+	}
+	for k, v := range w.featMemo {
+		if touches(v) {
+			delete(w.featMemo, k)
+		}
+	}
+	for k, v := range w.relsMemo {
+		if touches(v) {
+			delete(w.relsMemo, k)
+		}
+	}
+	for k, v := range w.implMemo {
+		for _, x := range v {
+			if user[x.target] {
+				delete(w.implMemo, k)
+				break
+			}
+		}
+	}
+	for c, parts := range w.chainOf {
+		if touches(parts) {
+			user[c] = true // the chain feature goes too, and what is known of it
+			delete(w.chainOf, c)
+		}
+	}
+	for k, c := range w.snapshots {
+		if user[k] {
+			user[c] = true
+		}
+	}
+	for k, c := range w.chains {
+		if user[k[0]] || user[k[1]] {
+			user[c] = true
+		}
+	}
+	for k := range w.relsMemo { // again: the helper elements were added to user above
+		if user[k.e] {
+			delete(w.relsMemo, k)
+		}
+	}
 	for e := range user {
 		delete(w.effNames, e)
 		delete(w.featMemo, e)
