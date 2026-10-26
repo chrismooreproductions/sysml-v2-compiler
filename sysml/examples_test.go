@@ -12,7 +12,7 @@ import (
 )
 
 // The release's example models are the pilot's own, so checked together they
-// report nothing, and since v0.21.0 they do not. These stay as ratchets: a
+// report nothing, and now they do. These stay as ratchets: a
 // change that makes the compiler report a name it does not resolve, or a
 // constraint it applies wrongly, in one of them fails (the count was 154 and 48
 // at v0.18.0; see the issue "Examples: the release's example models report 154
