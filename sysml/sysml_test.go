@@ -3,6 +3,7 @@
 package sysml
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -738,6 +739,61 @@ func TestAnIndividualCanBeTypedThroughWhatItSubsets(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: %q, want %q", name, got, c.want)
+		}
+	}
+}
+
+// Workspaces share the standard library's model, which nothing may write to
+// once it is built: many can be used at once, each on its own files. Run with
+// -race to check it.
+func TestWorkspacesShareTheLibraryAndCanBeUsedConcurrently(t *testing.T) {
+	src, err := os.ReadFile("../testdata/upstream/sysml/examples/Vehicle Example/SysML v2 Spec Annex A SimpleVehicleModel.sysml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const n = 6
+	done := make(chan string, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			w, err := NewWorkspace()
+			if err != nil {
+				done <- err.Error()
+				return
+			}
+			// each edits its own copy of a model, and uses the library's names
+			for round := 0; round < 3; round++ {
+				text := strings.Replace(string(src), "SimpleVehicleModel", fmt.Sprintf("M%d_%d", i, round), 1)
+				if _, errs := w.Replace("m.sysml", []byte(text)); len(errs) != 0 {
+					done <- errs[0].Error()
+					return
+				}
+				w.Resolve()
+				w.Validate()
+				if f := w.Lookup("ScalarValues::Integer"); f == nil || w.Facts(f).Name != "Integer" {
+					done <- "ScalarValues::Integer is missing"
+					return
+				}
+				for _, d := range w.Documents() {
+					d.Root.Walk(func(e *Element) {
+						if e.IsA("AttributeUsage") && !e.Generated {
+							w.Facts(e)
+							for _, r := range e.Children("ownedRelationship") {
+								for _, x := range r.Children("ownedRelatedElement") {
+									if r.IsA("FeatureValue") {
+										w.Eval(x)
+									}
+								}
+							}
+						}
+					})
+				}
+			}
+			done <- ""
+		}()
+	}
+	for i := 0; i < n; i++ {
+		if msg := <-done; msg != "" {
+			t.Error(msg)
 		}
 	}
 }

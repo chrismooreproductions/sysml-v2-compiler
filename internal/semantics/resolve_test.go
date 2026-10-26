@@ -342,3 +342,54 @@ func TestResolvesTheNamedArgumentsOfAConstructor(t *testing.T) {
 		t.Errorf("unresolved: %q", un[0].Ref.Name)
 	}
 }
+
+// Workspaces share the standard library's model, so the operation that edits
+// library elements (ResolveAll applies the resolution rules to them) works on a
+// private copy and leaves what the others see alone.
+func TestResolveAllWorksOnAPrivateLibrary(t *testing.T) {
+	a, b := NewWorkspace(), NewWorkspace()
+	if err := a.AddLibrary(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.AddLibrary(); err != nil {
+		t.Fatal(err)
+	}
+	libraryRoots := func(w *Workspace) []*model.Element {
+		var out []*model.Element
+		for _, r := range w.roots {
+			if w.isLibrary(r) {
+				out = append(out, r)
+			}
+		}
+		return out
+	}
+	shared, before := libraryRoots(a), libraryRoots(b)
+	if len(shared) == 0 || len(shared) != len(before) || shared[0] != before[0] {
+		t.Fatal("two workspaces do not share the library's model")
+	}
+	count := func(e *model.Element) int {
+		n := 0
+		e.Walk(func(*model.Element) { n++ })
+		return n
+	}
+	size := count(before[0])
+
+	a.ResolveAll()
+	own := libraryRoots(a)
+	if len(own) != len(shared) || own[0] == shared[0] {
+		t.Error("ResolveAll did not switch to a private copy of the library")
+	}
+	if got := count(libraryRoots(b)[0]); got != size || libraryRoots(b)[0] != shared[0] {
+		t.Errorf("the shared library changed: %d elements, was %d", got, size)
+	}
+	// and the other workspace still resolves against it
+	root, err := b.AddSource(grammar.SysML, "m.sysml", "package P { part def A; part a : A; attribute x : ScalarValues::Integer; }")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Resolve()
+	if len(b.Unresolved()) != 0 {
+		t.Errorf("unresolved: %v", b.Unresolved())
+	}
+	_ = root
+}

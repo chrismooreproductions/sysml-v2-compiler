@@ -65,3 +65,23 @@ func TestReplacingAFileDoesNotLeak(t *testing.T) {
 		t.Errorf("the live heap grew by %.1f MB over 4 replacements of a file", grown)
 	}
 }
+
+// The model of the standard library is built once for the process: another
+// workspace shares it and costs next to nothing (it was about 25 MB each, and
+// several times that in garbage while it was built).
+func TestAnotherWorkspaceCostsNextToNothing(t *testing.T) {
+	first, _ := NewWorkspace()
+	before := liveHeap()
+	var more []*Workspace
+	for i := 0; i < 4; i++ {
+		w, _ := NewWorkspace()
+		more = append(more, w)
+	}
+	grown := liveHeap() - before
+	runtime.KeepAlive(first)
+	runtime.KeepAlive(more)
+	t.Logf("four more workspaces cost %.1f MB", grown)
+	if grown > 4 {
+		t.Errorf("four more workspaces cost %.1f MB; each should share the library's model", grown)
+	}
+}

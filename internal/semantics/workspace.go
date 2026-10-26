@@ -8,6 +8,8 @@
 package semantics
 
 import (
+	"sync"
+
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/grammar"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/library"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/model"
@@ -24,8 +26,9 @@ type el = model.Element
 type Workspace struct {
 	roots []*el
 
-	metaIndex map[*el][]*el  // metadata that names each element with "about"; see metadataOf
-	files     map[*el]string // the file name of each root
+	metaIndex     map[*el][]*el  // metadata that names each element with "about"; see metadataOf
+	sharedLibrary bool           // the library's roots are the process's, not this workspace's
+	files         map[*el]string // the file name of each root
 
 	memo         map[*model.Ref]*el // resolved references, nil results included
 	done         map[*model.Ref]bool
@@ -356,9 +359,7 @@ func (w *Workspace) AddSource(lang grammar.Language, file, src string) (*el, err
 }
 
 func (w *Workspace) addTree(n *syntax.Node) *el {
-	root := model.FromSyntax(n)
-	postprocess.Run(root)
-	Structure(root)
+	root := buildTree(n)
 	w.Add(root)
 	return root
 }
@@ -372,16 +373,93 @@ func (w *Workspace) FileOf(e *el) string {
 	return w.files[e]
 }
 
-// AddLibrary adds the standard library to the workspace. The library's parse
-// trees are shared between workspaces; each workspace builds its own model.
+// The standard library's model is built once for the process and shared by every
+// workspace that adds it: building it is most of what a workspace costs (about
+// 25 MB, and several times that in garbage on the way), and nothing changes it
+// afterwards. The names in it resolve on demand into each workspace's own memo
+// maps, and the rules that edit elements run on a workspace's own files only.
+// ResolveAll, which does edit the library's elements, works on a private copy.
+var shared struct {
+	once  sync.Once
+	roots []*el
+	paths []string
+	err   error
+}
+
+func sharedLibrary() ([]*el, []string, error) {
+	shared.once.Do(func() {
+		files, err := library.Files()
+		if err != nil {
+			shared.err = err
+			return
+		}
+		for _, f := range files {
+			shared.roots = append(shared.roots, buildTree(f.Tree))
+			shared.paths = append(shared.paths, f.Path)
+		}
+	})
+	return shared.roots, shared.paths, shared.err
+}
+
+// buildTree makes the model of a syntax tree: its elements with owners, the
+// parser's post-processing, and the structure the specification implies.
+func buildTree(n *syntax.Node) *el {
+	root := model.FromSyntax(n)
+	postprocess.Run(root)
+	Structure(root)
+	return root
+}
+
+// AddLibrary adds the standard library to the workspace. Its model is shared
+// with every other workspace that adds it, and must not be modified.
 func (w *Workspace) AddLibrary() error {
+	roots, paths, err := sharedLibrary()
+	if err != nil {
+		return err
+	}
+	for i, root := range roots {
+		w.roots = append(w.roots, root)
+		w.files[root] = "library:" + paths[i]
+	}
+	w.metaIndex = nil
+	w.sharedLibrary = true
+	return nil
+}
+
+// privateLibrary replaces the shared model of the standard library by a copy of
+// the workspace's own, and forgets everything computed so far, which refers to
+// the shared elements.
+func (w *Workspace) privateLibrary() error {
+	if !w.sharedLibrary {
+		return nil
+	}
 	files, err := library.Files()
 	if err != nil {
 		return err
 	}
-	for _, f := range files {
-		w.files[w.addTree(f.Tree)] = "library:" + f.Path
+	var roots []*el
+	for _, r := range w.roots {
+		if !w.isLibrary(r) {
+			roots = append(roots, r)
+		}
 	}
+	for r := range w.files {
+		if w.isLibrary(r) {
+			delete(w.files, r)
+		}
+	}
+	for _, f := range files {
+		root := buildTree(f.Tree)
+		roots = append(roots, root)
+		w.files[root] = "library:" + f.Path
+	}
+	w.roots = roots
+	fresh := NewWorkspace()
+	w.memo, w.done, w.busy, w.effNames, w.libCache = fresh.memo, fresh.done, fresh.busy, fresh.effNames, fresh.libCache
+	w.genMemo, w.nameMemo, w.materialized, w.relsMemo, w.featMemo = fresh.genMemo, fresh.nameMemo, fresh.materialized, fresh.relsMemo, fresh.featMemo
+	w.snapshots, w.featBusy, w.implMemo, w.implBusy, w.chains, w.chainOf = fresh.snapshots, fresh.featBusy, fresh.implMemo, fresh.implBusy, fresh.chains, fresh.chainOf
+	w.metaIndex = nil
+	w.sharedLibrary = false
 	return nil
 }
 

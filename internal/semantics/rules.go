@@ -25,7 +25,10 @@ func (w *Workspace) isLibrary(root *el) bool {
 func (w *Workspace) Resolve() { w.resolve(false) }
 
 // ResolveAll is Resolve for every file, the standard library included.
-func (w *Workspace) ResolveAll() { w.resolve(true) }
+func (w *Workspace) ResolveAll() {
+	w.privateLibrary() // it edits the library's elements: not the shared ones
+	w.resolve(true)
+}
 
 func (w *Workspace) resolve(includeLibrary bool) {
 	w.metaIndex = nil // the targets of the annotations it indexes change

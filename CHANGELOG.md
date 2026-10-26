@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The model of the standard library is built once for the process and shared by
+  every workspace, instead of being rebuilt for each one. A second workspace
+  used to cost about 25 MB of live heap (and several times that in garbage
+  while it was built, which is what a server saw as roughly 300 MB per
+  connection); it now costs next to nothing. Workspaces can be used
+  concurrently, one goroutine each; a single `Workspace` is still not safe for
+  concurrent use. Nothing writes to the shared model: `ResolveAll`, which
+  applies resolution rules to library elements, works on a private copy.
+
 ### Fixed
 
 - A workspace no longer keeps every earlier version of a file in memory.

@@ -151,6 +151,12 @@ func WithoutStandardLibrary() Option { return func(c *config) { c.library = fals
 
 // NewWorkspace returns a workspace. By default it includes the standard library
 // of KerML and SysML v2, embedded in this package.
+//
+// The model of the standard library is built once for the process and shared by
+// every workspace, so another workspace costs next to nothing (the first one
+// builds the library, about 45 MB; each later one adds only its own files).
+// Workspaces can be used at the same time from different goroutines, one
+// goroutine to a workspace; a single Workspace is not safe for concurrent use.
 func NewWorkspace(opts ...Option) (*Workspace, error) {
 	cfg := config{library: true}
 	for _, o := range opts {
