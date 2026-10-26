@@ -275,15 +275,26 @@ func IsTargetEnd(class, role string) bool {
 
 type chainKey struct{ class, role, goal string }
 
-var chainMemo sync.Map // chainKey -> bool
+var (
+	chainMu   sync.RWMutex
+	chainMemo = map[chainKey]bool{}
+)
 
+// redefinesChain is asked for every property of every relationship, many times
+// over, so its memo is a plain map under a read lock: a sync.Map would box each
+// key.
 func redefinesChain(class, role, goal string) bool {
 	k := chainKey{class, role, goal}
-	if v, ok := chainMemo.Load(k); ok {
-		return v.(bool)
+	chainMu.RLock()
+	v, ok := chainMemo[k]
+	chainMu.RUnlock()
+	if ok {
+		return v
 	}
-	v := computeRedefinesChain(class, role, goal)
-	chainMemo.Store(k, v)
+	v = computeRedefinesChain(class, role, goal)
+	chainMu.Lock()
+	chainMemo[k] = v
+	chainMu.Unlock()
 	return v
 }
 

@@ -10,6 +10,7 @@ package semantics
 import (
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/model"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/schema"
+	"strings"
 )
 
 // Implicit general types are the specializations the pilot's adapters add to a
@@ -264,20 +265,43 @@ func (w *Workspace) specializes(t, general *el) bool {
 
 // specializesExcluding is specializes with one type already visited, so a
 // search never passes back through the type being computed.
-func (w *Workspace) specializesExcluding(sub, super, exclude *el) bool {
-	seen := map[*el]bool{}
+func (w *Workspace) specializesExcluding(sub, super, exclude *el) (result bool) {
+	// What a library type specializes does not depend on the type being
+	// computed, which no library type reaches, so the answer is remembered (for
+	// library types only, so that what is remembered never holds a user's file).
+	lib := sub != nil && super != nil && strings.HasPrefix(w.FileOf(sub), "library:") && strings.HasPrefix(w.FileOf(super), "library:")
+	key := specKey{sub, super}
+	if lib {
+		if v, ok := w.specMemo[key]; ok {
+			return v
+		}
+		cutBefore := w.cut
+		defer func() {
+			if w.cut == cutBefore {
+				w.specMemo[key] = result
+			}
+		}()
+	}
+	// the types visited are few (a type's ancestors), so a slice is searched
+	// rather than a map hashed
+	var seen []*el
 	if exclude != nil {
-		seen[exclude] = true
+		seen = append(seen, exclude)
 	}
 	var walk func(x *el) bool
 	walk = func(x *el) bool {
 		if x == super {
 			return true
 		}
-		if x == nil || seen[x] {
+		if x == nil {
 			return false
 		}
-		seen[x] = true
+		for _, y := range seen {
+			if y == x {
+				return false
+			}
+		}
+		seen = append(seen, x)
 		for _, g := range w.generalTypes(x) {
 			if walk(g) {
 				return true
@@ -287,6 +311,8 @@ func (w *Workspace) specializesExcluding(sub, super, exclude *el) bool {
 	}
 	return walk(sub)
 }
+
+type specKey struct{ sub, super *el }
 
 // ---- features of a type ----
 

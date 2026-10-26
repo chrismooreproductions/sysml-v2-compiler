@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Resolving a workspace is about three times faster after an edit: an edit of
+  the 1,500-line Annex A model (replace, resolve and validate) takes 0.37 s
+  where it took 1.33 s, and resolving alone 0.28 s where it took 1.2 s. A name
+  is looked up in the namespaces that can give it without listing every
+  membership each sees, a type's features are remembered, whether a library type
+  specializes another is remembered, and the schema's redefinition queries no
+  longer allocate. The conformance numbers are unchanged.
+
 ## [0.20.1] - 2026-10-26
 ### Added
 
