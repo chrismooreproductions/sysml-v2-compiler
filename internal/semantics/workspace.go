@@ -34,6 +34,7 @@ type Workspace struct {
 	memo         map[*model.Ref]*el // resolved references, nil results included
 	done         map[*model.Ref]bool
 	busy         map[*model.Ref]bool // resolutions in progress, to cut cycles
+	naming       int                 // effectiveNames is asking for implied redefinitions, which semantic metadata does not add
 	cut          int                 // incremented whenever a circular resolution is cut
 	effNames     map[*el][2]string   // cache: effective short name, name
 	libCache     map[string]*el      // library elements by qualified name
@@ -254,7 +255,10 @@ func (w *Workspace) effectiveNames(e *el) (short, name string) {
 		// the namingFeature is the first ownedRedefinition, which in the
 		// pilot includes the ones the transformation adds: an unnamed return
 		// parameter is named for the result it implicitly redefines
-		for _, im := range w.implicit(e) {
+		w.naming++
+		implied := w.implicit(e)
+		w.naming--
+		for _, im := range implied {
 			if im.kind == "Redefinition" {
 				short, name = w.effectiveNames(im.target)
 				break

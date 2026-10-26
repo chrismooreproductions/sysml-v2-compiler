@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Semantic metadata: a definition or usage annotated by metadata whose type
+  specializes `Metaobjects::SemanticMetadata` is now specialized by the base
+  type the metadata gives (`#service port def X` with
+  `:>> baseType = SD meta SysML::PortDefinition` specializes `SD`, a usage is
+  subset the same way), as TypeAdapter.getBaseTypes does in the pilot. Names
+  from the base type resolve in it. The release's SysML example models now
+  report 2 diagnostics where they reported 16 (154 at v0.18.0).
+
 ## [0.20.2] - 2026-10-26
 
 ### Changed

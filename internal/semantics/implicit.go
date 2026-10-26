@@ -10,6 +10,7 @@ package semantics
 import (
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/model"
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/schema"
+	"slices"
 	"strings"
 )
 
@@ -170,6 +171,10 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 	if t.IsA("Feature") {
 		w.addOwnedCrossFeatureSpecialization(t, add)
 	}
+	// TypeAdapter.addDefaultGeneralType: the base types that semantic metadata names
+	for _, base := range w.semanticBaseTypes(t) {
+		add(baseKind(t), base)
+	}
 	// TypeAdapter.addDefaultGeneralType: the metaclass's default supertype
 	emit := func(kind string) {
 		if qn := implicitKind(t.Class, kind); qn != "" {
@@ -207,6 +212,94 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 		w.addBoundValue(t, add)
 		w.addPushedByOwner(t, add)
 	}
+}
+
+// semanticBaseTypes follows TypeAdapter.getBaseTypes with ClassifierAdapter's and
+// FeatureAdapter's filters: a type annotated by metadata whose type specializes
+// Metaobjects::SemanticMetadata is specialized by the base type the metadata
+// gives (#service port def X is a SD when the metadata's baseType is SD meta
+// SysML::PortDefinition). A classifier takes the classifiers among them, and
+// the types of a base type that is a feature; a feature takes the features.
+func (w *Workspace) semanticBaseTypes(t *el) []*el {
+	classifier := t.IsA("Classifier")
+	if t.IsA("MetadataFeature") || !classifier && !t.IsA("Feature") {
+		return nil
+	}
+	baseType := w.libraryElement("Metaobjects::SemanticMetadata::baseType")
+	semantic := w.libraryElement("Metaobjects::SemanticMetadata")
+	if baseType == nil || semantic == nil {
+		return nil
+	}
+	var out []*el
+	for _, m := range w.rels(t, "Membership") {
+		for _, md := range w.ownedRelated(m) {
+			if !md.IsA("MetadataFeature") || md.Generated {
+				continue
+			}
+			if w.naming > 0 {
+				// Naming a feature asks only for the redefinitions implied for
+				// it, and finding the type of its metadata would look names up
+				// in the very namespace that is asking for this name. What is
+				// left out is not remembered.
+				w.cut++
+				return nil
+			}
+			if about := w.annotatedBy(md); len(about) > 0 && !slices.Contains(about, t) {
+				continue
+			}
+			// only metadata typed by semantic metadata has a base type, and the
+			// features of other metadata are not worth computing here
+			isSemantic := false
+			for _, r := range w.rels(md, "FeatureTyping") {
+				if ty := w.typingTarget(r); ty != nil && w.specializes(ty, semantic) {
+					isSemantic = true
+				}
+			}
+			if !isSemantic {
+				continue
+			}
+			for _, f := range w.features(md) {
+				if !w.specializes(f, baseType) {
+					continue
+				}
+				for _, fv := range w.rels(f, "FeatureValue") {
+					for _, expr := range w.ownedRelated(fv) {
+						base := w.metaclassOperand(expr)
+						switch {
+						case base == nil:
+						case classifier && base.IsA("Feature"):
+							for _, ty := range w.typesOf(base) {
+								if ty.IsA("Classifier") {
+									out = append(out, ty)
+								}
+							}
+						case classifier == base.IsA("Classifier") && (classifier || base.IsA("Feature")):
+							out = append(out, base)
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// metaclassOperand is the element X of an expression X meta Y: what the
+// expression evaluates to, as EvaluationUtil.getMetaclassReferenceOf finds it.
+func (w *Workspace) metaclassOperand(expr *el) *el {
+	if !expr.IsA("OperatorExpression") || w.operatorOf(expr) != "meta" {
+		return nil
+	}
+	var found *el
+	expr.Walk(func(x *el) {
+		if found == nil && x.IsA("MetadataAccessExpression") {
+			for _, m := range w.rels(x, "Membership") {
+				found = w.memberElement(m)
+				break
+			}
+		}
+	})
+	return found
 }
 
 // removeUnnecessary follows TypeAdapter.removeUnnecessaryImplicitGeneralTypes:
