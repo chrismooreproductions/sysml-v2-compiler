@@ -596,6 +596,11 @@ func (w *Workspace) scopeFor(owner *el, role string) scope {
 		ns := w.parentNamespace(owner.Owner)
 		if owner.IsA("FeatureTyping") {
 			ns = w.nonExpressionNamespaceFor(owner.Owner)
+		} else if !owner.IsA("Specialization") && !owner.IsA("Conjugation") {
+			// KerMLScopeProvider.getScope: any other element (a TypeFeaturing, a
+			// Disjoining) looks from the namespace around it, which for a
+			// relationship a type owns is the type itself
+			ns = w.parentNamespace(owner)
 		}
 		return scope{ns: ns, inside: true, redefinition: owner.IsA("Redefinition") && role == "redefinedFeature"}
 	}

@@ -20,7 +20,7 @@ import (
 // raise them.
 const (
 	maxSysMLExampleDiagnostics = 2
-	maxKerMLExampleDiagnostics = 28
+	maxKerMLExampleDiagnostics = 5
 )
 
 // exampleDiagnostics checks every model with an extension under a directory as
