@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A variant is typed by the variation definition it is a variant of (an
+  enumerated value by its enumeration), or subsets the variation usage, as
+  `UsageAdapter.addVariationTyping` does. All 3,905 implied `FeatureTyping`
+  relationships of the standard library now match the pilot's (33 were missing),
+  and 99,519 of the 99,685 implied relationships do.
+
 ## [0.20.4] - 2026-10-26
 
 ### Fixed

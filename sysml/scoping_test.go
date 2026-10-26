@@ -109,3 +109,29 @@ func TestTransitionAndStateActionsRedefineTheirLibraryFeatures(t *testing.T) {
 		t.Errorf("effect action: %s", got)
 	}
 }
+
+// A variant is typed by the definition, or subsets the usage, it is a variant
+// of: an enumerated value is typed by its enumeration.
+func TestAVariantTakesItsVariation(t *testing.T) {
+	w, d := resolved(t, "v.sysml", `package P {
+    enum def E { enum a; enum b; }
+    part def V { variation part vp { variant part x; variant part y; } }
+    part def W { variation part def VD { variant part z; } }
+}`)
+	if len(d) != 0 {
+		t.Errorf("diagnostics: %v", d)
+	}
+	implied := func(qn string) string {
+		var out []string
+		for _, im := range w.ImpliedGeneralizations(w.Lookup(qn)) {
+			out = append(out, im.Kind+" "+semantics.QualifiedName(im.Target))
+		}
+		return strings.Join(out, ", ")
+	}
+	if got := implied("P::E::a"); !strings.Contains(got, "FeatureTyping P::E") {
+		t.Errorf("an enumerated value: %s", got)
+	}
+	if got := implied("P::V::vp::x"); !strings.Contains(got, "Subsetting P::V::vp") {
+		t.Errorf("a variant of a usage: %s", got)
+	}
+}

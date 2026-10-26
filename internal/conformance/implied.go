@@ -135,12 +135,14 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 	}
 	// what we computed and what the oracle has, by owner position
 	have := map[string]map[string]int{} // owner key -> "Kind target-key" -> count
-	for _, root := range roots {
+	where := map[string]string{}        // owner key -> where it is written
+	for i, root := range roots {
 		root.Walk(func(e *model.Element) {
 			c := z.Canon(e)
 			if c == nil || !e.IsA("Type") {
 				return
 			}
+			where[c.Key] = fmt.Sprintf("%s:%d", files[i].Path, e.Span.Start.Line)
 			for _, b := range w.ImpliedBindings(e) {
 				key := func(x *model.Element) string {
 					if t := z.Canon(x); t != nil && t.Key != "" {
@@ -241,7 +243,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 				fmt.Printf("DEBUG owner %s\n  want %s\n  have %v\n", describe(index.ByKey[owner]), rel, have[owner])
 			}
 			if n > m && len(st.Samples) < 200000 {
-				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
+				st.Samples = append(st.Samples, fmt.Sprintf("missing %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID+" @"+where[owner], describeKey(index, rel[len(kind)+1:])))
 			}
 		}
 		for rel, n := range have[owner] {
@@ -256,7 +258,7 @@ func CompareImplied(oracleRoot string) (*ImpliedStats, error) {
 			tally(kind).Wrong += extra
 			st.Extra += extra
 			if len(st.Samples) < 200000 {
-				st.Samples = append(st.Samples, fmt.Sprintf("extra   %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID, describeKey(index, rel[len(kind)+1:])))
+				st.Samples = append(st.Samples, fmt.Sprintf("extra   %-18s %s -> %s", kind, describe(index.ByKey[owner])+" #"+index.ByKey[owner].ID+" @"+where[owner], describeKey(index, rel[len(kind)+1:])))
 			}
 		}
 	}

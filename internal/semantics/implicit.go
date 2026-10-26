@@ -171,6 +171,18 @@ func (w *Workspace) computeImplicit(t *el, add func(string, *el), soFar func() [
 	if t.IsA("Feature") {
 		w.addOwnedCrossFeatureSpecialization(t, add)
 	}
+	// UsageAdapter.addVariationTyping: a variant is typed by the definition,
+	// or subsets the usage, that it is a variant of (an enumerated value is a
+	// variant of its enumeration)
+	if t.IsA("Usage") && t.Owner != nil && t.Owner.IsA("VariantMembership") {
+		if v := t.Owner.Owner; isVariation(v) {
+			if v.IsA("Definition") {
+				add("FeatureTyping", v)
+			} else if v.IsA("Usage") {
+				add("Subsetting", v)
+			}
+		}
+	}
 	// TypeAdapter.addDefaultGeneralType: the base types that semantic metadata names
 	for _, base := range w.semanticBaseTypes(t) {
 		add(baseKind(t), base)
