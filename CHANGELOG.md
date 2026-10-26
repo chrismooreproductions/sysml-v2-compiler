@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.4] - 2026-10-26
+
 ### Fixed
 
 - The release's example models now report no diagnostics, SysML and KerML
