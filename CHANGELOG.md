@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.3] - 2026-10-26
+
 ### Added
 
 - Semantic metadata: a definition or usage annotated by metadata whose type
