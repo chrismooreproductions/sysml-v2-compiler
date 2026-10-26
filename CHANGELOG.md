@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-10-26
+
 ### Changed
 
 - The model of the standard library is built once for the process and shared by
