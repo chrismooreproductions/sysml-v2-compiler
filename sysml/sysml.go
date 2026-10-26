@@ -3,6 +3,7 @@
 package sysml
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -203,6 +204,12 @@ func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*Syntax
 	if err != nil {
 		return nil, []*SyntaxError{{File: name, Msg: err.Error()}}
 	}
+	return w.AddRecoveringAs(lang, name, src)
+}
+
+// AddRecoveringAs is AddRecovering with the language given, for a document whose
+// name does not end in an extension that says it.
+func (w *Workspace) AddRecoveringAs(lang Language, name string, src []byte) (*Document, []*SyntaxError) {
 	root, errs := w.w.AddSourceRecovering(lang.grammar(), name, string(src))
 	if len(errs) > 0 {
 		withLanguageHint(lang, name, src, errs[0])
@@ -225,6 +232,12 @@ func (w *Workspace) AddRecovering(name string, src []byte) (*Document, []*Syntax
 func (w *Workspace) Replace(name string, src []byte) (*Document, []*SyntaxError) {
 	w.Remove(name)
 	return w.AddRecovering(name, src)
+}
+
+// ReplaceAs is Replace with the language given.
+func (w *Workspace) ReplaceAs(lang Language, name string, src []byte) (*Document, []*SyntaxError) {
+	w.Remove(name)
+	return w.AddRecoveringAs(lang, name, src)
 }
 
 // Remove drops the document with a name from the workspace, if there is one.
@@ -266,6 +279,31 @@ func (d Diagnostic) String() string {
 func (w *Workspace) Resolve() []Diagnostic {
 	w.annotated = nil
 	w.w.Resolve()
+	return w.unresolved()
+}
+
+// ResolveContext is Resolve that gives up when ctx is done, and returns its
+// error with no diagnostics. A workspace is not corrupted by it, but what it
+// computed on the way may reflect the references left unresolved, so the next
+// step after a cancellation should be Replace or Remove of a document (the
+// edit that made the result obsolete), then Resolve.
+func (w *Workspace) ResolveContext(ctx context.Context) ([]Diagnostic, error) {
+	w.annotated = nil
+	if !w.w.ResolveWithin(done(ctx)) {
+		return nil, ctx.Err()
+	}
+	return w.unresolved(), nil
+}
+
+// done is a function that says whether ctx is done, cheap enough to ask often.
+func done(ctx context.Context) func() bool {
+	if ctx.Done() == nil {
+		return nil
+	}
+	return func() bool { return ctx.Err() != nil }
+}
+
+func (w *Workspace) unresolved() []Diagnostic {
 	var out []Diagnostic
 	for _, u := range w.w.Unresolved() {
 		scope := "the global scope"
@@ -332,10 +370,20 @@ func (w *Workspace) ImpliedBindings(e *Element) []Binding {
 // resolves the workspace first if that has not been done. Only the structural
 // constraints are checked so far; see the README.
 func (w *Workspace) Validate() []Diagnostic {
-	w.w.Resolve()
+	out, _ := w.ValidateContext(context.Background())
+	return out
+}
+
+// ValidateContext is Validate that gives up when ctx is done, and returns its
+// error with no diagnostics. See ResolveContext.
+func (w *Workspace) ValidateContext(ctx context.Context) ([]Diagnostic, error) {
+	stop := done(ctx)
+	if !w.w.ResolveWithin(stop) {
+		return nil, ctx.Err()
+	}
 	var out []Diagnostic
 	for _, doc := range w.docs {
-		for _, is := range w.w.Validate(doc.Root) {
+		for _, is := range w.w.ValidateWithin(stop, doc.Root) {
 			out = append(out, Diagnostic{
 				File:       doc.Name,
 				Span:       is.Element.Span,
@@ -343,8 +391,11 @@ func (w *Workspace) Validate() []Diagnostic {
 				Constraint: is.Constraint,
 			})
 		}
+		if stop != nil && stop() {
+			return nil, ctx.Err()
+		}
 	}
-	return out
+	return out, nil
 }
 
 // Seq is a sequence of values, as an expression with several results (or none,

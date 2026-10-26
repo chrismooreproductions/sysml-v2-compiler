@@ -22,15 +22,21 @@ func (w *Workspace) isLibrary(root *el) bool {
 // (not the standard library, whose references resolve on demand, as names in
 // the user's files reach them) and applies the rules that need the resolved
 // names. After it, each *model.Ref that could be resolved has its Target set.
-func (w *Workspace) Resolve() { w.resolve(false) }
+func (w *Workspace) Resolve() { w.resolve(false, nil) }
+
+// ResolveWithin is Resolve that gives up when stop returns true, which it asks
+// as it goes. It reports whether it finished. Giving up leaves each reference
+// resolved or untouched, so calling Resolve again completes the work.
+func (w *Workspace) ResolveWithin(stop func() bool) bool { return w.resolve(false, stop) }
 
 // ResolveAll is Resolve for every file, the standard library included.
 func (w *Workspace) ResolveAll() {
 	w.privateLibrary() // it edits the library's elements: not the shared ones
-	w.resolve(true)
+	w.resolve(true, nil)
 }
 
-func (w *Workspace) resolve(includeLibrary bool) {
+func (w *Workspace) resolve(includeLibrary bool, stop func() bool) bool {
+	halted := func() bool { return stop != nil && stop() }
 	w.metaIndex = nil // the targets of the annotations it indexes change
 	var roots []*el
 	for _, root := range w.roots {
@@ -43,6 +49,9 @@ func (w *Workspace) resolve(includeLibrary bool) {
 	// it is set before they are resolved.
 	for _, root := range roots {
 		root.Walk(func(e *el) {
+			if halted() {
+				return
+			}
 			if e.IsA("TransitionUsage") {
 				w.transitionRules(e)
 			}
@@ -50,6 +59,9 @@ func (w *Workspace) resolve(includeLibrary bool) {
 	}
 	for _, root := range roots {
 		root.Walk(func(e *el) {
+			if halted() {
+				return
+			}
 			for _, p := range e.Props {
 				if r, ok := p.Value.(*model.Ref); ok && r.Target == nil && r.Name != "" {
 					if t := w.target(e, p.Name, r); t != nil {
@@ -60,8 +72,13 @@ func (w *Workspace) resolve(includeLibrary bool) {
 		})
 	}
 	for _, root := range roots {
-		root.Walk(w.applyResolutionRules)
+		root.Walk(func(e *el) {
+			if !halted() {
+				w.applyResolutionRules(e)
+			}
+		})
 	}
+	return !halted()
 }
 
 // mayTimeVary follows UsageAdapter.mayTimeVary.

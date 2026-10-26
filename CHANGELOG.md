@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Workspace.ResolveContext` and `ValidateContext` give up when their context is
+  done and return its error, so a host can abandon a resolve that a newer edit
+  has made obsolete. `ReplaceAs` and `AddRecoveringAs` take the language
+  explicitly, for documents whose names do not end in an extension.
+
 ## [0.19.2] - 2026-10-26
 
 ### Changed

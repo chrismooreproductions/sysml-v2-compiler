@@ -31,11 +31,15 @@ type check struct {
 // Validate checks the constraints on every element under the roots that the
 // source wrote, and returns the violations in document order. The workspace
 // must have been resolved.
-func (w *Workspace) Validate(roots ...*el) []Issue {
+func (w *Workspace) Validate(roots ...*el) []Issue { return w.ValidateWithin(nil, roots...) }
+
+// ValidateWithin is Validate that stops looking when stop returns true, which it
+// asks as it goes; what it returns is then incomplete.
+func (w *Workspace) ValidateWithin(stop func() bool, roots ...*el) []Issue {
 	var out []Issue
 	for _, root := range roots {
 		root.Walk(func(e *el) {
-			if e.Generated {
+			if e.Generated || stop != nil && stop() {
 				return
 			}
 			for _, c := range structuralChecks {
