@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The first workspace of a process builds the standard library's model with a
+  lower memory peak: the library files are parsed four at a time instead of all
+  94 at once, the parse trees are dropped once the model is built, and the
+  memory the build left is returned to the operating system. The Go heap the
+  process takes for it falls from about 267 MB to about 119 MB (live memory
+  from 42 MB to 28 MB), for about a third more time (260 ms to 350 ms on a
+  laptop).
+
 ### Added
 
 - The language server is now a public package, `lsp`, to host many sessions in

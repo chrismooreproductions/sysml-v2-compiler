@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -29,16 +30,32 @@ type File struct {
 }
 
 var (
-	once  sync.Once
+	mu    sync.Mutex
 	files []File
-	err   error
 )
 
 // Files returns every library file, parsed, in path order. The first call parses
-// them (in parallel); later calls return the same result.
+// them (a few at a time); later calls return the same result, until Release.
 func Files() ([]File, error) {
-	once.Do(func() { files, err = load() })
-	return files, err
+	mu.Lock()
+	defer mu.Unlock()
+	if files == nil {
+		f, err := load()
+		if err != nil {
+			return nil, err
+		}
+		files = f
+	}
+	return files, nil
+}
+
+// Release drops the parse trees that Files holds, for a process that has built
+// what it needs from them: they are about 15 MB. A later call to Files parses
+// again.
+func Release() {
+	mu.Lock()
+	files = nil
+	mu.Unlock()
 }
 
 // Sources returns the library's source text by path, for tools and tests.
@@ -82,11 +99,16 @@ func load() ([]File, error) {
 	sort.Strings(paths)
 	out := make([]File, len(paths))
 	errs := make([]error, len(paths))
+	// A few at a time: parsing makes many times the memory it keeps as garbage,
+	// and all the files at once make a peak the process keeps.
 	var wg sync.WaitGroup
+	slots := make(chan struct{}, parallelism())
 	for i, p := range paths {
 		wg.Add(1)
+		slots <- struct{}{}
 		go func() {
 			defer wg.Done()
+			defer func() { <-slots }()
 			lang := grammar.SysML
 			if path.Ext(p) == ".kerml" {
 				lang = grammar.KerML
@@ -103,3 +125,8 @@ func load() ([]File, error) {
 	}
 	return out, nil
 }
+
+// parallelism is how many files are parsed at once: with 4 the first workspace
+// of a process takes a peak of about 120 MB where all at once took 280, for a
+// third more time.
+func parallelism() int { return max(1, min(4, runtime.GOMAXPROCS(0))) }

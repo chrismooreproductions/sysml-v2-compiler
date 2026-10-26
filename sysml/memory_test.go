@@ -85,3 +85,15 @@ func TestAnotherWorkspaceCostsNextToNothing(t *testing.T) {
 		t.Errorf("four more workspaces cost %.1f MB; each should share the library's model", grown)
 	}
 }
+
+// The model of the library is all a process keeps of it: the parse trees it was
+// built from are dropped.
+func TestTheLibraryKeepsNoParseTrees(t *testing.T) {
+	w, _ := NewWorkspace()
+	live := liveHeap()
+	runtime.KeepAlive(w)
+	t.Logf("a process with the library holds %.1f MB", live)
+	if live > 32 {
+		t.Errorf("a process with the library holds %.1f MB", live)
+	}
+}

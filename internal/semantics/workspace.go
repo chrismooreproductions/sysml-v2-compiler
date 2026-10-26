@@ -8,6 +8,7 @@
 package semantics
 
 import (
+	"runtime/debug"
 	"sync"
 
 	"github.com/chrismooreproductions/sysml-v2-compiler/internal/grammar"
@@ -397,6 +398,8 @@ func sharedLibrary() ([]*el, []string, error) {
 			shared.roots = append(shared.roots, buildTree(f.Tree))
 			shared.paths = append(shared.paths, f.Path)
 		}
+		library.Release()    // the model is built, and the parse trees are not needed again
+		debug.FreeOSMemory() // building it left much of its garbage, which the process need not keep
 	})
 	return shared.roots, shared.paths, shared.err
 }
