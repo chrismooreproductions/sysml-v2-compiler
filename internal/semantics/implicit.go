@@ -264,7 +264,7 @@ func (w *Workspace) semanticBaseTypes(t *el) []*el {
 				}
 				for _, fv := range w.rels(f, "FeatureValue") {
 					for _, expr := range w.ownedRelated(fv) {
-						base := w.metaclassOperand(expr)
+						base := w.baseTypeOf(expr, t)
 						switch {
 						case base == nil:
 						case classifier && base.IsA("Feature"):
@@ -282,6 +282,79 @@ func (w *Workspace) semanticBaseTypes(t *el) []*el {
 		}
 	}
 	return out
+}
+
+// baseTypeOf evaluates the value of a baseType feature for an annotated type: X
+// meta Y, or a conditional that chooses between such expressions by the
+// metaclass of the annotated element (if annotatedElement istype KerML::Structure
+// ? SS meta KerML::Type else CC meta KerML::Class). Anything else is not
+// evaluated, and gives no base type.
+func (w *Workspace) baseTypeOf(expr, annotated *el) *el {
+	switch {
+	case expr.IsA("FeatureReferenceExpression"):
+		for _, m := range w.rels(expr, "FeatureMembership") {
+			if inner := first(w.ownedRelated(m)); inner != nil {
+				return w.baseTypeOf(inner, annotated)
+			}
+		}
+	case expr.IsA("OperatorExpression") && w.operatorOf(expr) == "meta":
+		return w.metaclassOperand(expr)
+	case expr.IsA("OperatorExpression") && w.operatorOf(expr) == "if":
+		cond, then, els := w.operand(expr, 0), w.operand(expr, 1), w.operand(expr, 2)
+		if cond == nil || then == nil || els == nil {
+			return nil
+		}
+		if w.annotatedIs(cond, annotated) {
+			return w.baseTypeOf(then, annotated)
+		}
+		return w.baseTypeOf(els, annotated)
+	}
+	return nil
+}
+
+// operand is the expression that is the i-th argument of an expression.
+func (w *Workspace) operand(expr *el, i int) *el {
+	ps := w.rels(expr, "ParameterMembership")
+	if i >= len(ps) {
+		return nil
+	}
+	for _, p := range w.ownedRelated(ps[i]) {
+		for _, fv := range w.rels(p, "FeatureValue") {
+			return first(w.ownedRelated(fv))
+		}
+	}
+	return nil
+}
+
+// annotatedIs evaluates annotatedElement istype M (or hastype, or @): whether
+// the metaclass of the annotated element is M, or a subtype of it for istype
+// and @.
+func (w *Workspace) annotatedIs(cond, annotated *el) bool {
+	if !cond.IsA("OperatorExpression") {
+		return false
+	}
+	op := w.operatorOf(cond)
+	if op != "istype" && op != "hastype" && op != "@" {
+		return false
+	}
+	ps := w.rels(cond, "ParameterMembership")
+	if len(ps) < 2 {
+		return false
+	}
+	for _, p := range w.ownedRelated(ps[1]) {
+		for _, r := range w.rels(p, "FeatureTyping") {
+			meta := w.typingTarget(r)
+			if meta == nil {
+				return false
+			}
+			class := w.EffectiveName(meta)
+			if op == "hastype" {
+				return annotated.Class == class
+			}
+			return annotated.IsA(class)
+		}
+	}
+	return false
 }
 
 // metaclassOperand is the element X of an expression X meta Y: what the
@@ -505,6 +578,14 @@ func (w *Workspace) relevantFeatures(f, t *el) []*el {
 	}
 	owning := w.featureOwningType(f)
 	switch {
+	case w.redefinedActionFeature(f) != "":
+		// ActionUsageAdapter.getRelevantFeatures: an entry, do or exit action
+		// of a state, or a trigger, guard or effect action of a transition,
+		// is at the position of the library feature it stands for
+		if t == owning {
+			return []*el{f}
+		}
+		return []*el{w.libraryElement(w.redefinedActionFeature(f))}
 	case f.IsTrue("isEnd"):
 		var out []*el
 		src := w.features(t)
@@ -543,6 +624,19 @@ func (w *Workspace) relevantFeatures(f, t *el) []*el {
 		return out
 	}
 	return nil
+}
+
+// redefinedActionFeature follows ActionUsageAdapter.getRedefinedFeature: the
+// library feature that a state's entry, do or exit action, or a transition's
+// trigger, guard or effect action, redefines.
+func (w *Workspace) redefinedActionFeature(f *el) string {
+	if !f.IsA("ActionUsage") || f.Owner == nil {
+		return ""
+	}
+	if f.Owner.IsA("StateSubactionMembership") || f.Owner.IsA("TransitionFeatureMembership") {
+		return implicitKind(f.Class, f.Owner.Text("kind"))
+	}
+	return ""
 }
 
 // addRedefinitions follows FeatureAdapter.addRedefinitions: a parameter or end

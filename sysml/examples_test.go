@@ -12,15 +12,14 @@ import (
 )
 
 // The release's example models are the pilot's own, so checked together they
-// should report nothing. They do not yet: each diagnostic is a name the
-// compiler does not resolve, or a constraint it applies wrongly, that the
-// pilot gets right (see the issue "Examples: the release's example models
-// report 154 diagnostics"; 154 and 48 at v0.18.0). These are ratchets: a change that adds a diagnostic
-// fails, and a fix lowers the number. Lower them to what is measured, never
-// raise them.
+// report nothing, and since v0.21.0 they do not. These stay as ratchets: a
+// change that makes the compiler report a name it does not resolve, or a
+// constraint it applies wrongly, in one of them fails (the count was 154 and 48
+// at v0.18.0; see the issue "Examples: the release's example models report 154
+// diagnostics").
 const (
-	maxSysMLExampleDiagnostics = 2
-	maxKerMLExampleDiagnostics = 5
+	maxSysMLExampleDiagnostics = 0
+	maxKerMLExampleDiagnostics = 0
 )
 
 // exampleDiagnostics checks every model with an extension under a directory as

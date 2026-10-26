@@ -355,12 +355,17 @@ func (w *Workspace) resolveNameUncached(s scope, text string) *el {
 		return w.conjugatedPortOf(w.resolveName(s, rest))
 	}
 	segs := splitName(text)
-	if segs[0] == "$" {
-		w.gaps["global-qualified"]++
-		return nil
-	}
 	var m *el
-	if s.inside {
+	if strings.HasPrefix(text, "$::") { // not '$'::, which is a namespace named $
+		// $::A is A among the root namespaces, whatever else is in scope
+		if len(segs) < 2 {
+			return nil
+		}
+		if gs := w.global(segs[1]); len(gs) > 0 {
+			m = gs[0]
+		}
+		segs = segs[1:]
+	} else if s.inside {
 		m = w.resolveLocal(s.ns, segs[0], s.redefinition)
 	} else if s.ns != nil {
 		m = w.resolveVisible(s.ns, segs[0])

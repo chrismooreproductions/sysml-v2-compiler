@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The release's example models now report no diagnostics, SysML and KerML
+  (they reported 154 and 48 at v0.18.0, 2 and 28 at v0.20.3):
+  - the target of a type featuring (`feature x featured by A { feature A ... }`)
+    and of any other relationship that is not a specialization or conjugation is
+    looked up from the type that owns it, as the pilot's `KerMLScopeProvider`
+    does, so a feature can be featured by one of its own members;
+  - `$::A` is `A` among the root namespaces (`'$'::A` is still a namespace
+    named `$`);
+  - a semantic metadata `baseType` can be a conditional that chooses by the
+    metaclass of the annotated element (`if annotatedElement istype
+    KerML::Structure ? SS meta ... else CC meta ...`);
+  - the entry, do and exit actions of a state and the trigger, guard and effect
+    actions of a transition redefine the library feature they stand for
+    (`States::StateAction::entryAction`, `Actions::TransitionAction::effect`,
+    ...), so `delivering.effect.sentMessage` finds the transition's own send
+    action. One more implied relationship now matches the oracle (99,486).
+
 ## [0.20.3] - 2026-10-26
 
 ### Added
