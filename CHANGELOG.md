@@ -6,6 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-26
 ### Added
 
 - `lsp.Options.ResolveTimeout` bounds how long a session may hold a compute slot
