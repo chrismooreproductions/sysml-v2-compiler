@@ -1,3 +1,5 @@
 .oracle/
 /plan/
 /sysmlc
+*.test
+*.prof
