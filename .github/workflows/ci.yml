@@ -24,6 +24,10 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: Test
         run: go test ./...
+      - name: Race detector (language server)
+        run: go test -race ./lsp
+      - name: Build the language server for WebAssembly
+        run: GOOS=js GOARCH=wasm go build ./lsp/...
 
   # Compares the pipeline with the pilot implementation's serialization of the
   # standard library. The oracle is large, so it is downloaded and cached

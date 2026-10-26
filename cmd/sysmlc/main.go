@@ -17,18 +17,21 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"sort"
 	"strings"
 
-	"github.com/chrismooreproductions/sysml-v2-compiler/internal/lsp"
+	"github.com/chrismooreproductions/sysml-v2-compiler/lsp"
 	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
@@ -47,28 +50,34 @@ func runLSP(args []string, in io.Reader, stdout, stderr io.Writer) int {
 	if err := fl.Parse(args); err != nil {
 		return 2
 	}
-	logf := func(format string, args ...any) { fmt.Fprintf(stderr, "sysmlc lsp: "+format+"\n", args...) }
+	opts := lspOptions()
+	opts.Logger = slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	host := lsp.NewHost(opts)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	if *listen != "" {
 		l, err := net.Listen("tcp", *listen)
 		if err != nil {
 			fmt.Fprintln(stderr, "sysmlc lsp:", err)
 			return 2
 		}
-		logf("listening on %s", l.Addr())
-		return serveTCP(l, logf)
+		fmt.Fprintf(stderr, "sysmlc lsp: listening on %s\n", l.Addr())
+		return serveTCP(ctx, l, host, stderr)
 	}
-	srv := lsp.NewServer(in, stdout)
-	srv.Logf = logf
-	if err := srv.Run(); err != nil {
-		logf("%v", err)
+	if err := host.Serve(ctx, struct {
+		io.Reader
+		io.Writer
+	}{in, stdout}); err != nil && ctx.Err() == nil {
+		fmt.Fprintln(stderr, "sysmlc lsp:", err)
 		return 1
 	}
 	return 0
 }
 
-// serveTCP serves each connection to a listener with a server of its own, until
-// the listener is closed.
-func serveTCP(l net.Listener, logf func(string, ...any)) int {
+// serveTCP serves each connection to a listener with a session of its own on
+// one host, until the listener is closed.
+func serveTCP(ctx context.Context, l net.Listener, host *lsp.Host, stderr io.Writer) int {
+	go func() { <-ctx.Done(); l.Close() }()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -76,10 +85,8 @@ func serveTCP(l net.Listener, logf func(string, ...any)) int {
 		}
 		go func() {
 			defer conn.Close()
-			srv := lsp.NewServer(conn, conn)
-			srv.Logf = logf
-			if err := srv.Run(); err != nil {
-				logf("%v", err)
+			if err := host.Serve(ctx, conn); err != nil && ctx.Err() == nil {
+				fmt.Fprintln(stderr, "sysmlc lsp:", err)
 			}
 		}()
 	}

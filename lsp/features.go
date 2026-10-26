@@ -3,6 +3,7 @@
 package lsp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -15,28 +16,24 @@ import (
 
 // withPosition parses a position request, brings the workspace up to date and
 // calls fn with the document and the byte offset the position is at.
-func (s *Server) withPosition(raw json.RawMessage, fn func(d *document, offset int) (any, error)) (any, error) {
+func (s *Session) withPosition(ctx context.Context, raw json.RawMessage, fn func(d *document, offset int) (any, error)) (any, error) {
 	var p positionParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.ws == nil {
-		return nil, nil
-	}
-	s.sync()
-	d := s.docs[uriToPath(p.TextDocument.URI)]
-	if d == nil {
-		return nil, nil
-	}
-	return fn(d, d.offset(p.Position))
+	return s.withWorkspace(ctx, func() (any, error) {
+		d := s.snaps[canonical(p.TextDocument.URI)]
+		if d == nil {
+			return nil, nil
+		}
+		return fn(d, d.offset(p.Position))
+	})
 }
 
 // root is the tree of a document in the workspace.
-func (s *Server) root(d *document) *sysml.Element {
+func (s *Session) root(d *document) *sysml.Element {
 	for _, doc := range s.ws.Documents() {
-		if doc.Name == d.path {
+		if doc.Name == d.key {
 			return doc.Root
 		}
 	}
@@ -68,7 +65,7 @@ func refAt(root *sysml.Element, offset int) *sysml.Ref {
 
 // declAt finds the named element whose declaration is at an offset: the
 // innermost element that is on the line the offset is on and starts there.
-func (s *Server) declAt(d *document, root *sysml.Element, offset int) *sysml.Element {
+func (s *Session) declAt(d *document, root *sysml.Element, offset int) *sysml.Element {
 	var best *sysml.Element
 	line := d.position(offset).Line
 	root.Walk(func(e *sysml.Element) {
@@ -87,7 +84,7 @@ func (s *Server) declAt(d *document, root *sysml.Element, offset int) *sysml.Ele
 
 // target is the element a position names: the target of a reference, or the
 // element declared there.
-func (s *Server) target(d *document, offset int) (*sysml.Element, *sysml.Ref) {
+func (s *Session) target(d *document, offset int) (*sysml.Element, *sysml.Ref) {
 	root := s.root(d)
 	if root == nil {
 		return nil, nil
@@ -99,16 +96,16 @@ func (s *Server) target(d *document, offset int) (*sysml.Element, *sysml.Ref) {
 }
 
 // locate is where an element is declared.
-func (s *Server) locate(e *sysml.Element) *Location {
+func (s *Session) locate(e *sysml.Element) *Location {
 	if e == nil || e.Generated {
 		return nil
 	}
 	file := s.ws.FileOf(e)
 	var d *document
-	if strings.HasPrefix(file, "library:") {
-		d = s.libraryDoc(file)
+	if path, ok := strings.CutPrefix(file, "library:"); ok {
+		d = s.h.libraryDoc(path)
 	} else {
-		d = s.docs[file]
+		d = s.snaps[file]
 	}
 	if d == nil {
 		return nil
@@ -116,7 +113,7 @@ func (s *Server) locate(e *sysml.Element) *Location {
 	return &Location{d.uri, d.firstLine(e.Span)}
 }
 
-func (s *Server) definition(d *document, offset int) (any, error) {
+func (s *Session) definition(d *document, offset int) (any, error) {
 	e, _ := s.target(d, offset)
 	if loc := s.locate(e); loc != nil {
 		return loc, nil
@@ -136,7 +133,7 @@ func kindLabel(class string) string {
 	return sb.String()
 }
 
-func (s *Server) hover(d *document, offset int) (any, error) {
+func (s *Session) hover(d *document, offset int) (any, error) {
 	e, ref := s.target(d, offset)
 	if e == nil {
 		return nil, nil
@@ -207,18 +204,24 @@ func cleanComment(body string) string {
 	return strings.TrimSpace(commentStars.ReplaceAllString(body, ""))
 }
 
+// A refLoc is a place that refers to an element, and the document it is in.
+type refLoc struct {
+	doc *document
+	Location
+}
+
 // refsTo lists every place in the documents that refers to an element.
-func (s *Server) refsTo(target *sysml.Element) []Location {
-	var out []Location
+func (s *Session) refsTo(target *sysml.Element) []refLoc {
+	var out []refLoc
 	for _, doc := range s.ws.Documents() {
-		d := s.docs[doc.Name]
+		d := s.snaps[doc.Name]
 		if d == nil {
 			continue
 		}
 		doc.Root.Walk(func(e *sysml.Element) {
 			for _, p := range e.Props {
 				if r, ok := p.Value.(*sysml.Ref); ok && r.Target == target && r.Name != "" {
-					out = append(out, Location{d.uri, d.rng(r.Span)})
+					out = append(out, refLoc{d, Location{d.uri, d.rng(r.Span)}})
 				}
 			}
 		})
@@ -226,35 +229,31 @@ func (s *Server) refsTo(target *sysml.Element) []Location {
 	return out
 }
 
-func (s *Server) references(raw json.RawMessage) (any, error) {
+func (s *Session) references(ctx context.Context, raw json.RawMessage) (any, error) {
 	var p referenceParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.ws == nil {
-		return nil, nil
-	}
-	s.sync()
-	d := s.docs[uriToPath(p.TextDocument.URI)]
-	if d == nil {
-		return nil, nil
-	}
-	e, _ := s.target(d, d.offset(p.Position))
-	if e == nil {
-		return []Location{}, nil
-	}
-	out := s.refsTo(e)
-	if p.Context.IncludeDeclaration {
-		if loc := s.locate(e); loc != nil {
-			out = append([]Location{*loc}, out...)
+	return s.withWorkspace(ctx, func() (any, error) {
+		d := s.snaps[canonical(p.TextDocument.URI)]
+		if d == nil {
+			return nil, nil
 		}
-	}
-	if out == nil {
-		out = []Location{}
-	}
-	return out, nil
+		e, _ := s.target(d, d.offset(p.Position))
+		if e == nil {
+			return []Location{}, nil
+		}
+		out := []Location{}
+		if p.Context.IncludeDeclaration {
+			if loc := s.locate(e); loc != nil {
+				out = append(out, *loc)
+			}
+		}
+		for _, r := range s.refsTo(e) {
+			out = append(out, r.Location)
+		}
+		return out, nil
+	})
 }
 
 // nameRange finds the declared name of an element in its source: the first
@@ -270,50 +269,53 @@ func nameRange(d *document, e *sysml.Element, name string) (Range, bool) {
 	return Range{d.position(start), d.position(start + loc[3] - loc[2])}, true
 }
 
-func (s *Server) rename(raw json.RawMessage) (any, error) {
+func (s *Session) rename(ctx context.Context, raw json.RawMessage) (any, error) {
 	var p renameParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.ws == nil {
-		return nil, nil
-	}
-	s.sync()
-	d := s.docs[uriToPath(p.TextDocument.URI)]
-	if d == nil {
-		return nil, nil
-	}
-	e, _ := s.target(d, d.offset(p.Position))
-	if e == nil {
-		return nil, fmt.Errorf("nothing to rename here")
-	}
-	file := s.ws.FileOf(e)
-	if strings.HasPrefix(file, "library:") {
-		return nil, fmt.Errorf("%s is part of the standard library", sysml.QualifiedName(e))
-	}
-	if !validName(p.NewName) {
-		return nil, fmt.Errorf("%q is not a name", p.NewName)
-	}
-	name := s.ws.EffectiveName(e)
-	edits := map[string][]TextEdit{}
-	if decl := s.docs[file]; decl != nil {
-		if r, ok := nameRange(decl, e, name); ok {
-			edits[decl.uri] = append(edits[decl.uri], TextEdit{r, quoteIfNeeded(p.NewName)})
+	return s.withWorkspace(ctx, func() (any, error) {
+		d := s.snaps[canonical(p.TextDocument.URI)]
+		if d == nil {
+			return nil, nil
 		}
-	}
-	for _, loc := range s.refsTo(e) {
-		doc := s.docs[uriToPath(loc.URI)]
-		// a qualified name changes only its last segment
-		start, end := doc.offset(loc.Range.Start), doc.offset(loc.Range.End)
-		written := doc.text[start:end]
-		if i := strings.LastIndex(written, "::"); i >= 0 {
-			start += i + 2
+		e, _ := s.target(d, d.offset(p.Position))
+		if e == nil {
+			return nil, fmt.Errorf("nothing to rename here")
 		}
-		edits[loc.URI] = append(edits[loc.URI], TextEdit{Range{doc.position(start), doc.position(end)}, quoteIfNeeded(p.NewName)})
-	}
-	return WorkspaceEdit{edits}, nil
+		file := s.ws.FileOf(e)
+		if strings.HasPrefix(file, "library:") {
+			return nil, fmt.Errorf("%s is part of the standard library", sysml.QualifiedName(e))
+		}
+		if !validName(p.NewName) {
+			return nil, fmt.Errorf("%q is not a name", p.NewName)
+		}
+		decl := s.snaps[file]
+		if decl != nil && decl.readOnly {
+			return nil, fmt.Errorf("%s is declared in a document that cannot be changed", sysml.QualifiedName(e))
+		}
+		name := s.ws.EffectiveName(e)
+		edits := map[string][]TextEdit{}
+		if decl != nil {
+			if r, ok := nameRange(decl, e, name); ok {
+				edits[decl.uri] = append(edits[decl.uri], TextEdit{r, quoteIfNeeded(p.NewName)})
+			}
+		}
+		for _, ref := range s.refsTo(e) {
+			if ref.doc.readOnly {
+				continue
+			}
+			// a qualified name changes only its last segment
+			doc := ref.doc
+			start, end := doc.offset(ref.Range.Start), doc.offset(ref.Range.End)
+			written := doc.text[start:end]
+			if i := strings.LastIndex(written, "::"); i >= 0 {
+				start += i + 2
+			}
+			edits[doc.uri] = append(edits[doc.uri], TextEdit{Range{doc.position(start), doc.position(end)}, quoteIfNeeded(p.NewName)})
+		}
+		return WorkspaceEdit{edits}, nil
+	})
 }
 
 var simpleName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -351,25 +353,22 @@ func symbolKind(e *sysml.Element) int {
 	return symVariable
 }
 
-func (s *Server) documentSymbol(raw json.RawMessage) (any, error) {
+func (s *Session) documentSymbol(ctx context.Context, raw json.RawMessage) (any, error) {
 	var p documentSymbolParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.ws == nil {
-		return nil, nil
-	}
-	d := s.docs[uriToPath(p.TextDocument.URI)]
-	if d == nil || s.root(d) == nil {
-		return []DocumentSymbol{}, nil
-	}
-	return s.symbolsUnder(d, s.root(d)), nil
+	return s.withWorkspace(ctx, func() (any, error) {
+		d := s.snaps[canonical(p.TextDocument.URI)]
+		if d == nil || s.root(d) == nil {
+			return []DocumentSymbol{}, nil
+		}
+		return s.symbolsUnder(d, s.root(d)), nil
+	})
 }
 
 // symbolsUnder is the outline of the members of a namespace.
-func (s *Server) symbolsUnder(d *document, ns *sysml.Element) []DocumentSymbol {
+func (s *Session) symbolsUnder(d *document, ns *sysml.Element) []DocumentSymbol {
 	out := []DocumentSymbol{}
 	for _, m := range s.ws.OwnedMembers(ns) {
 		if m.Generated {
@@ -394,40 +393,37 @@ func (s *Server) symbolsUnder(d *document, ns *sysml.Element) []DocumentSymbol {
 	return out
 }
 
-func (s *Server) workspaceSymbol(raw json.RawMessage) (any, error) {
+func (s *Session) workspaceSymbol(ctx context.Context, raw json.RawMessage) (any, error) {
 	var p workspaceSymbolParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := []SymbolInformation{}
-	if s.ws == nil {
-		return out, nil
-	}
-	query := strings.ToLower(p.Query)
-	for _, doc := range s.ws.Documents() {
-		d := s.docs[doc.Name]
-		if d == nil {
-			continue
+	return s.withWorkspace(ctx, func() (any, error) {
+		out := []SymbolInformation{}
+		query := strings.ToLower(p.Query)
+		for _, doc := range s.ws.Documents() {
+			d := s.snaps[doc.Name]
+			if d == nil {
+				continue
+			}
+			doc.Root.Walk(func(e *sysml.Element) {
+				if e.Generated || len(out) >= 200 {
+					return
+				}
+				name := s.ws.EffectiveName(e)
+				if name == "" || !strings.Contains(strings.ToLower(name), query) {
+					return
+				}
+				container := ""
+				if e.Owner != nil && e.Owner.Owner != nil {
+					container = sysml.QualifiedName(e.Owner.Owner)
+				}
+				out = append(out, SymbolInformation{name, symbolKind(e), Location{d.uri, d.firstLine(e.Span)}, container})
+			})
 		}
-		doc.Root.Walk(func(e *sysml.Element) {
-			if e.Generated || len(out) >= 200 {
-				return
-			}
-			name := s.ws.EffectiveName(e)
-			if name == "" || !strings.Contains(strings.ToLower(name), query) {
-				return
-			}
-			container := ""
-			if e.Owner != nil && e.Owner.Owner != nil {
-				container = sysml.QualifiedName(e.Owner.Owner)
-			}
-			out = append(out, SymbolInformation{name, symbolKind(e), Location{d.uri, d.firstLine(e.Span)}, container})
-		})
-	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
+		sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+		return out, nil
+	})
 }
 
 func completionKind(e *sysml.Element) int {
@@ -452,7 +448,7 @@ func completionKind(e *sysml.Element) int {
 	return compVariable
 }
 
-func (s *Server) completion(d *document, offset int) (any, error) {
+func (s *Session) completion(d *document, offset int) (any, error) {
 	prefix := d.wordBefore(offset)
 	items := []CompletionItem{}
 	seen := map[string]bool{}
@@ -507,7 +503,7 @@ func lastSegment(q string) string {
 }
 
 // enclosing lists the namespaces that contain an offset, innermost first.
-func (s *Server) enclosing(d *document, offset int) []*sysml.Element {
+func (s *Session) enclosing(d *document, offset int) []*sysml.Element {
 	root := s.root(d)
 	if root == nil {
 		return nil
@@ -526,7 +522,7 @@ func (s *Server) enclosing(d *document, offset int) []*sysml.Element {
 
 // resolveScoped resolves the written name of a namespace from where the cursor
 // is: outward through the enclosing namespaces, then globally.
-func (s *Server) resolveScoped(d *document, offset int, written string) *sysml.Element {
+func (s *Session) resolveScoped(d *document, offset int, written string) *sysml.Element {
 	first, rest, _ := strings.Cut(written, "::")
 	var start *sysml.Element
 	for _, ns := range s.enclosing(d, offset) {

@@ -38,9 +38,10 @@ type textDocumentIdentifier struct {
 }
 
 type textDocumentItem struct {
-	URI     string `json:"uri"`
-	Version int    `json:"version"`
-	Text    string `json:"text"`
+	URI        string `json:"uri"`
+	LanguageID string `json:"languageId"`
+	Version    int    `json:"version"`
+	Text       string `json:"text"`
 }
 
 type positionParams struct {

@@ -4,20 +4,23 @@ package lsp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
 // client is an editor talking to a server over pipes.
 type client struct {
 	t       *testing.T
+	srv     *Session
+	host    *Host
 	in      io.WriteCloser
 	nextID  int
 	mu      sync.Mutex
@@ -28,12 +31,36 @@ type client struct {
 
 func start(t *testing.T) *client {
 	t.Helper()
+	return startWith(t, Options{Debounce: 10 * time.Millisecond}, nil)
+}
+
+// startWith serves a new session of a new host. If setup is not nil it is
+// called with the session before the client speaks.
+func startWith(t *testing.T, opts Options, setup func(*Session)) *client {
+	t.Helper()
+	return startOn(t, NewHost(opts), setup)
+}
+
+// startOn is startWith on a host that already exists.
+func startOn(t *testing.T, h *Host, setup func(*Session)) *client {
+	t.Helper()
 	cr, sw := io.Pipe() // server writes, client reads
 	sr, cw := io.Pipe() // client writes, server reads
-	srv := NewServer(sr, sw)
-	srv.debounce = 10 * time.Millisecond
-	c := &client{t: t, in: cw, replies: map[string]chan *message{}, notes: make(chan *message, 1000), done: make(chan error, 1)}
-	go func() { c.done <- srv.Run(); sw.Close() }()
+	srv, err := h.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if setup != nil {
+		setup(srv)
+	}
+	c := &client{t: t, in: cw, srv: srv, host: h, replies: map[string]chan *message{}, notes: make(chan *message, 1000), done: make(chan error, 1)}
+	go func() {
+		c.done <- srv.Serve(context.Background(), struct {
+			io.Reader
+			io.Writer
+		}{sr, sw})
+		sw.Close()
+	}()
 	go func() {
 		rd := bufio.NewReader(cr)
 		for {
@@ -125,9 +152,9 @@ func (c *client) diagnostics(uri string, ok func([]Diagnostic) bool) []Diagnosti
 	}
 }
 
-func (c *client) initialize(folder string) {
+func (c *client) initialize() {
 	c.t.Helper()
-	params := map[string]any{"rootUri": pathToURI(folder), "capabilities": map[string]any{}}
+	params := map[string]any{"rootUri": "file:///work", "capabilities": map[string]any{}}
 	c.call("initialize", params)
 	c.notify("initialized", map[string]any{})
 }
@@ -161,23 +188,10 @@ const fleet = `package Fleet {
 }
 `
 
-func workspace(t *testing.T, files map[string]string) string {
-	t.Helper()
-	dir := t.TempDir()
-	for name, text := range files {
-		p := filepath.Join(dir, name)
-		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return dir
-}
-
 func TestDiagnosticsFollowTheText(t *testing.T) {
-	dir := workspace(t, nil)
 	c := start(t)
-	c.initialize(dir)
-	uri := pathToURI(filepath.Join(dir, "fleet.sysml"))
+	c.initialize()
+	uri := "file:///work/" + "fleet.sysml"
 
 	c.open(uri, strings.Replace(fleet, "part rig : Truck;", "part rig : Trck;", 1))
 	d := c.diagnostics(uri, some)
@@ -202,10 +216,9 @@ func TestDiagnosticsFollowTheText(t *testing.T) {
 }
 
 func TestDefinitionHoverAndReferences(t *testing.T) {
-	dir := workspace(t, nil)
 	c := start(t)
-	c.initialize(dir)
-	uri := pathToURI(filepath.Join(dir, "fleet.sysml"))
+	c.initialize()
+	uri := "file:///work/" + "fleet.sysml"
 	c.open(uri, fleet)
 	c.diagnostics(uri, none)
 
@@ -218,11 +231,12 @@ func TestDefinitionHoverAndReferences(t *testing.T) {
 
 	var lib Location
 	json.Unmarshal(c.call("textDocument/definition", at(uri, 2, 33)), &lib)
-	if !strings.HasSuffix(lib.URI, "ScalarValues.kerml") {
-		t.Errorf("definition of ScalarValues::Real: %+v", lib)
+	path, ok := LibraryPath(lib.URI)
+	if !ok || !strings.HasSuffix(path, "/ScalarValues.kerml") || !strings.HasPrefix(lib.URI, "sysml-library:///") {
+		t.Fatalf("definition of ScalarValues::Real: %+v", lib)
 	}
-	if data, err := os.ReadFile(uriToPath(lib.URI)); err != nil || !strings.Contains(string(data), "datatype Real") {
-		t.Errorf("the library file the editor is sent to: %v", err)
+	if text, ok := LibraryText(path); !ok || !strings.Contains(text, "datatype Real") {
+		t.Errorf("the library file the editor is sent to: %q", path)
 	}
 
 	var h Hover
@@ -245,10 +259,9 @@ func TestDefinitionHoverAndReferences(t *testing.T) {
 }
 
 func TestOutlineAndSymbols(t *testing.T) {
-	dir := workspace(t, nil)
 	c := start(t)
-	c.initialize(dir)
-	uri := pathToURI(filepath.Join(dir, "fleet.sysml"))
+	c.initialize()
+	uri := "file:///work/" + "fleet.sysml"
 	c.open(uri, fleet)
 	c.diagnostics(uri, none)
 
@@ -270,10 +283,9 @@ func TestOutlineAndSymbols(t *testing.T) {
 }
 
 func TestRename(t *testing.T) {
-	dir := workspace(t, nil)
 	c := start(t)
-	c.initialize(dir)
-	uri := pathToURI(filepath.Join(dir, "fleet.sysml"))
+	c.initialize()
+	uri := "file:///work/" + "fleet.sysml"
 	c.open(uri, fleet)
 	c.diagnostics(uri, none)
 
@@ -307,10 +319,9 @@ func TestRename(t *testing.T) {
 }
 
 func TestCompletion(t *testing.T) {
-	dir := workspace(t, nil)
 	c := start(t)
-	c.initialize(dir)
-	uri := pathToURI(filepath.Join(dir, "fleet.sysml"))
+	c.initialize()
+	uri := "file:///work/" + "fleet.sysml"
 	src := "package Fleet {\n    part def Truck;\n    part rig : Tr\n    attribute w : ScalarValues::Re\n}\n"
 	c.open(uri, src)
 	c.diagnostics(uri, some)
@@ -332,13 +343,14 @@ func TestCompletion(t *testing.T) {
 	}
 }
 
-func TestOtherFilesInTheFolderAreInScope(t *testing.T) {
-	dir := workspace(t, map[string]string{
-		"lib.sysml": "package Lib { part def Engine; }",
+func TestDocumentsTheHostSetAreInScope(t *testing.T) {
+	c := startWith(t, Options{Debounce: 10 * time.Millisecond}, func(s *Session) {
+		if err := s.SetDocument("file:///imports/7.sysml", "package Lib { part def Engine; }", sysml.SysML); err != nil {
+			t.Fatal(err)
+		}
 	})
-	c := start(t)
-	c.initialize(dir)
-	uri := pathToURI(filepath.Join(dir, "use.sysml"))
+	c.initialize()
+	uri := "file:///work/use.sysml"
 	c.open(uri, "package Use { part e : Lib::Engine; part f : Lib::Moter; }")
 	d := c.diagnostics(uri, some)
 	if len(d) != 1 || !strings.Contains(d[0].Message, `"Lib::Moter"`) {
@@ -346,13 +358,115 @@ func TestOtherFilesInTheFolderAreInScope(t *testing.T) {
 	}
 	var loc Location
 	json.Unmarshal(c.call("textDocument/definition", at(uri, 0, 30)), &loc)
-	if !strings.HasSuffix(loc.URI, "lib.sysml") {
-		t.Errorf("definition into another file: %+v", loc)
+	if loc.URI != "file:///imports/7.sysml" {
+		t.Errorf("definition into the host's document: %+v", loc)
 	}
-	// editing the other file in the editor changes what resolves
-	libURI := pathToURI(filepath.Join(dir, "lib.sysml"))
+	// the host replaces the document, and what resolves changes
+	c.srv.SetDocument("file:///imports/7.sysml", "package Lib { part def Engine; part def Moter; }", sysml.SysML)
+	c.diagnostics(uri, none)
+}
+
+// The client can neither change nor close a document the host set, and a
+// rename leaves it alone.
+func TestDocumentsTheHostSetAreReadOnly(t *testing.T) {
+	c := startWith(t, Options{Debounce: 10 * time.Millisecond}, func(s *Session) {
+		s.SetDocument("file:///imports/1.sysml", "package Lib { part def Engine; }", sysml.SysML)
+	})
+	c.initialize()
+	lib := "file:///imports/1.sysml"
+	c.open(lib, "package Other { }")
+	c.change(lib, 2, "package Broken {")
+	c.notify("textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": lib}})
+	uri := "file:///work/use.sysml"
+	c.open(uri, "package Use { part e : Lib::Engine; }")
+	c.diagnostics(uri, none)
+	var loc Location
+	json.Unmarshal(c.call("textDocument/definition", at(uri, 0, 30)), &loc)
+	if loc.URI != lib || loc.Range.Start.Line != 0 {
+		t.Errorf("the host's document should stand: %+v", loc)
+	}
+	args := at(uri, 0, 30)
+	args["newName"] = "Motor"
+	c.nextID++
+	id := c.nextID
+	ch := make(chan *message, 1)
+	c.mu.Lock()
+	c.replies[fmt.Sprint(id)] = ch
+	c.mu.Unlock()
+	c.send(map[string]any{"id": id, "method": "textDocument/rename", "params": args})
+	if m := <-ch; m.Error == nil || !strings.Contains(m.Error.Message, "cannot be changed") {
+		t.Errorf("renaming what the host owns: %+v", m)
+	}
+}
+
+func TestLimits(t *testing.T) {
+	h := NewHost(Options{MaxDocuments: 2, MaxBytes: 100})
+	s, err := h.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.SetDocument("file:///a.sysml", "package A;", sysml.SysML); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDocument("file:///b.sysml", "package B;", sysml.SysML); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDocument("file:///c.sysml", "package C;", sysml.SysML); err != ErrTooManyDocuments {
+		t.Errorf("a third document: %v", err)
+	}
+	if err := s.SetDocument("file:///a.sysml", strings.Repeat("x", 200), sysml.SysML); err != ErrTooMuchText {
+		t.Errorf("too much text: %v", err)
+	}
+	if err := s.SetDocument("file:///a.sysml", "package A2;", sysml.SysML); err != nil {
+		t.Errorf("replacing a document: %v", err)
+	}
+	if st := s.Stats(); st.Documents != 2 || st.Bytes != int64(len("package A2;")+len("package B;")) {
+		t.Errorf("stats: %+v", st)
+	}
+	s.RemoveDocument("file:///b.sysml")
+	if st := h.Stats(); st.Sessions != 1 || st.Documents != 1 {
+		t.Errorf("host stats: %+v", st)
+	}
+}
+
+// Files lets a program that wants it, as the command line tool does, put the
+// files of the client's folders in scope.
+type memFiles map[string]string
+
+func (m memFiles) List(_ context.Context, folders []string) []File {
+	var out []File
+	for k, v := range m {
+		out = append(out, File{k, v})
+	}
+	return out
+}
+
+func (m memFiles) Read(_ context.Context, uri string) (string, bool) { v, ok := m[uri]; return v, ok }
+
+func TestFilesOfTheFoldersAreInScopeWhenTheHostAsks(t *testing.T) {
+	files := memFiles{"file:///work/lib.sysml": "package Lib { part def Engine; }"}
+	c := startWith(t, Options{Debounce: 10 * time.Millisecond, Files: files}, nil)
+	c.initialize()
+	uri := "file:///work/use.sysml"
+	c.open(uri, "package Use { part e : Lib::Engine; part f : Lib::Moter; }")
+	if d := c.diagnostics(uri, some); len(d) != 1 {
+		t.Fatalf("diagnostics: %+v", d)
+	}
+	// editing the file in the editor changes what resolves; closing it goes back to the file
+	libURI := "file:///work/lib.sysml"
 	c.open(libURI, "package Lib { part def Engine; part def Moter; }")
 	c.diagnostics(uri, none)
+	c.notify("textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": libURI}})
+	c.diagnostics(uri, some)
+}
+
+func TestTheServerKnowsNoFilesUnlessTheHostAsks(t *testing.T) {
+	c := startWith(t, Options{Debounce: 10 * time.Millisecond}, nil)
+	c.call("initialize", map[string]any{"rootUri": "file:///", "workspaceFolders": []map[string]any{{"uri": "file:///"}}, "capabilities": map[string]any{}})
+	if st := c.srv.Stats(); st.Documents != 0 {
+		t.Errorf("documents after initialize: %+v", st)
+	}
 }
 
 func TestPositionsCountUTF16Units(t *testing.T) {
@@ -370,9 +484,8 @@ func TestPositionsCountUTF16Units(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
-	dir := workspace(t, nil)
 	c := start(t)
-	c.initialize(dir)
+	c.initialize()
 	c.call("shutdown", nil)
 	c.notify("exit", nil)
 	select {

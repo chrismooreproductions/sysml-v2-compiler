@@ -58,6 +58,16 @@ func Sources() (map[string]string, error) {
 	return out, err
 }
 
+// Source returns the text of one library file by path, and whether there is
+// such a file.
+func Source(p string) (string, bool) {
+	data, err := sources.ReadFile("sysml.library/" + p)
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
+}
+
 func load() ([]File, error) {
 	srcs, err := Sources()
 	if err != nil {

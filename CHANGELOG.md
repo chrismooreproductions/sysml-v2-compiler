@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The language server is now a public package, `lsp`, to host many sessions in
+  one Go program: `lsp.NewHost(Options)` for the limits, a bound on concurrent
+  work, hooks and `Stats`; `Host.NewSession`, `Serve` (framed stream) and
+  `ServeMessages` (one JSON-RPC message per call, for WebSocket frames or
+  postMessage). `Session.SetDocument` and `RemoveDocument` give the session
+  documents the client can use but not change, with the URIs the host chose in
+  go to definition results; the package reads no files, ignores the client's
+  root and workspace folders and writes no cache directory. Go to definition
+  into the standard library answers `sysml-library:///<path>` (`LibraryURI`,
+  `LibraryPath`, `LibraryText`). A newer edit abandons the resolution it made
+  obsolete and `$/cancelRequest` ends a request; a panic in a session is
+  recovered, and closing a session releases its workspace. `sysmlc lsp` is
+  unchanged for the user and uses the package, with the disk and cache
+  directory supplied by the command.
 - `Workspace.ResolveContext` and `ValidateContext` give up when their context is
   done and return its error, so a host can abandon a resolve that a newer edit
   has made obsolete. `ReplaceAs` and `AddRecoveringAs` take the language

@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chrismooreproductions/sysml-v2-compiler/lsp"
 )
 
 // invoke runs the command with the given arguments and returns its exit status
@@ -250,7 +253,7 @@ func TestLSPServesOverTCP(t *testing.T) {
 		t.Skip("no loopback:", err)
 	}
 	done := make(chan int, 1)
-	go func() { done <- serveTCP(l, func(string, ...any) {}) }()
+	go func() { done <- serveTCP(context.Background(), l, lsp.NewHost(lspOptions()), io.Discard) }()
 	conn, err := net.Dial("tcp", l.Addr().String())
 	if err != nil {
 		t.Fatal(err)

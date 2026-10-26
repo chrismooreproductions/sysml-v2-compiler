@@ -3,26 +3,23 @@
 package lsp
 
 import (
-	"net/url"
-	"path/filepath"
-	"runtime"
 	"sort"
-	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/chrismooreproductions/sysml-v2-compiler/sysml"
 )
 
-// document is a file the server knows: open in the editor, or found on disk.
+// document is the text of a file as it was last parsed, with what is known
+// about it.
 type document struct {
-	uri     string
-	path    string
-	text    string
-	version int
-	open    bool
-	errs    []*sysml.SyntaxError // from the last time it was parsed
-	starts  []int                // byte offset of each line, computed on demand
+	key      string // what the workspace calls it
+	uri      string // as the host or the client wrote it
+	text     string
+	gen      uint64 // the generation of the text that was parsed
+	readOnly bool   // the host set it: the client may not change it
+	errs     []*sysml.SyntaxError
+	starts   []int // byte offset of each line, computed on demand
 }
 
 func (d *document) lineStarts() []int {
@@ -111,26 +108,4 @@ func (d *document) wordBefore(offset int) string {
 		break
 	}
 	return d.text[i:offset]
-}
-
-// uriToPath turns a file URI into a file system path.
-func uriToPath(uri string) string {
-	u, err := url.Parse(uri)
-	if err != nil || u.Scheme != "file" {
-		return uri
-	}
-	p := u.Path
-	if runtime.GOOS == "windows" && len(p) > 2 && p[0] == '/' && p[2] == ':' {
-		p = p[1:]
-	}
-	return filepath.FromSlash(p)
-}
-
-// pathToURI turns a file system path into a file URI.
-func pathToURI(path string) string {
-	p := filepath.ToSlash(path)
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
-	}
-	return (&url.URL{Scheme: "file", Path: p}).String()
 }

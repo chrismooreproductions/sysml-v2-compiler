@@ -105,6 +105,29 @@ Point any LSP client at it with the command `sysmlc lsp` for the file types
 socket, such as a web editor through a proxy, run `sysmlc lsp -listen 127.0.0.1:2087`:
 each connection gets a server of its own.
 
+### Embedding the server
+
+To host language servers inside a Go program, such as a web service with a
+session for each browser tab, use the `lsp` package instead of the process. A
+`lsp.Host` holds what sessions share: the model of the standard library is built
+once, so a session costs only its own documents, and a bound on how many
+sessions compute at once. A `Session` serves one client, over a framed stream
+(`Serve`) or whole messages such as WebSocket frames (`ServeMessages`):
+
+```go
+host := lsp.NewHost(lsp.Options{MaxDocuments: 200, MaxBytes: 8 << 20})
+session, _ := host.NewSession()
+session.SetDocument("file:///imports/1.sysml", text, sysml.SysML) // read-only for the client
+err := session.ServeMessages(ctx, conn)
+```
+
+The package reads no files and ignores the client's root and workspace folders;
+the program supplies other documents with `SetDocument`. A request is cancelled
+by `$/cancelRequest` or its context, and an edit abandons a resolution it has
+made obsolete. Limits, hooks, `Stats`, panic isolation and the library's
+`sysml-library:///` addresses are described in the package documentation. It
+builds for `GOOS=js GOARCH=wasm`.
+
 ## What is and is not covered
 
 - **Syntax:** all of SysML v2 and KerML, including expressions. All 404 models
