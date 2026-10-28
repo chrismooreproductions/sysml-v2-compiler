@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.6] - 2026-10-28
+
 ### Added
 
 - The evaluator evaluates a feature chain (`ac.navigation.positionErrorM`): the
