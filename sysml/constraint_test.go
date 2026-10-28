@@ -160,3 +160,52 @@ func TestEvalInvocationOfAModelsOwnCalculation(t *testing.T) {
 		}
 	}
 }
+
+// A requirement whose attribute is bound to a value held on nested parts
+// (ac.navigation.positionErrorM) is evaluated through the chain.
+func TestEvalRequirementThroughAFeatureChain(t *testing.T) {
+	w, _, diags := checked(t, "chain.sysml", []byte(`package T {
+    private import ScalarValues::*;
+    part def Nav { attribute positionErrorM : Real = 5.0; }
+    part def Eng { attribute thrust : Real = 3.0; }
+    part def Ac  { part navigation : Nav; part engines : Eng [2]; part spares : Eng [0..*]; }
+    part ac : Ac;
+    part ac7 : Ac { part :>> navigation { attribute :>> positionErrorM = 7.0; } }
+
+    requirement def R;
+    requirement positionAccuracy : R {
+        attribute positionErrorM : Real = ac.navigation.positionErrorM;
+        require constraint { positionErrorM <= 10.0 }
+    }
+    requirement redefined : R {
+        attribute e : Real = ac7.navigation.positionErrorM;
+        require constraint { e == 7.0 }
+    }
+    requirement sequence : R {
+        attribute t : Real = ac.engines.thrust;
+        require constraint { t <= 6.0 }
+    }
+    requirement unbounded : R {
+        attribute t : Real = ac.spares.thrust;
+        require constraint { t <= 6.0 }
+    }
+    satisfy positionAccuracy by ac;
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	for name, want := range map[string]string{
+		"T::positionAccuracy": "require true",
+		"T::redefined":        "require true",
+		"T::sequence":         "require not evaluable: engines has a multiplicity that allows 2 values, so ac.engines is a sequence of values, not one",
+		"T::unbounded":        "require not evaluable: spares has an unbounded multiplicity, so ac.spares is a sequence of values, not one",
+	} {
+		outs := w.EvalRequirement(w.Lookup(name))
+		if len(outs) != 1 {
+			t.Fatalf("%s: %d outcomes", name, len(outs))
+		}
+		if got := outs[0].Kind + " " + outs[0].Result.String(); got != want {
+			t.Errorf("%s:\n got %q\nwant %q", name, got, want)
+		}
+	}
+}

@@ -115,6 +115,8 @@ func (ev *evaluator) eval(e *el) ([]Value, error) {
 		return []Value{math.Inf(1)}, nil
 	case e.IsA("NullExpression"):
 		return nil, nil
+	case e.IsA("FeatureChainExpression"): // a kind of reference expression, so first
+		return ev.chain(e)
 	case e.IsA("FeatureReferenceExpression"):
 		return ev.reference(e)
 	case e.IsA("IndexExpression"):
@@ -239,6 +241,144 @@ func (ev *evaluator) reference(e *el) ([]Value, error) {
 		return ev.featureValue(r, e)
 	}
 	return nil, ev.fail(e, "a reference to nothing")
+}
+
+// chain evaluates a feature chain (ac.navigation.positionErrorM): the value of
+// its last feature, as the features along the way make it, when each link
+// before the last has a single value. A link that redefines a feature of the
+// one before it (part ac : Ac { part :>> navigation { :>> x = 7; } }) gives
+// its value in place of the declared one.
+func (ev *evaluator) chain(e *el) ([]Value, error) {
+	links, err := ev.chainLinks(e)
+	if err != nil {
+		return nil, err
+	}
+	cur := links[0]
+	for i, l := range links[1:] {
+		if many, why := ev.manyValued(cur); many {
+			return nil, ev.fail(e, "%s has %s, so %s is a sequence of values, not one", ev.w.EffectiveName(cur), why, ev.chainText(links[:i+1]))
+		}
+		cur = ev.effective(cur, l)
+	}
+	return ev.featureValue(cur, e)
+}
+
+// chainLinks are the features a chain names, from the first.
+func (ev *evaluator) chainLinks(e *el) ([]*el, error) {
+	w := ev.w
+	switch {
+	case e.IsA("FeatureChainExpression"):
+		src := w.firstArgument(e)
+		if src == nil {
+			return nil, ev.fail(e, "a feature chain without a source")
+		}
+		links, err := ev.chainLinks(src)
+		if err != nil {
+			return nil, err
+		}
+		// the target is a plain member (a.b), or a feature that chains the
+		// rest (a.b.c chains b and c)
+		if t := w.chainTarget(e); t != nil && t.IsA("Feature") {
+			return append(links, t), nil
+		}
+		for _, m := range w.rels(e, "OwningMembership") {
+			if m.Class != "OwningMembership" { // not the parameters
+				continue
+			}
+			if chained := first(w.ownedRelated(m)); chained.IsA("Feature") {
+				for _, c := range w.rels(chained, "FeatureChaining") {
+					f := w.refTarget(c, "chainingFeature")
+					if f == nil {
+						return nil, ev.fail(e, "a feature chain that does not resolve")
+					}
+					links = append(links, f)
+				}
+				return links, nil
+			}
+		}
+		return nil, ev.fail(e, "a feature chain that does not resolve")
+	case e.IsA("FeatureReferenceExpression"):
+		if t := w.chainTarget(e); t != nil && t.IsA("Feature") {
+			return []*el{t}, nil
+		}
+	default:
+		return nil, ev.fail(e, "cannot evaluate a feature chain from a %s", e.Class)
+	}
+	return nil, ev.fail(e, "a reference to nothing")
+}
+
+func (ev *evaluator) chainText(links []*el) string {
+	var names []string
+	for _, l := range links {
+		names = append(names, ev.w.EffectiveName(l))
+	}
+	return strings.Join(names, ".")
+}
+
+// effective is the feature of cur that stands for l: l itself, or the most
+// specific feature of cur that redefines it.
+func (ev *evaluator) effective(cur, l *el) *el {
+	w := ev.w
+	var matches []*el
+	for _, x := range w.features(cur) {
+		if x == l || w.allRedefinedWithComputed(x)[l] {
+			matches = append(matches, x)
+		}
+	}
+	for _, x := range matches {
+		redefined := false
+		for _, y := range matches {
+			if y != x && w.allRedefinedWithComputed(y)[x] {
+				redefined = true
+			}
+		}
+		if !redefined {
+			return x
+		}
+	}
+	return l
+}
+
+// manyValued says whether a feature, or one it redefines, writes a multiplicity
+// that allows more than one value, and what it is.
+func (ev *evaluator) manyValued(f *el) (bool, string) {
+	w := ev.w
+	for _, g := range append([]*el{f}, keys(w.allRedefinedWithComputed(f))...) {
+		for _, m := range w.rels(g, "OwningMembership") {
+			for _, r := range w.ownedRelated(m) {
+				if !r.IsA("MultiplicityRange") || r.Generated {
+					continue
+				}
+				var bounds []*el
+				for _, bm := range w.rels(r, "Membership") {
+					bounds = append(bounds, w.ownedRelated(bm)...)
+				}
+				if len(bounds) == 0 {
+					continue
+				}
+				upper := bounds[len(bounds)-1]
+				if upper.IsA("LiteralInfinity") {
+					return true, "an unbounded multiplicity"
+				}
+				vs, err := ev.eval(upper)
+				if err != nil || len(vs) != 1 {
+					continue
+				}
+				if n, ok := vs[0].(int64); ok && n > 1 {
+					return true, "a multiplicity that allows " + strconv.FormatInt(n, 10) + " values"
+				}
+			}
+		}
+	}
+	return false, ""
+}
+
+func keys(m map[*el]bool) []*el {
+	var out []*el
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 // featureValue is the value a feature is bound to, taken from the feature or,

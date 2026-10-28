@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The evaluator evaluates a feature chain (`ac.navigation.positionErrorM`): the
+  value of its last feature, taken from the feature a part usage redefines it
+  with when it does (`part ac : Ac { part :>> navigation { :>> x = 7.0; } }`),
+  so a requirement constraint over values held on nested parts is no longer
+  "not evaluable". A chain through a feature whose multiplicity allows more than
+  one value says so (`engines has a multiplicity that allows 2 values, so
+  ac.engines is a sequence of values, not one`).
+
 ## [0.20.5] - 2026-10-26
 
 ### Fixed
