@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.7] - 2026-10-28
+
 ### Added
 
 - `size(x)` evaluates to the number of values of `x`, and for a feature with no
