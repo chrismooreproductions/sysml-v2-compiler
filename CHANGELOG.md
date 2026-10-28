@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `size(x)` evaluates to the number of values of `x`, and for a feature with no
+  values to the multiplicity the model writes for it when that is one number:
+  `engines : Engine[2]` gives `size(ac.engines)` as 2. A range or `*` stays
+  "not determined", and the reason names the multiplicity (`tanks has the
+  multiplicity 1..3, so its number of values is not one number`). `size` of
+  values no longer fails with "cannot evaluate a call of ControlFunctions::collect:
+  it has no body".
+
 ## [0.20.6] - 2026-10-28
 
 ### Added

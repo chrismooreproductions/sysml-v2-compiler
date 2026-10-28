@@ -247,3 +247,50 @@ func TestEvalASatisfyBindsTheSubject(t *testing.T) {
 		t.Errorf("the requirement alone: %+v", outs)
 	}
 }
+
+// size of a feature that has no values is its multiplicity, when that is one
+// number: engines : Engine[2] says the aircraft has two. A range has no single
+// answer and says so. size of values counts them.
+func TestEvalSizeOfAMultiplicity(t *testing.T) {
+	w, doc, diags := checked(t, "size.sysml", []byte(`package T {
+    private import SequenceFunctions::*;
+    part def Eng;
+    part def Tank;
+    part def Ac { part engines : Eng [2]; part tanks : Tank [1..3]; part many : Tank [*]; }
+    part ac : Ac;
+    requirement atLeastTwo { require constraint { size(ac.engines) >= 2 } }
+    requirement three { require constraint { size(ac.engines) == 3 } }
+    requirement range { require constraint { size(ac.tanks) >= 2 } }
+    requirement unbounded { require constraint { size(ac.many) >= 2 } }
+    attribute vals = (1, 2, 3);
+    attribute n = size(vals);
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	for name, want := range map[string]string{
+		"T::atLeastTwo": "require true",
+		"T::three":      "require false",
+		"T::range":      "require not determined: tanks has the multiplicity 1..3, so its number of values is not one number",
+		"T::unbounded":  "require not determined: many has the multiplicity 0..*, so its number of values is not one number",
+	} {
+		outs := w.EvalRequirement(w.Lookup(name))
+		if len(outs) != 1 {
+			t.Fatalf("%s: %d outcomes", name, len(outs))
+		}
+		if got := outs[0].Kind + " " + outs[0].Result.String(); got != want {
+			t.Errorf("%s:\n got %q\nwant %q", name, got, want)
+		}
+	}
+	doc.Root.Walk(func(e *Element) {
+		if e.Text("declaredName") == "n" && e.IsA("AttributeUsage") {
+			for _, r := range e.Children("ownedRelationship") {
+				for _, x := range r.Children("ownedRelatedElement") {
+					if got := w.Eval(x); got.Status != Determined || got.Value != int64(3) {
+						t.Errorf("size of three values: %+v", got)
+					}
+				}
+			}
+		}
+	})
+}

@@ -138,6 +138,9 @@ func (ev *evaluator) eval(e *el) ([]Value, error) {
 		}
 		return []Value{seq[i-1]}, nil
 	case e.IsA("InvocationExpression") && !e.IsA("OperatorExpression"):
+		if vs, ok, err := ev.sizeOfStructure(e); ok {
+			return vs, err
+		}
 		return ev.invoke(e)
 	case e.IsA("OperatorExpression") && !e.IsA("FeatureChainExpression") && !e.IsA("SelectExpression") && !e.IsA("CollectExpression"):
 		return ev.operator(e, w.operatorOf(e))
@@ -249,6 +252,16 @@ func (ev *evaluator) reference(e *el) ([]Value, error) {
 // one before it (part ac : Ac { part :>> navigation { :>> x = 7; } }) gives
 // its value in place of the declared one.
 func (ev *evaluator) chain(e *el) ([]Value, error) {
+	cur, err := ev.chainFeature(e)
+	if err != nil {
+		return nil, err
+	}
+	return ev.featureValue(cur, e)
+}
+
+// chainFeature is the feature a chain ends at, as the features along the way
+// make it, when each link before the last has a single value.
+func (ev *evaluator) chainFeature(e *el) (*el, error) {
 	links, err := ev.chainLinks(e)
 	if err != nil {
 		return nil, err
@@ -261,7 +274,55 @@ func (ev *evaluator) chain(e *el) ([]Value, error) {
 		}
 		cur = ev.effective(cur, l)
 	}
-	return ev.featureValue(cur, e)
+	return cur, nil
+}
+
+// sizeOfStructure answers size(...): the number of values of its argument, or
+// for a feature that has no value (size(ac.engines)), from
+// the multiplicity the model writes for it: engines : Engine[2] says the
+// aircraft has two engines. A range has no single answer, so it stays
+// undetermined, and says so.
+func (ev *evaluator) sizeOfStructure(e *el) (vs []Value, ok bool, err error) {
+	w := ev.w
+	var fn *el
+	for _, m := range w.rels(e, "Membership") {
+		if !m.IsA("ParameterMembership") {
+			fn = w.memberElement(m)
+			break
+		}
+	}
+	if fn == nil || QualifiedName(fn) != "SequenceFunctions::size" {
+		return nil, false, nil
+	}
+	arg := w.firstArgument(e)
+	if arg == nil {
+		return nil, false, nil
+	}
+	// the number of values, which the model's own function reaches only through
+	// collect, a function with no body here
+	vs, aerr := ev.eval(arg)
+	if aerr == nil {
+		return []Value{int64(len(vs))}, true, nil
+	}
+	if !unbound(aerr) || !(arg.IsA("FeatureReferenceExpression") || arg.IsA("FeatureChainExpression")) {
+		return nil, false, nil // it fails for another reason: the call reports it
+	}
+	f, cerr := ev.chainFeature(arg)
+	if cerr != nil {
+		return nil, false, nil
+	}
+	lo, hi, written := ev.bounds(f)
+	switch {
+	case !written:
+		return nil, false, nil
+	case lo == hi:
+		return []Value{int64(lo)}, true, nil
+	}
+	upper := strconv.Itoa(hi)
+	if hi < 0 {
+		upper = "*"
+	}
+	return nil, true, &EvalError{Element: e, Msg: fmt.Sprintf("%s has the multiplicity %d..%s, so its number of values is not one number", ev.w.EffectiveName(f), lo, upper), Unbound: true}
 }
 
 // fromContext replaces the first feature of a chain by the feature the context
@@ -366,6 +427,22 @@ func (ev *evaluator) effective(cur, l *el) *el {
 // manyValued says whether a feature, or one it redefines, writes a multiplicity
 // that allows more than one value, and what it is.
 func (ev *evaluator) manyValued(f *el) (bool, string) {
+	_, hi, ok := ev.bounds(f)
+	switch {
+	case !ok:
+		return false, ""
+	case hi < 0:
+		return true, "an unbounded multiplicity"
+	case hi > 1:
+		return true, "a multiplicity that allows " + strconv.Itoa(hi) + " values"
+	}
+	return false, ""
+}
+
+// bounds are the lower and upper bounds of the multiplicity a feature, or the
+// first feature it redefines, writes; an upper bound of -1 is *. ok is false if
+// none is written or a bound is not a number.
+func (ev *evaluator) bounds(f *el) (lo, hi int, ok bool) {
 	w := ev.w
 	for _, g := range append([]*el{f}, keys(w.allRedefinedWithComputed(f))...) {
 		for _, m := range w.rels(g, "OwningMembership") {
@@ -373,28 +450,42 @@ func (ev *evaluator) manyValued(f *el) (bool, string) {
 				if !r.IsA("MultiplicityRange") || r.Generated {
 					continue
 				}
-				var bounds []*el
+				var bs []*el
 				for _, bm := range w.rels(r, "Membership") {
-					bounds = append(bounds, w.ownedRelated(bm)...)
+					bs = append(bs, w.ownedRelated(bm)...)
 				}
-				if len(bounds) == 0 {
-					continue
+				num := func(x *el) (int, bool) {
+					if x.IsA("LiteralInfinity") {
+						return -1, true
+					}
+					vs, err := ev.eval(x)
+					if err != nil || len(vs) != 1 {
+						return 0, false
+					}
+					n, isInt := vs[0].(int64)
+					return int(n), isInt
 				}
-				upper := bounds[len(bounds)-1]
-				if upper.IsA("LiteralInfinity") {
-					return true, "an unbounded multiplicity"
-				}
-				vs, err := ev.eval(upper)
-				if err != nil || len(vs) != 1 {
-					continue
-				}
-				if n, ok := vs[0].(int64); ok && n > 1 {
-					return true, "a multiplicity that allows " + strconv.FormatInt(n, 10) + " values"
+				switch len(bs) {
+				case 1: // [n] is n..n, and [*] is 0..*
+					n, good := num(bs[0])
+					if !good {
+						continue
+					}
+					if n < 0 {
+						return 0, -1, true
+					}
+					return n, n, true
+				case 2:
+					l, good1 := num(bs[0])
+					h, good2 := num(bs[1])
+					if good1 && good2 {
+						return l, h, true
+					}
 				}
 			}
 		}
 	}
-	return false, ""
+	return 0, 0, false
 }
 
 func keys(m map[*el]bool) []*el {
