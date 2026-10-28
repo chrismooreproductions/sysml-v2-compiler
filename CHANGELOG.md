@@ -14,7 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so a requirement constraint over values held on nested parts is no longer
   "not evaluable". A chain through a feature whose multiplicity allows more than
   one value says so (`engines has a multiplicity that allows 2 values, so
-  ac.engines is a sequence of values, not one`).
+  ac.engines is a sequence of values, not one`). A requirement's subject in a
+  chain (`subject s : Ac; ... s.x`) is the usage a `satisfy` names, so the
+  satisfy's constraints see `ac.x`.
 
 ## [0.20.5] - 2026-10-26
 

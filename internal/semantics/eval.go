@@ -253,6 +253,7 @@ func (ev *evaluator) chain(e *el) ([]Value, error) {
 	if err != nil {
 		return nil, err
 	}
+	links = ev.fromContext(links)
 	cur := links[0]
 	for i, l := range links[1:] {
 		if many, why := ev.manyValued(cur); many {
@@ -261,6 +262,29 @@ func (ev *evaluator) chain(e *el) ([]Value, error) {
 		cur = ev.effective(cur, l)
 	}
 	return ev.featureValue(cur, e)
+}
+
+// fromContext replaces the first feature of a chain by the feature the context
+// binds it to: a requirement's subject (subject s : Ac; s.x) is the usage a
+// satisfy names (satisfy r by ac), so s.x is ac.x.
+func (ev *evaluator) fromContext(links []*el) []*el {
+	if ev.context == nil {
+		return links
+	}
+	w := ev.w
+	for _, g := range w.Features(ev.context) {
+		if g == links[0] || !w.allRedefinedWithComputed(g)[links[0]] {
+			continue
+		}
+		for _, fv := range w.rels(g, "FeatureValue") {
+			if x := first(w.ownedRelated(fv)); x != nil {
+				if bound, err := ev.chainLinks(x); err == nil {
+					return append(bound, links[1:]...)
+				}
+			}
+		}
+	}
+	return links
 }
 
 // chainLinks are the features a chain names, from the first.

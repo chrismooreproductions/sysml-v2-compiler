@@ -209,3 +209,41 @@ func TestEvalRequirementThroughAFeatureChain(t *testing.T) {
 		}
 	}
 }
+
+// A satisfy gives a requirement its subject, and the attributes it redefines,
+// for the constraints of the satisfy itself: s.x is ac.x, and a value redefined
+// in the satisfy is seen. The requirement alone has neither.
+func TestEvalASatisfyBindsTheSubject(t *testing.T) {
+	w, doc, diags := checked(t, "s.sysml", []byte(`package T {
+    private import ScalarValues::*;
+    part def Ac  { attribute x : Real; }
+    part ac : Ac { attribute :>> x = 4.0; }
+    requirement def R { attribute x : Real; require constraint { x <= 10.0 } }
+    requirement viaSatisfy : R;
+    satisfy viaSatisfy by ac { attribute :>> x = ac.x; }
+    requirement bySubject : R { subject s : Ac; attribute :>> x = s.x; }
+    satisfy bySubject by ac;
+}`))
+	if len(diags) != 0 {
+		t.Fatal(diags)
+	}
+	var satisfies []*Element
+	doc.Root.Walk(func(e *Element) {
+		if e.IsA("SatisfyRequirementUsage") {
+			satisfies = append(satisfies, e)
+		}
+	})
+	if len(satisfies) != 2 {
+		t.Fatalf("%d satisfy usages", len(satisfies))
+	}
+	for i, s := range satisfies {
+		outs := w.EvalRequirement(s)
+		if len(outs) != 1 || outs[0].Result.String() != "true" {
+			t.Errorf("satisfy %d: %+v", i, outs)
+		}
+	}
+	// the requirement on its own has no subject to take the value from
+	if outs := w.EvalRequirement(w.Lookup("T::bySubject")); len(outs) != 1 || outs[0].Result.Status == Determined {
+		t.Errorf("the requirement alone: %+v", outs)
+	}
+}
